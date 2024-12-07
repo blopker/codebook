@@ -1,7 +1,20 @@
 mod queries;
+use lazy_static::lazy_static;
 use queries::{get_query, LanguageQuery};
 use std::collections::{HashMap, HashSet};
+use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
+
+lazy_static! {
+    static ref EXTRA_WORDS: HashSet<String> = {
+        let mut set = HashSet::new();
+        set.insert("http".to_string());
+        set.insert("https".to_string());
+        set.insert("www".to_string());
+        set.insert("viewport".to_string());
+        set
+    };
+}
 
 #[derive(Debug, Clone)]
 pub struct SpellCheckResult {
@@ -94,6 +107,10 @@ impl WordProcessor {
     fn should_skip_word(&self, word: &str) -> bool {
         let word_lower = word.to_lowercase();
 
+        if EXTRA_WORDS.contains(word_lower.as_str()) {
+            return true;
+        }
+
         if word.contains("://") || word.starts_with("www.") {
             return true; // Skip URLs
         }
@@ -181,9 +198,10 @@ impl WordProcessor {
         let mut cursor = QueryCursor::new();
         let mut words_to_check = HashSet::new();
         let mut word_locations = HashMap::new();
-        let matches = cursor.matches(&query, root_node, text.as_bytes());
+        let mut matches_query = cursor.matches(&query, root_node, text.as_bytes());
+
         // Process matches
-        for match_ in matches {
+        while let Some(match_) = matches_query.next() {
             for capture in match_.captures {
                 let node = capture.node;
                 let node_text = node.utf8_text(text.as_bytes()).unwrap();
@@ -399,7 +417,7 @@ mod tests {
     #[test]
     fn test_example_files() {
         let files = [
-            ("example.html", vec!["sor", "spelin", "viewport", "wolrd"]),
+            ("example.html", vec!["sor", "spelin", "wolrd"]),
             ("example.py", vec!["pthon", "wolrd"]),
             ("example.md", vec!["bvd", "splellin", "wolrd"]),
             ("example.txt", vec!["bd", "splellin"]),

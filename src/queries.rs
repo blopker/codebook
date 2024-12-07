@@ -112,10 +112,10 @@ pub struct LanguageQuery {
 
 fn language_from_name(name: &str) -> Option<Language> {
     match name {
-        "rust" => Some(tree_sitter_rust::language()),
-        "python" => Some(tree_sitter_python::language()),
-        "javascript" => Some(tree_sitter_javascript::language()),
-        "html" => Some(tree_sitter_html::language()),
+        "rust" => Some(tree_sitter_rust::LANGUAGE.into()),
+        "python" => Some(tree_sitter_python::LANGUAGE.into()),
+        "javascript" => Some(tree_sitter_javascript::LANGUAGE.into()),
+        "html" => Some(tree_sitter_html::LANGUAGE.into()),
         _ => None,
     }
 }
