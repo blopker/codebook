@@ -1,44 +1,7 @@
-use lazy_static::lazy_static;
-use regex::Regex;
+mod queries;
+use queries::{get_query, LanguageQuery};
 use std::collections::{HashMap, HashSet};
-use tree_sitter::{Language, Parser, Query, QueryCursor};
-
-lazy_static! {
-    static ref WORD_BOUNDARY_RE: Regex = Regex::new(r"[A-Z]?[a-z]+|[A-Z]+(?:[A-Z][a-z]+)*|\d+").unwrap();
-
-    // Expanded programming terms
-    static ref PROGRAMMING_TERMS: HashSet<&'static str> = {
-        let mut terms = HashSet::new();
-        // Basic types and concepts
-        terms.extend(&["str", "int", "bool", "dict", "list", "func", "var", "const",
-                      "enum", "impl", "struct", "len", "repr", "vec", "ref", "mut",
-                      "async", "await", "static", "self", "super", "trait"]);
-        // Common abbreviations
-        terms.extend(&["arg", "args", "param", "params", "func", "ptr", "impl", "iter",
-                      "prev", "curr", "num", "calc", "tmp", "temp", "init", "dest", "src"]);
-        // Web/Network terms
-        terms.extend(&["http", "https", "www", "html", "css", "js", "url", "uri", "api",
-                      "rest", "xml", "json", "sql", "dto", "tcp", "udp", "ip"]);
-        // File extensions
-        terms.extend(&["rs", "txt", "md", "yml", "toml", "json", "js", "ts", "py"]);
-        terms
-    };
-
-    static ref RUST_KEYWORDS: HashSet<&'static str> = {
-        let mut keywords = HashSet::new();
-        keywords.extend(&["fn", "let", "mut", "pub", "struct", "enum", "trait", "impl",
-                         "type", "mod", "use", "where", "for", "match", "if", "else",
-                         "loop", "while", "break", "continue", "return", "self", "Self",
-                         "super", "move", "box", "in", "extern", "crate", "unsafe"]);
-        keywords
-    };
-
-    static ref HTML_KEYWORDS: HashSet<&'static str> = {
-        let mut keywords = HashSet::new();
-        keywords.extend(&["charset", "lang", "viewport"]);
-        keywords
-    };
-}
+use tree_sitter::{Parser, Query, QueryCursor};
 
 #[derive(Debug, Clone)]
 pub struct SpellCheckResult {
@@ -79,15 +42,6 @@ impl WordProcessor {
         let mut suggestions = Vec::new();
         self.dictionary.suggest(word, &mut suggestions);
         suggestions
-    }
-
-    fn language_from_name(&self, name: &str) -> Option<Language> {
-        match name {
-            "rust" => Some(tree_sitter_rust::language()),
-            "python" => Some(tree_sitter_python::language()),
-            "javascript" => Some(tree_sitter_javascript::language()),
-            _ => None,
-        }
     }
 
     fn split_camel_case(&self, input: &str) -> Vec<String> {
@@ -187,8 +141,9 @@ impl WordProcessor {
     }
 
     pub fn spell_check(&self, text: &str, language: &str) -> Vec<SpellCheckResult> {
-        println!("{:?}", language);
-        let lang = self.language_from_name(language);
+        println!("language: {:?}", language);
+        let lang = get_query(language);
+        println!("lang: {:?}", lang);
         match lang {
             None => {
                 return self.spell_check_text(text);
@@ -212,31 +167,23 @@ impl WordProcessor {
             .collect();
     }
 
-    fn spell_check_code(&self, text: &str, language: Language) -> Vec<SpellCheckResult> {
+    fn spell_check_code(&self, text: &str, language: LanguageQuery) -> Vec<SpellCheckResult> {
         // Set up parser for the specified language
+        println!("Code check for {:?}", language);
         let mut parser = Parser::new();
-        parser.set_language(language).unwrap();
+        parser.set_language(&language.language).unwrap();
 
         let tree = parser.parse(text, None).unwrap();
         let root_node = tree.root_node();
         println!("{:?}", language);
-        let query = Query::new(
-            language,
-            r#"
-              (identifier) @identifier
-              (string_literal) @string
-              (line_comment) @comment
-              (block_comment) @comment
-              "#,
-        )
-        .unwrap();
+        let query = Query::new(&language.language, language.query).unwrap();
 
         let mut cursor = QueryCursor::new();
         let mut words_to_check = HashSet::new();
         let mut word_locations = HashMap::new();
-
+        let matches = cursor.matches(&query, root_node, text.as_bytes());
         // Process matches
-        for match_ in cursor.matches(&query, root_node, text.as_bytes()) {
+        for match_ in matches {
             for capture in match_.captures {
                 let node = capture.node;
                 let node_text = node.utf8_text(text.as_bytes()).unwrap();
@@ -330,17 +277,6 @@ impl WordProcessor {
     }
 }
 
-fn language_text_from_filename(name: &str) -> String {
-    let ext = name.split('.').last().unwrap();
-    let text = match ext {
-        "py" => "python",
-        "html" => "html",
-        "md" => "markdown",
-        _ => "text",
-    };
-    text.to_string()
-}
-
 fn main() {
     let processor = WordProcessor::new();
 
@@ -359,6 +295,16 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn language_text_from_filename(name: &str) -> String {
+        let ext = name.split('.').last().unwrap();
+        let text = match ext {
+            "py" => "python",
+            "html" => "html",
+            "md" => "markdown",
+            _ => "text",
+        };
+        text.to_string()
+    }
 
     #[test]
     fn test_camel_case_splitting() {
@@ -453,8 +399,8 @@ mod tests {
     #[test]
     fn test_example_files() {
         let files = [
+            ("example.html", vec!["sor", "spelin", "viewport", "wolrd"]),
             ("example.py", vec!["pthon", "wolrd"]),
-            ("example.html", vec!["sor", "spelin", "wolrd"]),
             ("example.md", vec!["bvd", "splellin", "wolrd"]),
             ("example.txt", vec!["bd", "splellin"]),
         ];
