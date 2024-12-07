@@ -1,6 +1,7 @@
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use tree_sitter::{Language, Parser, Query, QueryCursor};
 
 lazy_static! {
     static ref WORD_BOUNDARY_RE: Regex = Regex::new(r"[A-Z]?[a-z]+|[A-Z]+(?:[A-Z][a-z]+)*|\d+").unwrap();
@@ -52,7 +53,6 @@ pub struct TextRange {
     pub end: usize,
 }
 
-#[derive(Debug)]
 pub struct WordProcessor {
     custom_dictionary: HashSet<String>,
     dictionary: spellbook::Dictionary,
@@ -79,6 +79,15 @@ impl WordProcessor {
         let mut suggestions = Vec::new();
         self.dictionary.suggest(word, &mut suggestions);
         suggestions
+    }
+
+    fn language_from_name(&self, name: &str) -> Option<Language> {
+        match name {
+            "rust" => Some(tree_sitter_rust::language()),
+            "python" => Some(tree_sitter_python::language()),
+            "javascript" => Some(tree_sitter_javascript::language()),
+            _ => None,
+        }
     }
 
     fn split_camel_case(&self, input: &str) -> Vec<String> {
@@ -179,25 +188,116 @@ impl WordProcessor {
         words_to_check
     }
 
-    pub fn spell_check_code(&self, text: &str) -> Vec<SpellCheckResult> {
-        // First get all misspelled words
+    pub fn spell_check(&self, text: &str) -> Vec<SpellCheckResult> {
         let words = self.prepare_text_for_spell_check(text);
-        let misspelled: Vec<String> = words
+        return words
             .into_iter()
             .filter(|word| !self.dictionary.check(word))
+            .map(|word| SpellCheckResult {
+                word: word.clone(),
+                suggestions: self.get_suggestions(&word),
+                locations: self.find_word_locations(&word, text),
+            })
             .collect();
+    }
 
-        // Then find locations for each misspelled word
-        misspelled
-            .into_iter()
-            .map(|word| {
-                let suggestions = self.get_suggestions(&word);
-                let locations = self.find_word_locations(&word, text);
-                SpellCheckResult {
-                    word,
-                    suggestions,
-                    locations,
+    pub fn spell_check_code(&self, text: &str, language: &str) -> Vec<SpellCheckResult> {
+        // For non-programming languages, fall back to simple text processing
+        if language == "text" {
+            return self.spell_check(text);
+        }
+
+        // Set up parser for the specified language
+        let mut parser = Parser::new();
+        if let Some(lang) = self.language_from_name(language) {
+            parser.set_language(lang).unwrap();
+        } else {
+            return Vec::new();
+        }
+
+        let tree = parser.parse(text, None).unwrap();
+        let root_node = tree.root_node();
+
+        let query = Query::new(
+            tree_sitter_rust::language(),
+            r#"
+              (identifier) @identifier
+              (string_literal) @string
+              (line_comment) @comment
+              (block_comment) @comment
+              "#,
+        )
+        .unwrap();
+
+        let mut cursor = QueryCursor::new();
+        let mut words_to_check = HashSet::new();
+        let mut word_locations = HashMap::new();
+
+        // Process matches
+        for match_ in cursor.matches(&query, root_node, text.as_bytes()) {
+            for capture in match_.captures {
+                let node = capture.node;
+                let node_text = node.utf8_text(text.as_bytes()).unwrap();
+
+                let words_to_process = match capture.index as u32 {
+                    0 => {
+                        // identifier
+                        if !node.is_named() || node.kind().contains("keyword") {
+                            vec![]
+                        } else {
+                            // Split identifiers into parts
+                            let mut parts = Vec::new();
+                            // First split by non-alphanumeric
+                            for word in node_text.split(|c: char| !c.is_alphanumeric()) {
+                                if !word.is_empty() {
+                                    // Then split camelCase
+                                    parts.extend(self.split_camel_case(word));
+                                }
+                            }
+                            parts
+                        }
+                    }
+                    1 | 2 | 3 => {
+                        // string literal or comments
+                        // Split identifiers into parts
+                        let mut parts = Vec::new();
+                        // First split by non-alphanumeric
+                        println!("node_text: {node_text:?}");
+                        for word in node_text.split(|c: char| !c.is_alphanumeric()) {
+                            if !word.is_empty() {
+                                // Then split camelCase
+                                parts.extend(self.split_camel_case(word));
+                            }
+                        }
+                        parts
+                    }
+                    _ => continue,
+                };
+                println!("words_to_process: {words_to_process:?}");
+                for word in words_to_process {
+                    let lower_word = word.to_lowercase();
+                    if !self.should_skip_word(&lower_word) {
+                        words_to_check.insert(lower_word.clone());
+                        word_locations
+                            .entry(lower_word)
+                            .or_insert_with(Vec::new)
+                            .push(TextRange {
+                                start: node.start_byte(),
+                                end: node.end_byte(),
+                            });
+                    }
                 }
+            }
+        }
+
+        // Check spelling and collect results
+        words_to_check
+            .into_iter()
+            .filter(|word| !self.dictionary.check(word))
+            .map(|word| SpellCheckResult {
+                word: word.clone(),
+                suggestions: self.get_suggestions(&word),
+                locations: word_locations.get(&word).cloned().unwrap_or_default(),
             })
             .collect()
     }
@@ -239,7 +339,7 @@ fn main() {
         }
     "#;
 
-    let misspelled = processor.unwrap().spell_check_code(sample_text);
+    let misspelled = processor.unwrap().spell_check_code(sample_text, "rust");
     println!("Misspelled words: {:?}", misspelled);
 }
 
@@ -259,7 +359,7 @@ mod tests {
         let processor = WordProcessor::new();
 
         let text = "HelloWorld calc_wrld";
-        let misspelled = processor.unwrap().spell_check_code(text);
+        let misspelled = processor.unwrap().spell_check_code(text, "text");
         println!("{:?}", misspelled);
         assert!(misspelled.iter().any(|r| r.word == "wrld"));
     }
@@ -282,7 +382,7 @@ mod tests {
             }
         "#;
         let expected = vec!["bith", "curent"];
-        let binding = processor.spell_check_code(sample_text).to_vec();
+        let binding = processor.spell_check_code(sample_text, "rust").to_vec();
         let mut misspelled = binding
             .iter()
             .map(|r| r.word.as_str())
@@ -310,13 +410,25 @@ mod tests {
                     locations: vec![TextRange { start: 10, end: 18 }],
                 }],
             ),
+            (
+                "example.md",
+                [SpellCheckResult {
+                    word: "Wolrd".to_string(),
+                    suggestions: vec![
+                        "spelling".to_string(),
+                        "spline".to_string(),
+                        "spineless".to_string(),
+                    ],
+                    locations: vec![TextRange { start: 10, end: 18 }],
+                }],
+            ),
         ];
         for file in files {
             let path = format!("examples/{}", file.0);
             println!("Checking file: {path:?}");
             let text = std::fs::read_to_string(path).unwrap();
             let processor = WordProcessor::new().unwrap();
-            let results = processor.spell_check_code(&text);
+            let results = processor.spell_check_code(&text, "text");
             println!("Misspelled words: {results:?}");
             for expected in file.1 {
                 let found = results.iter().find(|r| r.word == expected.word).unwrap();
@@ -339,7 +451,7 @@ mod tests {
             println!("Checking file: {path:?}");
             let text = std::fs::read_to_string(path).unwrap();
             let processor = WordProcessor::new().unwrap();
-            let results = processor.spell_check_code(&text);
+            let results = processor.spell_check_code(&text, "text");
             let mut misspelled = results
                 .iter()
                 .map(|r| r.word.as_str())
