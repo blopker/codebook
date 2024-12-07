@@ -31,6 +31,12 @@ lazy_static! {
                          "super", "move", "box", "in", "extern", "crate", "unsafe"]);
         keywords
     };
+
+    static ref HTML_KEYWORDS: HashSet<&'static str> = {
+        let mut keywords = HashSet::new();
+        keywords.extend(&["charset", "lang", "viewport"]);
+        keywords
+    };
 }
 
 #[derive(Debug, Clone)]
@@ -138,6 +144,7 @@ impl WordProcessor {
         if word.len() < 2
             || PROGRAMMING_TERMS.contains(word_lower.as_str())
             || RUST_KEYWORDS.contains(word_lower.as_str())
+            || HTML_KEYWORDS.contains(word_lower.as_str())
             || self.custom_dictionary.contains(&word_lower)
             || word.chars().all(|c| c.is_uppercase())
         {
@@ -241,23 +248,36 @@ mod tests {
         "#;
         let expected = vec!["bith", "curent"];
         let binding = processor.spell_check_code(sample_text).to_vec();
-        let misspelled = binding
+        let mut misspelled = binding
             .iter()
             .map(|r| r.word.as_str())
             .collect::<Vec<&str>>();
+        misspelled.sort();
         println!("Misspelled words: {misspelled:?}");
         assert_eq!(misspelled, expected);
     }
+
     #[test]
     fn test_example_files() {
-        let files = std::fs::read_dir("examples").unwrap();
+        let files = [
+            ("example.py", vec!["pthon", "wolrd"]),
+            ("example.html", vec!["sor", "spelin", "wolrd"]),
+            ("example.md", vec!["bvd", "splellin", "wolrd"]),
+            ("example.txt", vec!["bd", "splellin"]),
+        ];
         for file in files {
-            let path = file.unwrap().path();
+            let path = format!("examples/{}", file.0);
             println!("Checking file: {path:?}");
             let text = std::fs::read_to_string(path).unwrap();
             let processor = WordProcessor::new().unwrap();
-            let misspelled = processor.spell_check_code(&text);
-            println!("Misspelled words: {:?}", misspelled);
+            let results = processor.spell_check_code(&text);
+            let mut misspelled = results
+                .iter()
+                .map(|r| r.word.as_str())
+                .collect::<Vec<&str>>();
+            misspelled.sort();
+            println!("Misspelled words: {misspelled:?}");
+            assert_eq!(misspelled, file.1);
         }
     }
 }
