@@ -153,9 +153,7 @@ impl WordProcessor {
 
         // Original checks
         if word.len() < 2
-            || PROGRAMMING_TERMS.contains(word_lower.as_str())
-            || RUST_KEYWORDS.contains(word_lower.as_str())
-            || HTML_KEYWORDS.contains(word_lower.as_str())
+            || self.custom_dictionary.contains(word)
             || self.custom_dictionary.contains(&word_lower)
             || word.chars().all(|c| c.is_uppercase())
         {
@@ -189,6 +187,7 @@ impl WordProcessor {
     }
 
     pub fn spell_check(&self, text: &str, language: &str) -> Vec<SpellCheckResult> {
+        println!("{:?}", language);
         let lang = self.language_from_name(language);
         match lang {
             None => {
@@ -220,9 +219,9 @@ impl WordProcessor {
 
         let tree = parser.parse(text, None).unwrap();
         let root_node = tree.root_node();
-
+        println!("{:?}", language);
         let query = Query::new(
-            tree_sitter_rust::language(),
+            language,
             r#"
               (identifier) @identifier
               (string_literal) @string
@@ -301,27 +300,45 @@ impl WordProcessor {
     fn find_word_locations(&self, word: &str, text: &str) -> Vec<TextRange> {
         let mut locations = Vec::new();
         let word_lower = word.to_lowercase();
-        let mut pos = 0;
-
-        for line in text.lines() {
-            for word_match in line.split(|c: char| !c.is_alphanumeric()) {
-                if !word_match.is_empty() {
-                    // Check the word and its parts
-                    let parts = self.split_camel_case(word_match);
-                    for part in parts {
-                        if part.to_lowercase() == word_lower {
-                            let start = pos + line.find(word_match).unwrap_or(0);
-                            let end = start + word_match.len();
-                            locations.push(TextRange { start, end });
-                        }
-                    }
-                }
-            }
-            pos += line.len() + 1; // +1 for newline
+        let lower_text = text.to_lowercase();
+        let matches = lower_text
+            .match_indices(word_lower.as_str())
+            .collect::<Vec<_>>();
+        for _match in matches {
+            let start = _match.0;
+            let end = start + word_lower.len();
+            locations.push(TextRange { start, end });
         }
+        // for line in text.lines() {
+        //     for word_match in line.split(|c: char| !c.is_alphanumeric()) {
+        //         if !word_match.is_empty() {
+        //             // Check the word and its parts
+        //             let parts = self.split_camel_case(word_match);
+        //             for part in parts {
+        //                 if part.to_lowercase() == word_lower {
+        //                     let start = pos + line.find(word_match).unwrap_or(0);
+        //                     let end = start + word_match.len();
+        //                     locations.push(TextRange { start, end });
+        //                 }
+        //             }
+        //         }
+        //     }
+        //     pos += line.len() + 1; // +1 for newline
+        // }
 
         locations
     }
+}
+
+fn language_text_from_filename(name: &str) -> String {
+    let ext = name.split('.').last().unwrap();
+    let text = match ext {
+        "py" => "python",
+        "html" => "html",
+        "md" => "markdown",
+        _ => "text",
+    };
+    text.to_string()
 }
 
 fn main() {
@@ -442,11 +459,12 @@ mod tests {
             ("example.txt", vec!["bd", "splellin"]),
         ];
         for file in files {
+            let lang = language_text_from_filename(file.0);
             let path = format!("examples/{}", file.0);
             println!("Checking file: {path:?}");
             let text = std::fs::read_to_string(path).unwrap();
             let processor = WordProcessor::new().unwrap();
-            let results = processor.spell_check(&text, "text");
+            let results = processor.spell_check(&text, &lang);
             let mut misspelled = results
                 .iter()
                 .map(|r| r.word.as_str())
