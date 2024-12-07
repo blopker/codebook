@@ -1,6 +1,6 @@
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::{collections::HashSet, path::Path};
+use std::collections::HashSet;
 
 lazy_static! {
     static ref WORD_BOUNDARY_RE: Regex = Regex::new(r"[A-Z]?[a-z]+|[A-Z]+(?:[A-Z][a-z]+)*|\d+").unwrap();
@@ -43,6 +43,13 @@ lazy_static! {
 pub struct SpellCheckResult {
     pub word: String,
     pub suggestions: Vec<String>,
+    pub locations: Vec<TextRange>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TextRange {
+    pub start: usize,
+    pub end: usize,
 }
 
 #[derive(Debug)]
@@ -124,11 +131,6 @@ impl WordProcessor {
     fn should_skip_word(&self, word: &str) -> bool {
         let word_lower = word.to_lowercase();
 
-        // Additional checks
-        if word.contains('.') && Path::new(word).exists() {
-            return true; // Skip file paths
-        }
-
         if word.contains("://") || word.starts_with("www.") {
             return true; // Skip URLs
         }
@@ -178,18 +180,51 @@ impl WordProcessor {
     }
 
     pub fn spell_check_code(&self, text: &str) -> Vec<SpellCheckResult> {
+        // First get all misspelled words
         let words = self.prepare_text_for_spell_check(text);
-        println!("words:{words:?}");
-        let mut results = Vec::new();
+        let misspelled: Vec<String> = words
+            .into_iter()
+            .filter(|word| !self.dictionary.check(word))
+            .collect();
 
-        for word in words {
-            if !self.dictionary.check(&word) {
+        // Then find locations for each misspelled word
+        misspelled
+            .into_iter()
+            .map(|word| {
                 let suggestions = self.get_suggestions(&word);
-                results.push(SpellCheckResult { word, suggestions });
+                let locations = self.find_word_locations(&word, text);
+                SpellCheckResult {
+                    word,
+                    suggestions,
+                    locations,
+                }
+            })
+            .collect()
+    }
+
+    fn find_word_locations(&self, word: &str, text: &str) -> Vec<TextRange> {
+        let mut locations = Vec::new();
+        let word_lower = word.to_lowercase();
+        let mut pos = 0;
+
+        for line in text.lines() {
+            for word_match in line.split(|c: char| !c.is_alphanumeric()) {
+                if !word_match.is_empty() {
+                    // Check the word and its parts
+                    let parts = self.split_camel_case(word_match);
+                    for part in parts {
+                        if part.to_lowercase() == word_lower {
+                            let start = pos + line.find(word_match).unwrap_or(0);
+                            let end = start + word_match.len();
+                            locations.push(TextRange { start, end });
+                        }
+                    }
+                }
             }
+            pos += line.len() + 1; // +1 for newline
         }
 
-        results
+        locations
     }
 }
 
@@ -255,6 +290,40 @@ mod tests {
         misspelled.sort();
         println!("Misspelled words: {misspelled:?}");
         assert_eq!(misspelled, expected);
+    }
+
+    #[test]
+    fn test_example_files_word_locations() {
+        let files = [
+            // ("example.py", vec!["pthon", "wolrd"]),
+            // ("example.html", vec!["sor", "spelin", "wolrd"]),
+            // ("example.md", vec!["bvd", "splellin", "wolrd"]),
+            (
+                "example.txt",
+                [SpellCheckResult {
+                    word: "splellin".to_string(),
+                    suggestions: vec![
+                        "spelling".to_string(),
+                        "spline".to_string(),
+                        "spineless".to_string(),
+                    ],
+                    locations: vec![TextRange { start: 10, end: 18 }],
+                }],
+            ),
+        ];
+        for file in files {
+            let path = format!("examples/{}", file.0);
+            println!("Checking file: {path:?}");
+            let text = std::fs::read_to_string(path).unwrap();
+            let processor = WordProcessor::new().unwrap();
+            let results = processor.spell_check_code(&text);
+            println!("Misspelled words: {results:?}");
+            for expected in file.1 {
+                let found = results.iter().find(|r| r.word == expected.word).unwrap();
+                assert_eq!(found.suggestions, expected.suggestions);
+                assert_eq!(found.locations, expected.locations);
+            }
+        }
     }
 
     #[test]
