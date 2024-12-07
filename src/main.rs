@@ -248,4 +248,16 @@ mod tests {
         println!("Misspelled words: {misspelled:?}");
         assert_eq!(misspelled, expected);
     }
+    #[test]
+    fn test_example_files() {
+        let files = std::fs::read_dir("examples").unwrap();
+        for file in files {
+            let path = file.unwrap().path();
+            println!("Checking file: {path:?}");
+            let text = std::fs::read_to_string(path).unwrap();
+            let processor = WordProcessor::new().unwrap();
+            let misspelled = processor.spell_check_code(&text);
+            println!("Misspelled words: {:?}", misspelled);
+        }
+    }
 }
