@@ -1,6 +1,6 @@
 mod queries;
 use lazy_static::lazy_static;
-use queries::{get_language_setting, LanguageSetting};
+use queries::{get_language_name_from_filename, get_language_setting, LanguageSetting};
 use std::collections::{HashMap, HashSet};
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
@@ -134,7 +134,7 @@ impl WordProcessor {
         false
     }
 
-    pub fn prepare_text_for_spell_check(&self, text: &str) -> HashSet<String> {
+    fn prepare_text_for_spell_check(&self, text: &str) -> HashSet<String> {
         let mut words_to_check = HashSet::new();
 
         // Split text into words and handle punctuation
@@ -160,7 +160,6 @@ impl WordProcessor {
     pub fn spell_check(&self, text: &str, language: &str) -> Vec<SpellCheckResult> {
         println!("language: {:?}", language);
         let lang = get_language_setting(language);
-        println!("lang: {:?}", lang);
         match lang {
             None => {
                 return self.spell_check_text(text);
@@ -169,6 +168,12 @@ impl WordProcessor {
                 return self.spell_check_code(text, lang);
             }
         }
+    }
+
+    pub fn spell_check_file(&self, path: &str) -> Vec<SpellCheckResult> {
+        let lang_name = get_language_name_from_filename(path);
+        let file_text = std::fs::read_to_string(path).unwrap();
+        return self.spell_check(&file_text, &lang_name);
     }
 
     fn spell_check_text(&self, text: &str) -> Vec<SpellCheckResult> {
@@ -197,9 +202,8 @@ impl WordProcessor {
 
         let tree = parser.parse(text, None).unwrap();
         let root_node = tree.root_node();
-        println!("{:?}", language);
-        let query = Query::new(&language, language_setting.query).unwrap();
 
+        let query = Query::new(&language, language_setting.query).unwrap();
         let mut cursor = QueryCursor::new();
         let mut words_to_check = HashSet::new();
         let mut word_locations = HashMap::new();
@@ -300,8 +304,6 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use queries::get_language_setting_from_filename;
-
     use super::*;
 
     // #[test]
@@ -415,12 +417,10 @@ mod tests {
             ("example.rs", vec!["birt", "curent", "jalopin", "usr"]),
         ];
         for file in files {
-            let lang = get_language_setting_from_filename(file.0);
             let path = format!("examples/{}", file.0);
             println!("Checking file: {path:?}");
-            let text = std::fs::read_to_string(path).unwrap();
             let processor = WordProcessor::new().unwrap();
-            let results = processor.spell_check(&text, &lang);
+            let results = processor.spell_check_file(&path);
             let mut misspelled = results
                 .iter()
                 .map(|r| r.word.as_str())

@@ -137,7 +137,7 @@ pub fn get_language_setting(language_name: &str) -> Option<&LanguageSetting> {
     None
 }
 
-pub fn get_language_setting_from_filename(filename: &str) -> String {
+pub fn get_language_name_from_filename(filename: &str) -> String {
     let extension = filename.split('.').last().unwrap();
     for setting in LANGUAGE_SETTINGS.iter() {
         for ext in setting.extensions.iter() {
