@@ -1,6 +1,6 @@
 mod queries;
 use lazy_static::lazy_static;
-use queries::{get_query, LanguageQuery};
+use queries::{get_language_setting, LanguageSetting};
 use std::collections::{HashMap, HashSet};
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
@@ -159,7 +159,7 @@ impl WordProcessor {
 
     pub fn spell_check(&self, text: &str, language: &str) -> Vec<SpellCheckResult> {
         println!("language: {:?}", language);
-        let lang = get_query(language);
+        let lang = get_language_setting(language);
         println!("lang: {:?}", lang);
         match lang {
             None => {
@@ -184,16 +184,21 @@ impl WordProcessor {
             .collect();
     }
 
-    fn spell_check_code(&self, text: &str, language: LanguageQuery) -> Vec<SpellCheckResult> {
+    fn spell_check_code(
+        &self,
+        text: &str,
+        language_setting: &LanguageSetting,
+    ) -> Vec<SpellCheckResult> {
         // Set up parser for the specified language
-        println!("Code check for {:?}", language);
+        println!("Code check for {:?}", language_setting);
         let mut parser = Parser::new();
-        parser.set_language(&language.language).unwrap();
+        let language = language_setting.language().unwrap();
+        parser.set_language(&language).unwrap();
 
         let tree = parser.parse(text, None).unwrap();
         let root_node = tree.root_node();
         println!("{:?}", language);
-        let query = Query::new(&language.language, language.query).unwrap();
+        let query = Query::new(&language, language_setting.query).unwrap();
 
         let mut cursor = QueryCursor::new();
         let mut words_to_check = HashSet::new();
@@ -274,23 +279,6 @@ impl WordProcessor {
             let end = start + word_lower.len();
             locations.push(TextRange { start, end });
         }
-        // for line in text.lines() {
-        //     for word_match in line.split(|c: char| !c.is_alphanumeric()) {
-        //         if !word_match.is_empty() {
-        //             // Check the word and its parts
-        //             let parts = self.split_camel_case(word_match);
-        //             for part in parts {
-        //                 if part.to_lowercase() == word_lower {
-        //                     let start = pos + line.find(word_match).unwrap_or(0);
-        //                     let end = start + word_match.len();
-        //                     locations.push(TextRange { start, end });
-        //                 }
-        //             }
-        //         }
-        //     }
-        //     pos += line.len() + 1; // +1 for newline
-        // }
-
         locations
     }
 }
@@ -312,17 +300,20 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    use queries::get_language_setting_from_filename;
+
     use super::*;
-    fn language_text_from_filename(name: &str) -> String {
-        let ext = name.split('.').last().unwrap();
-        let text = match ext {
-            "py" => "python",
-            "html" => "html",
-            "md" => "markdown",
-            _ => "text",
-        };
-        text.to_string()
-    }
+
+    // #[test]
+    // fn test_spell() {
+    //     let aff = std::fs::read_to_string("index.aff").unwrap();
+    //     let dic = std::fs::read_to_string("index.dic").unwrap();
+    //     let dict = spellbook::Dictionary::new(&aff, &dic).unwrap();
+    //     let mut suggestions: Vec<String> = Vec::new();
+    //     dict.suggest("my-name-is-bug", &mut suggestions);
+    //     println!("{:?}", suggestions);
+    //     assert!(false);
+    // }
 
     #[test]
     fn test_camel_case_splitting() {
@@ -421,9 +412,10 @@ mod tests {
             ("example.py", vec!["pthon", "wolrd"]),
             ("example.md", vec!["bvd", "splellin", "wolrd"]),
             ("example.txt", vec!["bd", "splellin"]),
+            ("example.rs", vec!["birt", "curent", "jalopin", "usr"]),
         ];
         for file in files {
-            let lang = language_text_from_filename(file.0);
+            let lang = get_language_setting_from_filename(file.0);
             let path = format!("examples/{}", file.0);
             println!("Checking file: {path:?}");
             let text = std::fs::read_to_string(path).unwrap();

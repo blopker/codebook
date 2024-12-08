@@ -1,25 +1,24 @@
-use std::collections::HashMap;
-
 use lazy_static::lazy_static;
 use tree_sitter::Language;
 
 lazy_static! {
-    pub static ref LANGUAGE_QUERIES: HashMap<&'static str, &'static str> = {
-        let mut map = HashMap::new();
-        map.insert(
-            "rust",
-            r#"
-            (identifier) @identifier
-            (string_literal) @string
-            (line_comment) @comment
-            (block_comment) @comment
-            (raw_string_literal) @string
-            (char_literal) @string
-        "#,
-        );
-        map.insert(
-            "python",
-            r#"
+    pub static ref LANGUAGE_SETTINGS: Vec<LanguageSetting> = {
+        vec![
+            LanguageSetting {
+                name: "rust",
+                query: r#"
+                (identifier) @identifier
+                (string_literal) @string
+                (line_comment) @comment
+                (block_comment) @comment
+                (raw_string_literal) @string
+                (char_literal) @string
+                "#,
+                extensions: vec!["rs"],
+            },
+            LanguageSetting {
+                name: "python",
+                query: r#"
             (identifier) @identifier
             (string) @string
             (comment) @comment
@@ -30,11 +29,12 @@ lazy_static! {
                 name: (identifier) @identifier)
             (class_definition
                 name: (identifier) @identifier)
-        "#,
-        );
-        map.insert(
-            "javascript",
-            r#"
+                "#,
+                extensions: vec!["py"],
+            },
+            LanguageSetting {
+                name: "javascript",
+                query: r#"
             (identifier) @identifier
             (string) @string
             (comment) @comment
@@ -46,11 +46,12 @@ lazy_static! {
                 name: (property_identifier) @identifier)
             (class_declaration
                 name: (identifier) @identifier)
-        "#,
-        );
-        map.insert(
-            "typescript",
-            r#"
+                "#,
+                extensions: vec!["js"],
+            },
+            LanguageSetting {
+                name: "typescript",
+                query: r#"
             (identifier) @identifier
             (string) @string
             (comment) @comment
@@ -65,30 +66,33 @@ lazy_static! {
             (type_identifier) @identifier
             (interface_declaration
                 name: (type_identifier) @identifier)
-        "#,
-        );
-        map.insert(
-            "html",
-            r#"
+                "#,
+                extensions: vec!["ts"],
+            },
+            LanguageSetting {
+                name: "html",
+                query: r#"
             (text) @string
             (comment) @comment
             (quoted_attribute_value) @string
-        "#,
-        );
-        map.insert(
-            "css",
-            r#"
+            "#,
+                extensions: vec!["html"],
+            },
+            LanguageSetting {
+                name: "css",
+                query: r#"
             (class_name) @identifier
             (id_name) @identifier
             (property_name) @identifier
             (comment) @comment
             (string_value) @string
             (plain_value) @identifier
-        "#,
-        );
-        map.insert(
-            "go",
-            r#"
+            "#,
+                extensions: vec!["css"],
+            },
+            LanguageSetting {
+                name: "go",
+                query: r#"
             (identifier) @identifier
             (interpreted_string_literal) @string
             (raw_string_literal) @string
@@ -97,36 +101,50 @@ lazy_static! {
             (type_identifier) @identifier
             (package_identifier) @identifier
             "#,
-        );
-
-        map
+                extensions: vec!["go"],
+            },
+        ]
     };
 }
 
 #[derive(Debug)]
-pub struct LanguageQuery {
+pub struct LanguageSetting {
     pub query: &'static str,
-    pub language: Language,
-    // pub language_name: String,
+    pub name: &'static str,
+    pub extensions: Vec<&'static str>, // pub language_name: String,
 }
 
-fn language_from_name(name: &str) -> Option<Language> {
-    match name {
-        "rust" => Some(tree_sitter_rust::LANGUAGE.into()),
-        "python" => Some(tree_sitter_python::LANGUAGE.into()),
-        "javascript" => Some(tree_sitter_javascript::LANGUAGE.into()),
-        "html" => Some(tree_sitter_html::LANGUAGE.into()),
-        _ => None,
+impl LanguageSetting {
+    pub fn language(&self) -> Option<Language> {
+        match self.name {
+            "rust" => Some(tree_sitter_rust::LANGUAGE.into()),
+            "python" => Some(tree_sitter_python::LANGUAGE.into()),
+            "javascript" => Some(tree_sitter_javascript::LANGUAGE.into()),
+            "html" => Some(tree_sitter_html::LANGUAGE.into()),
+            _ => None,
+        }
     }
 }
 
-pub fn get_query(language_name: &str) -> Option<LanguageQuery> {
-    match LANGUAGE_QUERIES.get(language_name) {
-        Some(query) => Some(LanguageQuery {
-            query,
-            language: language_from_name(language_name)?,
-            // language_name: language_name.to_owned(),
-        }),
-        None => None,
+pub fn get_language_setting(language_name: &str) -> Option<&LanguageSetting> {
+    for setting in LANGUAGE_SETTINGS.iter() {
+        if setting.name == language_name {
+            if setting.language().is_some() {
+                return Some(setting);
+            }
+        }
     }
+    None
+}
+
+pub fn get_language_setting_from_filename(filename: &str) -> String {
+    let extension = filename.split('.').last().unwrap();
+    for setting in LANGUAGE_SETTINGS.iter() {
+        for ext in setting.extensions.iter() {
+            if ext == &extension {
+                return setting.name.to_string();
+            }
+        }
+    }
+    "text".to_string()
 }
