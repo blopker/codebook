@@ -224,13 +224,15 @@ impl WordProcessor {
                 println!("words_to_process: {words_to_process:?}");
                 for word in words_to_process {
                     if !self.should_skip_word(&word) {
-                        word_locations
-                            .entry(word)
-                            .or_insert_with(Vec::new)
-                            .push(TextRange {
-                                start: node.start_byte(),
-                                end: node.end_byte(),
-                            });
+                        if !self.dictionary.check(&word) {
+                            word_locations
+                                .entry(word)
+                                .or_insert_with(Vec::new)
+                                .push(TextRange {
+                                    start: node.start_byte(),
+                                    end: node.end_byte(),
+                                });
+                        }
                     }
                 }
             }
@@ -240,7 +242,6 @@ impl WordProcessor {
         word_locations
             .keys()
             .into_iter()
-            .filter(|word| !self.dictionary.check(word))
             .map(|word| SpellCheckResult {
                 word: word.clone(),
                 suggestions: self.get_suggestions(&word),
@@ -301,6 +302,7 @@ fn main() {
     }
     let results = processor.spell_check_file(path.to_str().unwrap());
     println!("Misspelled words: {:?}", results);
+    println!("Done");
 }
 //
 // fn main() {
@@ -341,7 +343,7 @@ mod tests {
     //     let dic = std::fs::read_to_string("index.dic").unwrap();
     //     let dict = spellbook::Dictionary::new(&aff, &dic).unwrap();
     //     let mut suggestions: Vec<String> = Vec::new();
-    //     dict.suggest("World", &mut suggestions);
+    //     dict.suggest("helloWorld", &mut suggestions);
     //     println!("{:?}", suggestions);
     //     assert!(false);
     // }
