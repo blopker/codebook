@@ -2,6 +2,8 @@ mod queries;
 use lazy_static::lazy_static;
 use queries::{get_language_name_from_filename, get_language_setting, LanguageSetting};
 use std::collections::{HashMap, HashSet};
+use std::env;
+use std::path::Path;
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
 
@@ -102,9 +104,7 @@ impl WordProcessor {
     }
 
     fn should_skip_word(&self, word: &str) -> bool {
-        let word_lower = word.to_lowercase();
-
-        if EXTRA_WORDS.contains(word_lower.as_str()) {
+        if EXTRA_WORDS.contains(word) {
             return true;
         }
 
@@ -122,7 +122,6 @@ impl WordProcessor {
         // Original checks
         if word.len() < 2
             || self.custom_dictionary.contains(word)
-            || self.custom_dictionary.contains(&word_lower)
             || word.chars().all(|c| c.is_uppercase())
         {
             return true;
@@ -144,9 +143,8 @@ impl WordProcessor {
             let parts = self.split_camel_case(word);
 
             for part in parts {
-                let lower_part = part.to_lowercase();
-                if !self.should_skip_word(&lower_part) {
-                    words_to_check.insert(lower_part);
+                if !self.should_skip_word(&part) {
+                    words_to_check.insert(part);
                 }
             }
         }
@@ -202,7 +200,6 @@ impl WordProcessor {
 
         let query = Query::new(&language, language_setting.query).unwrap();
         let mut cursor = QueryCursor::new();
-        let mut words_to_check = HashSet::new();
         let mut word_locations = HashMap::new();
         let mut matches_query = cursor.matches(&query, root_node, text.as_bytes());
 
@@ -226,11 +223,9 @@ impl WordProcessor {
                 };
                 println!("words_to_process: {words_to_process:?}");
                 for word in words_to_process {
-                    let lower_word = word.to_lowercase();
-                    if !self.should_skip_word(&lower_word) {
-                        words_to_check.insert(lower_word.clone());
+                    if !self.should_skip_word(&word) {
                         word_locations
-                            .entry(lower_word)
+                            .entry(word)
                             .or_insert_with(Vec::new)
                             .push(TextRange {
                                 start: node.start_byte(),
@@ -242,13 +237,14 @@ impl WordProcessor {
         }
 
         // Check spelling and collect results
-        words_to_check
+        word_locations
+            .keys()
             .into_iter()
             .filter(|word| !self.dictionary.check(word))
             .map(|word| SpellCheckResult {
                 word: word.clone(),
                 suggestions: self.get_suggestions(&word),
-                locations: word_locations.get(&word).cloned().unwrap_or_default(),
+                locations: word_locations.get(word).cloned().unwrap_or_default(),
             })
             .collect()
     }
@@ -270,14 +266,10 @@ impl WordProcessor {
 
     fn find_word_locations(&self, word: &str, text: &str) -> Vec<TextRange> {
         let mut locations = Vec::new();
-        let word_lower = word.to_lowercase();
-        let lower_text = text.to_lowercase();
-        let matches = lower_text
-            .match_indices(word_lower.as_str())
-            .collect::<Vec<_>>();
+        let matches = text.match_indices(word).collect::<Vec<_>>();
         for _match in matches {
             let start = _match.0;
-            let end = start + word_lower.len();
+            let end = start + word.len();
             locations.push(TextRange { start, end });
         }
         locations
@@ -285,19 +277,59 @@ impl WordProcessor {
 }
 
 fn main() {
-    let processor = WordProcessor::new();
+    let processor = WordProcessor::new().unwrap();
+    let args: Vec<String> = env::args().collect();
 
-    let sample_text = r#"
-        fn calculate_user_age(birthDate: String) -> u32 {
-            // This is an example_function that calculates age
-            let userAge = get_current_date() - birthDate;
-            userAge
-        }
-    "#;
+    println!("My path is {:?}", args);
+    if args.len() < 2 {
+        let sample_text = r#"
+            fn calculate_user_age(birthDate: String) -> u32 {
+                // This is an example_function that calculates age
+                let userAge = get_current_date() - birthDate;
+                userAge
+            }
+        "#;
 
-    let misspelled = processor.unwrap().spell_check(sample_text, "rust");
-    println!("Misspelled words: {:?}", misspelled);
+        let misspelled = processor.spell_check(sample_text, "rust");
+        println!("Misspelled words: {:?}", misspelled);
+        return;
+    }
+    let path = Path::new(args[1].as_str());
+    if !path.exists() {
+        eprintln!("Can't find file {path:?}");
+        return;
+    }
+    let results = processor.spell_check_file(path.to_str().unwrap());
+    println!("Misspelled words: {:?}", results);
 }
+//
+// fn main() {
+//     let stdin = io::stdin();
+//     let mut stdout = io::stdout();
+
+//     for line in stdin.lock().lines() {
+//         if let Ok(json_rpc) = line {
+//             // Parse JSON-RPC message here
+//             match parse_json_rpc(&json_rpc) {
+//                 Some(message) => handle_lsp_method(message, &mut stdout),
+//                 None => eprintln!("Invalid JSON-RPC message"),
+//             }
+//         }
+//     }
+// }
+
+// fn parse_json_rpc(json: &str) -> Option<String> {
+//     // Implement your own parser or use a third-party library (like serde_json).
+//     // For simplicity, this example does not include parsing.
+//     eprintln!("{:?}", json);
+//     None
+// }
+
+// fn handle_lsp_method(message: String, stdout: &mut dyn Write) {
+//     // Handle LSP methods and send responses to the client here.
+//     // This example does not include any LSP functionality.
+//     writeln!(stdout, "{message}").unwrap(); // Send an empty response.
+// }
 
 #[cfg(test)]
 mod tests {
@@ -309,7 +341,7 @@ mod tests {
     //     let dic = std::fs::read_to_string("index.dic").unwrap();
     //     let dict = spellbook::Dictionary::new(&aff, &dic).unwrap();
     //     let mut suggestions: Vec<String> = Vec::new();
-    //     dict.suggest("my-name-is-bug", &mut suggestions);
+    //     dict.suggest("World", &mut suggestions);
     //     println!("{:?}", suggestions);
     //     assert!(false);
     // }
@@ -361,32 +393,44 @@ mod tests {
 
     #[test]
     fn test_example_files_word_locations() {
-        let files = [
+        let files: Vec<(&str, Vec<SpellCheckResult>)> = vec![
             // ("example.py", vec!["pthon", "wolrd"]),
             // ("example.html", vec!["sor", "spelin", "wolrd"]),
             // ("example.md", vec!["bvd", "splellin", "wolrd"]),
             (
                 "example.txt",
-                [SpellCheckResult {
-                    word: "splellin".to_string(),
+                vec![SpellCheckResult {
+                    word: "Splellin".to_string(),
                     suggestions: vec![
-                        "spelling".to_string(),
-                        "spline".to_string(),
-                        "spineless".to_string(),
+                        "Spelling".to_string(),
+                        "Spline".to_string(),
+                        "Spineless".to_string(),
                     ],
                     locations: vec![TextRange { start: 10, end: 18 }],
                 }],
             ),
             (
                 "example.md",
-                [SpellCheckResult {
-                    word: "wolrd".to_string(),
-                    suggestions: vec!["world".to_string(), "word".to_string(), "wold".to_string()],
-                    locations: vec![
-                        TextRange { start: 20, end: 25 },
-                        TextRange { start: 26, end: 31 },
-                    ],
-                }],
+                vec![
+                    SpellCheckResult {
+                        word: "wolrd".to_string(),
+                        suggestions: vec![
+                            "world".to_string(),
+                            "word".to_string(),
+                            "wold".to_string(),
+                        ],
+                        locations: vec![TextRange { start: 26, end: 31 }],
+                    },
+                    SpellCheckResult {
+                        word: "Wolrd".to_string(),
+                        suggestions: vec![
+                            "World".to_string(),
+                            "Word".to_string(),
+                            "Wold".to_string(),
+                        ],
+                        locations: vec![TextRange { start: 20, end: 25 }],
+                    },
+                ],
             ),
         ];
         for file in files {
@@ -407,10 +451,10 @@ mod tests {
     #[test]
     fn test_example_files() {
         let files = [
-            ("example.html", vec!["sor", "spelin", "wolrd"]),
-            ("example.py", vec!["pthon", "wolrd"]),
-            ("example.md", vec!["bvd", "splellin", "wolrd"]),
-            ("example.txt", vec!["bd", "splellin"]),
+            ("example.html", vec!["Spelin", "Wolrd", "sor"]),
+            ("example.py", vec!["Pthon", "Wolrd"]),
+            ("example.md", vec!["Wolrd", "bvd", "splellin", "wolrd"]),
+            ("example.txt", vec!["Splellin", "bd"]),
             ("example.rs", vec!["birt", "curent", "jalopin", "usr"]),
             // ("example.go", vec!["birt", "curent", "jalopin", "usr"]),
         ];
