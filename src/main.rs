@@ -6,12 +6,9 @@ use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
 
 lazy_static! {
-    static ref EXTRA_WORDS: HashSet<String> = {
+    static ref EXTRA_WORDS: HashSet<&'static str> = {
         let mut set = HashSet::new();
-        set.insert("http".to_string());
-        set.insert("https".to_string());
-        set.insert("www".to_string());
-        set.insert("viewport".to_string());
+        set.extend(["http", "https", "www", "viewport"]);
         set
     };
 }
@@ -415,6 +412,7 @@ mod tests {
             ("example.md", vec!["bvd", "splellin", "wolrd"]),
             ("example.txt", vec!["bd", "splellin"]),
             ("example.rs", vec!["birt", "curent", "jalopin", "usr"]),
+            // ("example.go", vec!["birt", "curent", "jalopin", "usr"]),
         ];
         for file in files {
             let path = format!("examples/{}", file.0);
