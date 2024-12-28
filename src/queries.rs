@@ -1,6 +1,8 @@
 use lazy_static::lazy_static;
 use tree_sitter::Language;
 
+// Use https://intmainreturn0.com/ts-visualizer/ to help with writting grammar queries
+
 lazy_static! {
     pub static ref LANGUAGE_SETTINGS: Vec<LanguageSetting> = {
         vec![
@@ -15,7 +17,6 @@ lazy_static! {
                 (char_literal) @string
                 "#,
                 extensions: vec!["rs"],
-                ignore_node_kinds: vec![],
             },
             LanguageSetting {
                 name: "python",
@@ -32,7 +33,6 @@ lazy_static! {
                 name: (identifier) @identifier)
                 "#,
                 extensions: vec!["py"],
-                ignore_node_kinds: vec![],
             },
             LanguageSetting {
                 name: "javascript",
@@ -50,7 +50,6 @@ lazy_static! {
                 name: (identifier) @identifier)
                 "#,
                 extensions: vec!["js"],
-                ignore_node_kinds: vec![],
             },
             LanguageSetting {
                 name: "typescript",
@@ -71,7 +70,6 @@ lazy_static! {
                 name: (type_identifier) @identifier)
                 "#,
                 extensions: vec!["ts"],
-                ignore_node_kinds: vec![],
             },
             LanguageSetting {
                 name: "html",
@@ -81,7 +79,6 @@ lazy_static! {
             (quoted_attribute_value) @string
             "#,
                 extensions: vec!["html"],
-                ignore_node_kinds: vec![],
             },
             LanguageSetting {
                 name: "css",
@@ -94,7 +91,6 @@ lazy_static! {
             (plain_value) @identifier
             "#,
                 extensions: vec!["css"],
-                ignore_node_kinds: vec![],
             },
             LanguageSetting {
                 name: "go",
@@ -105,7 +101,6 @@ lazy_static! {
                 (raw_string_literal) @raw_string
                 "#,
                 extensions: vec!["go"],
-                ignore_node_kinds: vec![],
             },
         ]
     };
@@ -116,7 +111,6 @@ pub struct LanguageSetting {
     pub query: &'static str,
     pub name: &'static str,
     pub extensions: Vec<&'static str>, // pub language_name: String,
-    pub ignore_node_kinds: Vec<&'static str>,
 }
 
 impl LanguageSetting {
