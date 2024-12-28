@@ -35,8 +35,8 @@ pub struct WordProcessor {
 
 impl WordProcessor {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let aff = std::fs::read_to_string("index.aff")?;
-        let dic = std::fs::read_to_string("index.dic")?;
+        let aff = std::fs::read_to_string("../index.aff")?;
+        let dic = std::fs::read_to_string("../index.dic")?;
         let dict = spellbook::Dictionary::new(&aff, &dic)
             .map_err(|e| format!("Dictionary parse error: {}", e))?;
 
@@ -325,7 +325,9 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-
+    fn example_file_path(file: &str) -> String {
+        format!("../examples/{}", file)
+    }
     // #[test]
     // fn test_spell() {
     //     let aff = std::fs::read_to_string("index.aff").unwrap();
@@ -425,7 +427,7 @@ mod tests {
             ),
         ];
         for file in files {
-            let path = format!("examples/{}", file.0);
+            let path = example_file_path(file.0);
             println!("Checking file: {path:?}");
             let text = std::fs::read_to_string(path).unwrap();
             let processor = WordProcessor::new().unwrap();
@@ -453,7 +455,7 @@ mod tests {
             ),
         ];
         for mut file in files {
-            let path = format!("examples/{}", file.0);
+            let path = example_file_path(file.0);
             println!("Checking file: {path:?}");
             let processor = WordProcessor::new().unwrap();
             let results = processor.spell_check_file(&path);
