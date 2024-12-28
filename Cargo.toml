@@ -13,6 +13,7 @@ tree-sitter-python = "<0.25.0"
 tree-sitter-javascript = "<0.25.0"
 tree-sitter-html = "<0.25.0"
 streaming-iterator = "0.1.9"
+tower-lsp = "0.20.0"
 
 [build-dependencies]
 cc = "1.0"

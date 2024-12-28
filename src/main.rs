@@ -458,7 +458,7 @@ mod tests {
             ("example.md", vec!["Wolrd", "bvd", "splellin", "wolrd"]),
             ("example.txt", vec!["Splellin", "bd"]),
             ("example.rs", vec!["birt", "curent", "jalopin", "usr"]),
-            // ("example.go", vec!["birt", "curent", "jalopin", "usr"]),
+            ("example.go", vec!["speling", "Wolrd", "mispeled"]),
         ];
         for file in files {
             let path = format!("examples/{}", file.0);
