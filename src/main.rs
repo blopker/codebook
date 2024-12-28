@@ -190,7 +190,7 @@ impl WordProcessor {
         language_setting: &LanguageSetting,
     ) -> Vec<SpellCheckResult> {
         // Set up parser for the specified language
-        println!("Code check for {:?}", language_setting);
+        // println!("Code check for {:?}", language_setting);
         let mut parser = Parser::new();
         let language = language_setting.language().unwrap();
         parser.set_language(&language).unwrap();
@@ -208,19 +208,8 @@ impl WordProcessor {
             for capture in match_.captures {
                 let node = capture.node;
                 let node_text = node.utf8_text(text.as_bytes()).unwrap();
-
-                let words_to_process = match capture.index as u32 {
-                    0 => {
-                        // identifier
-                        if !node.is_named() || node.kind().contains("keyword") {
-                            vec![]
-                        } else {
-                            self.node_text_to_parts(node_text)
-                        }
-                    }
-                    1 | 2 | 3 => self.node_text_to_parts(node_text),
-                    _ => continue,
-                };
+                self.node_text_to_parts(node_text);
+                let words_to_process = self.node_text_to_parts(node_text);
                 println!("words_to_process: {words_to_process:?}");
                 for word in words_to_process {
                     if !self.should_skip_word(&word) {
@@ -458,9 +447,12 @@ mod tests {
             ("example.md", vec!["Wolrd", "bvd", "splellin", "wolrd"]),
             ("example.txt", vec!["Splellin", "bd"]),
             ("example.rs", vec!["birt", "curent", "jalopin", "usr"]),
-            ("example.go", vec!["speling", "Wolrd", "mispeled"]),
+            (
+                "example.go",
+                vec!["speling", "Wolrd", "mispeled", "Funcion"],
+            ),
         ];
-        for file in files {
+        for mut file in files {
             let path = format!("examples/{}", file.0);
             println!("Checking file: {path:?}");
             let processor = WordProcessor::new().unwrap();
@@ -470,6 +462,7 @@ mod tests {
                 .map(|r| r.word.as_str())
                 .collect::<Vec<&str>>();
             misspelled.sort();
+            file.1.sort();
             println!("Misspelled words: {misspelled:?}");
             assert_eq!(misspelled, file.1);
         }

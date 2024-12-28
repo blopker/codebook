@@ -15,6 +15,7 @@ lazy_static! {
                 (char_literal) @string
                 "#,
                 extensions: vec!["rs"],
+                ignore_node_kinds: vec![],
             },
             LanguageSetting {
                 name: "python",
@@ -31,6 +32,7 @@ lazy_static! {
                 name: (identifier) @identifier)
                 "#,
                 extensions: vec!["py"],
+                ignore_node_kinds: vec![],
             },
             LanguageSetting {
                 name: "javascript",
@@ -48,6 +50,7 @@ lazy_static! {
                 name: (identifier) @identifier)
                 "#,
                 extensions: vec!["js"],
+                ignore_node_kinds: vec![],
             },
             LanguageSetting {
                 name: "typescript",
@@ -68,6 +71,7 @@ lazy_static! {
                 name: (type_identifier) @identifier)
                 "#,
                 extensions: vec!["ts"],
+                ignore_node_kinds: vec![],
             },
             LanguageSetting {
                 name: "html",
@@ -77,6 +81,7 @@ lazy_static! {
             (quoted_attribute_value) @string
             "#,
                 extensions: vec!["html"],
+                ignore_node_kinds: vec![],
             },
             LanguageSetting {
                 name: "css",
@@ -89,19 +94,18 @@ lazy_static! {
             (plain_value) @identifier
             "#,
                 extensions: vec!["css"],
+                ignore_node_kinds: vec![],
             },
             LanguageSetting {
                 name: "go",
                 query: r#"
-            (identifier) @identifier
-            (interpreted_string_literal) @string
-            (raw_string_literal) @string
-            (comment) @comment
-            (field_identifier) @identifier
-            (type_identifier) @identifier
-            (package_identifier) @identifier
-            "#,
+                (comment) @comment
+                (argument_list (interpreted_string_literal) @string)
+                (function_declaration (identifier) @identifier)
+                (raw_string_literal) @raw_string
+                "#,
                 extensions: vec!["go"],
+                ignore_node_kinds: vec![],
             },
         ]
     };
@@ -112,6 +116,7 @@ pub struct LanguageSetting {
     pub query: &'static str,
     pub name: &'static str,
     pub extensions: Vec<&'static str>, // pub language_name: String,
+    pub ignore_node_kinds: Vec<&'static str>,
 }
 
 impl LanguageSetting {
@@ -121,6 +126,7 @@ impl LanguageSetting {
             "python" => Some(tree_sitter_python::LANGUAGE.into()),
             "javascript" => Some(tree_sitter_javascript::LANGUAGE.into()),
             "html" => Some(tree_sitter_html::LANGUAGE.into()),
+            "go" => Some(tree_sitter_go::LANGUAGE.into()),
             _ => None,
         }
     }

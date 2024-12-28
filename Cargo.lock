@@ -674,6 +674,7 @@ dependencies = [
  "streaming-iterator",
  "tower-lsp",
  "tree-sitter",
+ "tree-sitter-go",
  "tree-sitter-html",
  "tree-sitter-javascript",
  "tree-sitter-python",
@@ -848,6 +849,16 @@ dependencies = [
  "regex",
  "regex-syntax",
  "streaming-iterator",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-go"
+version = "0.23.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b13d476345220dbe600147dd444165c5791bf85ef53e28acbedd46112ee18431"
+dependencies = [
+ "cc",
  "tree-sitter-language",
 ]
 
