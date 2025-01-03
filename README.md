@@ -1,4 +1,4 @@
-## Runing
+## Running
 
 Currently there are only tests.
 
