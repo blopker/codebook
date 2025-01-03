@@ -1,14 +1,10 @@
-use lazy_static::lazy_static;
 use tree_sitter::Language;
 
 // Use https://intmainreturn0.com/ts-visualizer/ to help with writting grammar queries
-
-lazy_static! {
-    pub static ref LANGUAGE_SETTINGS: Vec<LanguageSetting> = {
-        vec![
-            LanguageSetting {
-                name: "rust",
-                query: r#"
+pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
+    LanguageSetting {
+        name: "rust",
+        query: r#"
                 (identifier) @identifier
                 (string_literal) @string
                 (line_comment) @comment
@@ -16,11 +12,11 @@ lazy_static! {
                 (raw_string_literal) @string
                 (char_literal) @string
                 "#,
-                extensions: vec!["rs"],
-            },
-            LanguageSetting {
-                name: "python",
-                query: r#"
+        extensions: &["rs"],
+    },
+    LanguageSetting {
+        name: "python",
+        query: r#"
             (identifier) @identifier
             (string) @string
             (comment) @comment
@@ -32,11 +28,11 @@ lazy_static! {
             (class_definition
                 name: (identifier) @identifier)
                 "#,
-                extensions: vec!["py"],
-            },
-            LanguageSetting {
-                name: "javascript",
-                query: r#"
+        extensions: &["py"],
+    },
+    LanguageSetting {
+        name: "javascript",
+        query: r#"
             (identifier) @identifier
             (string) @string
             (comment) @comment
@@ -49,11 +45,11 @@ lazy_static! {
             (class_declaration
                 name: (identifier) @identifier)
                 "#,
-                extensions: vec!["js"],
-            },
-            LanguageSetting {
-                name: "typescript",
-                query: r#"
+        extensions: &["js"],
+    },
+    LanguageSetting {
+        name: "typescript",
+        query: r#"
             (identifier) @identifier
             (string) @string
             (comment) @comment
@@ -63,26 +59,22 @@ lazy_static! {
             (shorthand_property_identifier) @identifier
             (method_definition
                 name: (property_identifier) @identifier)
-            (class_declaration
-                name: (identifier) @identifier)
-            (type_identifier) @identifier
-            (interface_declaration
-                name: (type_identifier) @identifier)
+
                 "#,
-                extensions: vec!["ts"],
-            },
-            LanguageSetting {
-                name: "html",
-                query: r#"
+        extensions: &["ts"],
+    },
+    LanguageSetting {
+        name: "html",
+        query: r#"
             (text) @string
             (comment) @comment
             (quoted_attribute_value) @string
             "#,
-                extensions: vec!["html"],
-            },
-            LanguageSetting {
-                name: "css",
-                query: r#"
+        extensions: &["html", "htm"],
+    },
+    LanguageSetting {
+        name: "css",
+        query: r#"
             (class_name) @identifier
             (id_name) @identifier
             (property_name) @identifier
@@ -90,27 +82,25 @@ lazy_static! {
             (string_value) @string
             (plain_value) @identifier
             "#,
-                extensions: vec!["css"],
-            },
-            LanguageSetting {
-                name: "go",
-                query: r#"
+        extensions: &["css"],
+    },
+    LanguageSetting {
+        name: "go",
+        query: r#"
                 (comment) @comment
                 (argument_list (interpreted_string_literal) @string)
                 (function_declaration (identifier) @identifier)
                 (raw_string_literal) @raw_string
                 "#,
-                extensions: vec!["go"],
-            },
-        ]
-    };
-}
+        extensions: &["go"],
+    },
+];
 
 #[derive(Debug)]
 pub struct LanguageSetting {
     pub query: &'static str,
     pub name: &'static str,
-    pub extensions: Vec<&'static str>, // pub language_name: String,
+    pub extensions: &'static [&'static str],
 }
 
 impl LanguageSetting {
@@ -119,6 +109,7 @@ impl LanguageSetting {
             "rust" => Some(tree_sitter_rust::LANGUAGE.into()),
             "python" => Some(tree_sitter_python::LANGUAGE.into()),
             "javascript" => Some(tree_sitter_javascript::LANGUAGE.into()),
+            "typescript" => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
             "html" => Some(tree_sitter_html::LANGUAGE.into()),
             "go" => Some(tree_sitter_go::LANGUAGE.into()),
             _ => None,

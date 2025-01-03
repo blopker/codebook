@@ -1,4 +1,5 @@
 mod queries;
+mod splitter;
 use lazy_static::lazy_static;
 use queries::{get_language_name_from_filename, get_language_setting, LanguageSetting};
 use std::collections::{HashMap, HashSet};
@@ -56,53 +57,6 @@ impl WordProcessor {
         suggestions
     }
 
-    fn split_camel_case(&self, input: &str) -> Vec<String> {
-        if input.is_empty() {
-            return vec![];
-        }
-
-        let mut result = Vec::new();
-        let mut current_word = String::new();
-        let mut chars = input.chars().peekable();
-
-        while let Some(&c) = chars.peek() {
-            match c {
-                // Start of a new word with uppercase
-                c if c.is_uppercase() => {
-                    if !current_word.is_empty() {
-                        result.push(current_word);
-                        current_word = String::new();
-                    }
-                    current_word.push(chars.next().unwrap());
-                }
-                // Continue current word
-                c if c.is_lowercase() || c.is_digit(10) => {
-                    current_word.push(chars.next().unwrap());
-                }
-                // Skip other characters
-                _ => {
-                    chars.next();
-                }
-            }
-        }
-
-        if !current_word.is_empty() {
-            result.push(current_word);
-        }
-
-        // Post-process to handle consecutive uppercase letters
-        result
-            .into_iter()
-            .flat_map(|word| {
-                if word.chars().all(|c| c.is_uppercase()) && word.len() > 1 {
-                    word.chars().map(|c| c.to_string()).collect()
-                } else {
-                    vec![word]
-                }
-            })
-            .collect()
-    }
-
     fn should_skip_word(&self, word: &str) -> bool {
         if EXTRA_WORDS.contains(word) {
             return true;
@@ -140,7 +94,7 @@ impl WordProcessor {
             }
 
             // Handle camelCase and PascalCase
-            let parts = self.split_camel_case(word);
+            let parts = splitter::split_camel_case(word);
 
             for part in parts {
                 if !self.should_skip_word(&part) {
@@ -248,7 +202,7 @@ impl WordProcessor {
         for word in node_text.split(|c: char| !c.is_alphanumeric()) {
             if !word.is_empty() {
                 // Then split camelCase
-                parts.extend(self.split_camel_case(word));
+                parts.extend(splitter::split_camel_case(word));
             }
         }
         parts
@@ -340,13 +294,6 @@ mod tests {
     // }
 
     #[test]
-    fn test_camel_case_splitting() {
-        let processor = WordProcessor::new();
-        let words = processor.unwrap().split_camel_case("calculateUserAge");
-        assert_eq!(words, vec!["calculate", "User", "Age"]);
-    }
-
-    #[test]
     fn test_spell_checking() {
         let processor = WordProcessor::new();
 
@@ -354,13 +301,6 @@ mod tests {
         let misspelled = processor.unwrap().spell_check(text, "text");
         println!("{:?}", misspelled);
         assert!(misspelled.iter().any(|r| r.word == "wrld"));
-    }
-
-    #[test]
-    fn test_complex_camel_case() {
-        let processor = WordProcessor::new();
-        let words = processor.unwrap().split_camel_case("XMLHttpRequest");
-        assert_eq!(words, vec!["X", "M", "L", "Http", "Request"]);
     }
 
     #[test]
@@ -452,6 +392,73 @@ mod tests {
             (
                 "example.go",
                 vec!["speling", "Wolrd", "mispeled", "Funcion"],
+            ),
+            (
+                "example.js",
+                vec![
+                    "Accaunt",
+                    "Calculater",
+                    "Exportt",
+                    "Funcshun",
+                    "Funktion",
+                    "Inputt",
+                    "Numbr",
+                    "Numbrs",
+                    "Pleese",
+                    "additshun",
+                    "arra",
+                    "ballance",
+                    "calculater",
+                    "divde",
+                    "divishun",
+                    "emale",
+                    "funcsions",
+                    "inputt",
+                    "lenght",
+                    "logg",
+                    "multiplacation",
+                    "numbr",
+                    "numbrs",
+                    "operashun",
+                    "passwrd",
+                    "propertys",
+                    "prosess",
+                    "resalt",
+                    "secand",
+                    "substractshun",
+                    "summ",
+                    "totel",
+                    "usege",
+                    "usrname",
+                ],
+            ),
+            (
+                "example.ts",
+                vec![
+                    "Accaunt",
+                    "Exportt",
+                    "Funcshun",
+                    "Funktion",
+                    "Inputt",
+                    "Numbr",
+                    "Numbrs",
+                    "Pleese",
+                    "arra",
+                    "ballance",
+                    "emale",
+                    "funcsions",
+                    "inputt",
+                    "logg",
+                    "numbr",
+                    "numbrs",
+                    "passwrd",
+                    "propertys",
+                    "prosess",
+                    "secand",
+                    "totel",
+                    "usege",
+                    "usrname",
+                ],
             ),
         ];
         for mut file in files {
