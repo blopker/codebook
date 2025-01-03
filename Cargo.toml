@@ -1,2 +1,3 @@
 [workspace]
 members = ["spellbook-lsp"]
+resolver = "2"
