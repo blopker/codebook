@@ -1,3 +1,11 @@
+## Runing
+
+Currently there are only tests.
+
+Get the us_en dictionary with `make get_dictionary`.
+
+Run them with `make test`.
+
 ## Acknowledgments
 - Harper: https://writewithharper.com/
 - Harper Zed: https://github.com/Stef16Robbe/harper_zed
