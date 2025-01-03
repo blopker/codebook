@@ -1,6 +1,5 @@
 mod queries;
 mod splitter;
-use lazy_static::lazy_static;
 use queries::{get_language_name_from_filename, get_language_setting, LanguageSetting};
 use std::collections::{HashMap, HashSet};
 use std::env;
@@ -8,13 +7,7 @@ use std::path::Path;
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
 
-lazy_static! {
-    static ref EXTRA_WORDS: HashSet<&'static str> = {
-        let mut set = HashSet::new();
-        set.extend(["http", "https", "www", "viewport"]);
-        set
-    };
-}
+static EXTRA_WORDS: &'static [&'static str] = &["http", "https", "www", "viewport"];
 
 #[derive(Debug, Clone)]
 pub struct SpellCheckResult {
@@ -58,7 +51,7 @@ impl WordProcessor {
     }
 
     fn should_skip_word(&self, word: &str) -> bool {
-        if EXTRA_WORDS.contains(word) {
+        if EXTRA_WORDS.contains(&word) {
             return true;
         }
 
