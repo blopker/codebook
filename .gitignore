@@ -2,3 +2,4 @@
 *.aff
 *.dic
 examples/big.html
+.cache

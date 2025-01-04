@@ -2,9 +2,7 @@
 
 Currently there are only tests.
 
-Get the us_en dictionary with `make get_dictionary`.
-
-Run them with `make test`.
+Run them with `make test`. Dictionaries will downlaod to a cache for you.
 
 ## Acknowledgments
 - Harper: https://writewithharper.com/

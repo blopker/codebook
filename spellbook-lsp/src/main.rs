@@ -1,5 +1,7 @@
+mod downloader;
 mod queries;
 mod splitter;
+use downloader::DictionaryDownloader;
 use queries::{get_language_name_from_filename, get_language_setting, LanguageSetting};
 use std::collections::{HashMap, HashSet};
 use std::env;
@@ -28,9 +30,9 @@ pub struct WordProcessor {
 }
 
 impl WordProcessor {
-    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let aff = std::fs::read_to_string("../index.aff")?;
-        let dic = std::fs::read_to_string("../index.dic")?;
+    pub fn new(aff_path: &str, dic_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let aff = std::fs::read_to_string(aff_path)?;
+        let dic = std::fs::read_to_string(dic_path)?;
         let dict = spellbook::Dictionary::new(&aff, &dic)
             .map_err(|e| format!("Dictionary parse error: {}", e))?;
 
@@ -214,7 +216,9 @@ impl WordProcessor {
 }
 
 fn main() {
-    let processor = WordProcessor::new().unwrap();
+    let downloader = DictionaryDownloader::new(downloader::DEFAULT_BASE_URL, ".cache/dictionaries");
+    let files = downloader.get("en").unwrap();
+    let processor = WordProcessor::new(&files.aff_local_path, &files.dic_local_path).unwrap();
     let args: Vec<String> = env::args().collect();
 
     println!("My path is {:?}", args);
@@ -271,9 +275,19 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    use downloader::DictionaryInfo;
+
     use super::*;
     fn example_file_path(file: &str) -> String {
         format!("../examples/{}", file)
+    }
+    fn get_processor() -> WordProcessor {
+        let dlr = downloader::DictionaryDownloader::new(
+            downloader::DEFAULT_BASE_URL,
+            ".cache/dictionaries",
+        );
+        let dict = dlr.get("en").unwrap();
+        WordProcessor::new(&dict.aff_local_path, &dict.dic_local_path).unwrap()
     }
     // #[test]
     // fn test_spell() {
@@ -288,17 +302,17 @@ mod tests {
 
     #[test]
     fn test_spell_checking() {
-        let processor = WordProcessor::new();
+        let processor = get_processor();
 
         let text = "HelloWorld calc_wrld";
-        let misspelled = processor.unwrap().spell_check(text, "text");
+        let misspelled = processor.spell_check(text, "text");
         println!("{:?}", misspelled);
         assert!(misspelled.iter().any(|r| r.word == "wrld"));
     }
 
     #[test]
     fn test_programming() {
-        let processor = WordProcessor::new().unwrap();
+        let processor = get_processor();
         let sample_text = r#"
             fn calculate_user_age(birthDate: String) -> u32 {
                 // This is an example_function that calculates age
@@ -363,7 +377,7 @@ mod tests {
             let path = example_file_path(file.0);
             println!("Checking file: {path:?}");
             let text = std::fs::read_to_string(path).unwrap();
-            let processor = WordProcessor::new().unwrap();
+            let processor = get_processor();
             let results = processor.spell_check(&text, "text");
             println!("Misspelled words: {results:?}");
             for expected in file.1 {
@@ -457,7 +471,7 @@ mod tests {
         for mut file in files {
             let path = example_file_path(file.0);
             println!("Checking file: {path:?}");
-            let processor = WordProcessor::new().unwrap();
+            let processor = get_processor();
             let results = processor.spell_check_file(&path);
             let mut misspelled = results
                 .iter()
