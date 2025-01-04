@@ -11,6 +11,10 @@ pub fn split_camel_case(s: &str) -> Vec<String> {
     let mut prev_char_type = None;
 
     for (i, c) in s.chars().enumerate() {
+        assert!(
+            !c.is_whitespace(),
+            "There should be no whitespace in the input."
+        );
         let char_type = if c.is_ascii_uppercase() {
             CharType::Upper
         } else if c.is_ascii_digit() {
@@ -79,5 +83,23 @@ mod tests {
     fn test_number() {
         let words = split_camel_case("userAge10");
         assert_eq!(words, vec!["user", "Age", "10"]);
+    }
+
+    #[test]
+    fn test_uppercase() {
+        let words = split_camel_case("EXAMPLE");
+        assert_eq!(words, vec!["EXAMPLE"]);
+    }
+
+    #[test]
+    fn test_uppercase_first() {
+        let words = split_camel_case("Example");
+        assert_eq!(words, vec!["Example"]);
+    }
+
+    #[test]
+    fn test_unicode() {
+        let words = split_camel_case("こんにちは");
+        assert_eq!(words, vec!["こんにちは"]);
     }
 }
