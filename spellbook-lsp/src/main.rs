@@ -216,7 +216,8 @@ impl WordProcessor {
 }
 
 fn main() {
-    let downloader = DictionaryDownloader::new(downloader::DEFAULT_BASE_URL, ".cache/dictionaries");
+    let downloader =
+        DictionaryDownloader::new(downloader::DEFAULT_BASE_URL, "../.cache/dictionaries");
     let files = downloader.get("en").unwrap();
     let processor = WordProcessor::new(&files.aff_local_path, &files.dic_local_path).unwrap();
     let args: Vec<String> = env::args().collect();
@@ -275,8 +276,6 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use downloader::DictionaryInfo;
-
     use super::*;
     fn example_file_path(file: &str) -> String {
         format!("../examples/{}", file)
@@ -284,7 +283,7 @@ mod tests {
     fn get_processor() -> WordProcessor {
         let dlr = downloader::DictionaryDownloader::new(
             downloader::DEFAULT_BASE_URL,
-            ".cache/dictionaries",
+            "../.cache/dictionaries",
         );
         let dict = dlr.get("en").unwrap();
         WordProcessor::new(&dict.aff_local_path, &dict.dic_local_path).unwrap()
