@@ -13,8 +13,10 @@ pub struct SpellCheckResult {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TextRange {
-    pub start: usize,
-    pub end: usize,
+    pub start_char: usize,
+    pub end_char: usize,
+    pub start_line: usize,
+    pub end_line: usize,
 }
 
 pub struct CodeDictionary {
@@ -111,8 +113,10 @@ impl CodeDictionary {
                                 .entry(word)
                                 .or_insert_with(Vec::new)
                                 .push(TextRange {
-                                    start: node.start_byte(),
-                                    end: node.end_byte(),
+                                    start_char: node.start_position().column,
+                                    end_char: node.end_position().column,
+                                    start_line: node.start_position().row,
+                                    end_line: node.end_position().row,
                                 });
                         }
                     }

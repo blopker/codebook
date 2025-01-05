@@ -1,8 +1,12 @@
-use tower_lsp::jsonrpc::{Error as RpcError, Result as RpcResult};
+use tower_lsp::jsonrpc::Result as RpcResult;
 use tower_lsp::lsp_types::*;
-use tower_lsp::{Client, LanguageServer, LspService, Server};
+use tower_lsp::{Client, LanguageServer};
 
-use log::{error, info};
+use log::info;
+
+use crate::code_dictionary::CodeDictionary;
+use crate::downloader::{self, DictionaryDownloader};
+use crate::queries::get_language_name_from_filename;
 
 #[derive(Clone, Debug)]
 pub struct TextRange {
@@ -52,24 +56,26 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        let uri = params.text_document.uri;
-        self.publish_spellcheck_diagnostics(uri).await;
+        self.publish_spellcheck_diagnostics(&params.text_document)
+            .await;
     }
 
-    async fn did_change(&self, params: DidChangeTextDocumentParams) {
-        let uri = params.text_document.uri;
-        self.publish_spellcheck_diagnostics(uri).await;
-    }
+    // async fn did_change(&self, params: DidChangeTextDocumentParams) {
+    //     self.publish_spellcheck_diagnostics(&params.text_document.)
+    //         .await;
+    // }
 }
 
 impl Backend {
     /// Helper method to publish diagnostics for spell-checking.
-    async fn publish_spellcheck_diagnostics(&self, uri: Url) {
+    async fn publish_spellcheck_diagnostics(&self, text_document: &TextDocumentItem) {
         // Convert the file URI to a local file path (if needed).
-        let file_path = uri.to_file_path().unwrap_or_default();
+        let uri = text_document.uri.clone();
+        let file_path = text_document.uri.to_file_path().unwrap_or_default();
 
         // 1) Perform spell-check (stubbed function below).
-        let spell_results = spell_check(file_path.to_str().unwrap_or_default());
+        let spell_results =
+            spell_check(file_path.to_str().unwrap_or_default(), &text_document.text);
 
         // 2) Convert the results to LSP diagnostics.
         let diagnostics: Vec<Diagnostic> = spell_results
@@ -112,27 +118,34 @@ impl Backend {
 /// Stubbed spell-check function.
 /// In a real-world scenario, this might parse the file, identify misspellings,
 /// and provide suggestions.
-fn spell_check(_file_name: &str) -> Vec<SpellCheckResult> {
-    vec![
-        SpellCheckResult {
-            word: "exampel".to_string(),
-            suggestions: vec!["example".to_string(), "sample".to_string()],
-            locations: vec![TextRange {
-                start_line: 0,
-                start_char: 10,
-                end_line: 0,
-                end_char: 17,
-            }],
-        },
-        SpellCheckResult {
-            word: "lenguage".to_string(),
-            suggestions: vec!["language".to_string()],
-            locations: vec![TextRange {
-                start_line: 2,
-                start_char: 5,
-                end_line: 2,
-                end_char: 13,
-            }],
-        },
-    ]
+fn spell_check(file_name: &str, file_contents: &str) -> Vec<SpellCheckResult> {
+    let downloader =
+        DictionaryDownloader::new(downloader::DEFAULT_BASE_URL, "../.cache/dictionaries");
+    let files = downloader.get("en").unwrap();
+    let processor = CodeDictionary::new(&files.aff_local_path, &files.dic_local_path).unwrap();
+    let file_type = get_language_name_from_filename(file_name);
+    let misspelled = processor.spell_check(file_contents, &file_type);
+
+    // vec![
+    //     SpellCheckResult {
+    //         word: "exampel".to_string(),
+    //         suggestions: vec!["example".to_string(), "sample".to_string()],
+    //         locations: vec![TextRange {
+    //             start_line: 0,
+    //             start_char: 10,
+    //             end_line: 0,
+    //             end_char: 17,
+    //         }],
+    //     },
+    //     SpellCheckResult {
+    //         word: "lenguage".to_string(),
+    //         suggestions: vec!["language".to_string()],
+    //         locations: vec![TextRange {
+    //             start_line: 2,
+    //             start_char: 5,
+    //             end_line: 2,
+    //             end_char: 13,
+    //         }],
+    //     },
+    // ]
 }
