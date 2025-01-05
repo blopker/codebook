@@ -20,6 +20,9 @@ ureq = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 fs2 = "0.4"
+tokio = { version = "1", features = ["full"] }
+env_logger = "0.11.6"
+log = "0.4.22"
 
 [build-dependencies]
 cc = "1.0"

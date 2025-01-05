@@ -1,3 +1,35 @@
+use std::collections::HashSet;
+
+fn should_skip_word(word: &str) -> bool {
+    if word.len() <= 1 {
+        return true;
+    }
+
+    false
+}
+
+pub fn split_into_words(text: &str) -> HashSet<String> {
+    let mut words_to_check = HashSet::new();
+
+    // Split text into words and handle punctuation
+    for word in text.split(|c: char| !c.is_alphanumeric()) {
+        if word.is_empty() || should_skip_word(word) {
+            continue;
+        }
+
+        // Handle camelCase and PascalCase
+        let parts = split_camel_case(word);
+
+        for part in parts {
+            if !should_skip_word(&part) {
+                words_to_check.insert(part);
+            }
+        }
+    }
+
+    words_to_check
+}
+
 #[derive(PartialEq)]
 enum CharType {
     Lower,

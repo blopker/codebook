@@ -4,8 +4,6 @@ use std::collections::{HashMap, HashSet};
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
 
-static EXTRA_WORDS: &'static [&'static str] = &["http", "https", "www", "viewport", "UTF"];
-
 #[derive(Debug, Clone)]
 pub struct SpellCheckResult {
     pub word: String,
@@ -47,38 +45,8 @@ impl CodeDictionary {
         suggestions
     }
 
-    fn should_skip_word(&self, word: &str) -> bool {
-        if word.len() <= 1 || self.custom_dictionary.contains(word) {
-            return true;
-        }
-
-        false
-    }
-
-    fn prepare_text_for_spell_check(&self, text: &str) -> HashSet<String> {
-        let mut words_to_check = HashSet::new();
-
-        // Split text into words and handle punctuation
-        for word in text.split(|c: char| !c.is_alphanumeric()) {
-            if word.is_empty() || self.should_skip_word(word) {
-                continue;
-            }
-
-            // Handle camelCase and PascalCase
-            let parts = splitter::split_camel_case(word);
-
-            for part in parts {
-                if !self.should_skip_word(&part) {
-                    words_to_check.insert(part);
-                }
-            }
-        }
-
-        words_to_check
-    }
-
     pub fn spell_check(&self, text: &str, language: &str) -> Vec<SpellCheckResult> {
-        println!("language: {:?}", language);
+        // println!("language: {:?}", language);
         let lang = get_language_setting(language);
         match lang {
             None => {
@@ -97,7 +65,7 @@ impl CodeDictionary {
     }
 
     fn spell_check_text(&self, text: &str) -> Vec<SpellCheckResult> {
-        let words = self.prepare_text_for_spell_check(text);
+        let words = splitter::split_into_words(text);
         return words
             .into_iter()
             .filter(|word| !self.dictionary.check(word))
@@ -137,7 +105,7 @@ impl CodeDictionary {
                 let words_to_process = self.node_text_to_parts(node_text);
                 println!("words_to_process: {words_to_process:?}");
                 for word in words_to_process {
-                    if !self.should_skip_word(&word) {
+                    if !self.custom_dictionary.contains(&word) {
                         if !self.dictionary.check(&word) {
                             word_locations
                                 .entry(word)
@@ -190,39 +158,12 @@ impl CodeDictionary {
         locations
     }
 }
-//
-// fn main() {
-//     let stdin = io::stdin();
-//     let mut stdout = io::stdout();
-
-//     for line in stdin.lock().lines() {
-//         if let Ok(json_rpc) = line {
-//             // Parse JSON-RPC message here
-//             match parse_json_rpc(&json_rpc) {
-//                 Some(message) => handle_lsp_method(message, &mut stdout),
-//                 None => eprintln!("Invalid JSON-RPC message"),
-//             }
-//         }
-//     }
-// }
-
-// fn parse_json_rpc(json: &str) -> Option<String> {
-//     // Implement your own parser or use a third-party library (like serde_json).
-//     // For simplicity, this example does not include parsing.
-//     eprintln!("{:?}", json);
-//     None
-// }
-
-// fn handle_lsp_method(message: String, stdout: &mut dyn Write) {
-//     // Handle LSP methods and send responses to the client here.
-//     // This example does not include any LSP functionality.
-//     writeln!(stdout, "{message}").unwrap(); // Send an empty response.
-// }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::downloader::{DictionaryDownloader, DEFAULT_BASE_URL};
+    static EXTRA_WORDS: &'static [&'static str] = &["http", "https", "www", "viewport", "UTF"];
     fn example_file_path(file: &str) -> String {
         format!("../examples/{}", file)
     }
