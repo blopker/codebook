@@ -1,5 +1,5 @@
 [package]
-name = "codebook-lsp"
+name = "codebook"
 version = "0.1.0"
 edition = "2021"
 
@@ -23,11 +23,6 @@ fs2 = "0.4"
 tokio = { version = "1", features = ["full"] }
 env_logger = "0.11.6"
 log = "0.4.22"
-codebook = { path = "../codebook" }
-
-
-[build-dependencies]
-cc = "1.0"
 
 [dev-dependencies]
 tempfile = "3"

@@ -170,10 +170,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "codebook"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "fs2",
+ "lazy_static",
+ "log",
+ "regex",
+ "serde",
+ "serde_json",
+ "spellbook",
+ "streaming-iterator",
+ "tempfile",
+ "tokio",
+ "tower-lsp",
+ "tree-sitter",
+ "tree-sitter-go",
+ "tree-sitter-html",
+ "tree-sitter-javascript",
+ "tree-sitter-python",
+ "tree-sitter-rust",
+ "tree-sitter-typescript",
+ "ureq",
+]
+
+[[package]]
 name = "codebook-lsp"
 version = "0.1.0"
 dependencies = [
  "cc",
+ "codebook",
  "env_logger",
  "fs2",
  "lazy_static",

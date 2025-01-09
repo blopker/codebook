@@ -1,5 +1,8 @@
+pub mod downloader;
+mod queries;
+mod splitter;
+
 use crate::queries::{get_language_name_from_filename, get_language_setting, LanguageSetting};
-use crate::splitter;
 use std::collections::{HashMap, HashSet};
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
@@ -13,10 +16,10 @@ pub struct SpellCheckResult {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TextRange {
-    pub start_char: usize,
-    pub end_char: usize,
-    pub start_line: usize,
-    pub end_line: usize,
+    pub start_char: u32,
+    pub end_char: u32,
+    pub start_line: u32,
+    pub end_line: u32,
 }
 
 pub struct CodeDictionary {
@@ -66,9 +69,14 @@ impl CodeDictionary {
         return self.spell_check(&file_text, &lang_name);
     }
 
+    pub fn spell_check_file_memory(&self, path: &str, contents: &str) -> Vec<SpellCheckResult> {
+        let lang_name = get_language_name_from_filename(path);
+        return self.spell_check(&contents, &lang_name);
+    }
+
     fn spell_check_text(&self, text: &str) -> Vec<SpellCheckResult> {
         let words = splitter::split_into_words(text);
-        return words
+        let mut results: Vec<SpellCheckResult> = words
             .into_iter()
             .filter(|word| !self.dictionary.check(word))
             .map(|word| SpellCheckResult {
@@ -77,6 +85,8 @@ impl CodeDictionary {
                 locations: self.find_word_locations(&word, text),
             })
             .collect();
+        results.sort_by(|a, b| a.word.cmp(&b.word));
+        results
     }
 
     fn spell_check_code(
@@ -113,10 +123,11 @@ impl CodeDictionary {
                                 .entry(word)
                                 .or_insert_with(Vec::new)
                                 .push(TextRange {
-                                    start_char: node.start_position().column,
-                                    end_char: node.end_position().column,
-                                    start_line: node.start_position().row,
-                                    end_line: node.end_position().row,
+                                    start_char: u32::try_from(node.start_position().column)
+                                        .unwrap(),
+                                    end_char: u32::try_from(node.end_position().column).unwrap(),
+                                    start_line: u32::try_from(node.start_position().row).unwrap(),
+                                    end_line: u32::try_from(node.end_position().row).unwrap(),
                                 });
                         }
                     }
@@ -160,8 +171,8 @@ impl CodeDictionary {
                 start = start + start_index;
                 let end = start + word.len();
                 locations.push(TextRange {
-                    start_char: start,
-                    end_char: end,
+                    start_char: u32::try_from(start).unwrap(),
+                    end_char: u32::try_from(end).unwrap(),
                     start_line: line,
                     end_line: line,
                 });
@@ -174,17 +185,15 @@ impl CodeDictionary {
 }
 
 #[cfg(test)]
-mod tests {
+mod lib_tests {
     use super::*;
-    use crate::downloader::{DictionaryDownloader, DEFAULT_BASE_URL};
     static EXTRA_WORDS: &'static [&'static str] = &["http", "https", "www", "viewport", "UTF"];
     fn example_file_path(file: &str) -> String {
         format!("../examples/{}", file)
     }
     fn get_processor() -> CodeDictionary {
-        let dlr = DictionaryDownloader::new(DEFAULT_BASE_URL, "../.cache/dictionaries");
-        let dict = dlr.get("en").unwrap();
-        let mut cdict = CodeDictionary::new(&dict.aff_local_path, &dict.dic_local_path).unwrap();
+        let mut cdict =
+            CodeDictionary::new("./tests/en_index.aff", "./tests/en_index.dic").unwrap();
         for word in EXTRA_WORDS {
             cdict.add_to_dictionary(word.to_string());
         }

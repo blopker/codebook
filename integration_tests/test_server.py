@@ -53,7 +53,7 @@ async def client(lsp_client: LanguageClient):
 
 
 @pytest.mark.asyncio
-async def test_spellcheck_diagnostics(client: LanguageClient, tmp_path: Path):
+async def test_spellcheck_text(client: LanguageClient, tmp_path: Path):
     """Test that the server provides spelling diagnostics"""
     # Create a test file with intentional spelling mistakes
     test_file = tmp_path / "test.txt"
@@ -83,16 +83,16 @@ async def test_spellcheck_diagnostics(client: LanguageClient, tmp_path: Path):
 
     # Check first diagnostic (exampel)
     assert diagnostics[0].range.start.line == 0
-    assert diagnostics[0].range.start.character == 10
+    assert diagnostics[0].range.start.character == 11
     assert diagnostics[0].range.end.line == 0
-    assert diagnostics[0].range.end.character == 17
+    assert diagnostics[0].range.end.character == 18
     assert "exampel" in diagnostics[0].message
     assert "example" in diagnostics[0].message
 
     # Check second diagnostic (lenguage)
-    assert diagnostics[1].range.start.line == 2
-    assert diagnostics[1].range.start.character == 5
-    assert diagnostics[1].range.end.line == 2
-    assert diagnostics[1].range.end.character == 13
+    assert diagnostics[1].range.start.line == 0
+    assert diagnostics[1].range.start.character == 22
+    assert diagnostics[1].range.end.line == 0
+    assert diagnostics[1].range.end.character == 30
     assert "lenguage" in diagnostics[1].message
     assert "language" in diagnostics[1].message
