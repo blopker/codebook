@@ -13,7 +13,7 @@ from pytest_lsp import ClientServerConfig, LanguageClient, client_capabilities
 
 @pytest_lsp.fixture(
     config=ClientServerConfig(
-        server_command=["../target/debug/spellbook-lsp", "server"]
+        server_command=["../target/debug/codebook-lsp", "server"]
     ),
 )
 async def client(lsp_client: LanguageClient):

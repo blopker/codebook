@@ -6,7 +6,7 @@ test:
 	cargo test
 
 build:
-	cd spellbook-lsp && cargo build
+	cd codebook-lsp && cargo build
 
 integration_test: build
 	cd integration_tests && .venv/bin/python -m pytest -s

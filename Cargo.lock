@@ -170,6 +170,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "codebook-lsp"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "env_logger",
+ "fs2",
+ "lazy_static",
+ "log",
+ "regex",
+ "serde",
+ "serde_json",
+ "spellbook",
+ "streaming-iterator",
+ "tempfile",
+ "tokio",
+ "tower-lsp",
+ "tree-sitter",
+ "tree-sitter-go",
+ "tree-sitter-html",
+ "tree-sitter-javascript",
+ "tree-sitter-python",
+ "tree-sitter-rust",
+ "tree-sitter-typescript",
+ "ureq",
+]
+
+[[package]]
 name = "colorchoice"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -925,33 +952,6 @@ checksum = "880af4c079784bfbc72d39cd8754bcd092937fbb07ee70a39d8e7f423ca7beaf"
 dependencies = [
  "ahash",
  "hashbrown 0.15.2",
-]
-
-[[package]]
-name = "spellbook-lsp"
-version = "0.1.0"
-dependencies = [
- "cc",
- "env_logger",
- "fs2",
- "lazy_static",
- "log",
- "regex",
- "serde",
- "serde_json",
- "spellbook",
- "streaming-iterator",
- "tempfile",
- "tokio",
- "tower-lsp",
- "tree-sitter",
- "tree-sitter-go",
- "tree-sitter-html",
- "tree-sitter-javascript",
- "tree-sitter-python",
- "tree-sitter-rust",
- "tree-sitter-typescript",
- "ureq",
 ]
 
 [[package]]
