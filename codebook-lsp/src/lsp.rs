@@ -119,33 +119,33 @@ impl Backend {
 /// In a real-world scenario, this might parse the file, identify misspellings,
 /// and provide suggestions.
 fn spell_check(file_name: &str, file_contents: &str) -> Vec<SpellCheckResult> {
-    let downloader =
-        DictionaryDownloader::new(downloader::DEFAULT_BASE_URL, "../.cache/dictionaries");
-    let files = downloader.get("en").unwrap();
-    let processor = CodeDictionary::new(&files.aff_local_path, &files.dic_local_path).unwrap();
-    let file_type = get_language_name_from_filename(file_name);
-    let misspelled = processor.spell_check(file_contents, &file_type);
+    // let downloader =
+    //     DictionaryDownloader::new(downloader::DEFAULT_BASE_URL, "../.cache/dictionaries");
+    // let files = downloader.get("en").unwrap();
+    // let processor = CodeDictionary::new(&files.aff_local_path, &files.dic_local_path).unwrap();
+    // let file_type = get_language_name_from_filename(file_name);
+    // let misspelled = processor.spell_check(file_contents, &file_type);
 
-    // vec![
-    //     SpellCheckResult {
-    //         word: "exampel".to_string(),
-    //         suggestions: vec!["example".to_string(), "sample".to_string()],
-    //         locations: vec![TextRange {
-    //             start_line: 0,
-    //             start_char: 10,
-    //             end_line: 0,
-    //             end_char: 17,
-    //         }],
-    //     },
-    //     SpellCheckResult {
-    //         word: "lenguage".to_string(),
-    //         suggestions: vec!["language".to_string()],
-    //         locations: vec![TextRange {
-    //             start_line: 2,
-    //             start_char: 5,
-    //             end_line: 2,
-    //             end_char: 13,
-    //         }],
-    //     },
-    // ]
+    vec![
+        SpellCheckResult {
+            word: "exampel".to_string(),
+            suggestions: vec!["example".to_string(), "sample".to_string()],
+            locations: vec![TextRange {
+                start_line: 0,
+                start_char: 10,
+                end_line: 0,
+                end_char: 17,
+            }],
+        },
+        SpellCheckResult {
+            word: "lenguage".to_string(),
+            suggestions: vec!["language".to_string()],
+            locations: vec![TextRange {
+                start_line: 2,
+                start_char: 5,
+                end_line: 2,
+                end_char: 13,
+            }],
+        },
+    ]
 }

@@ -153,11 +153,21 @@ impl CodeDictionary {
 
     fn find_word_locations(&self, word: &str, text: &str) -> Vec<TextRange> {
         let mut locations = Vec::new();
-        let matches = text.match_indices(word).collect::<Vec<_>>();
-        for _match in matches {
-            let start = _match.0;
-            let end = start + word.len();
-            locations.push(TextRange { start, end });
+        let mut line = 0;
+        for line_text in text.lines() {
+            let mut start = 0;
+            while let Some(start_index) = line_text[start..].find(word) {
+                start = start + start_index;
+                let end = start + word.len();
+                locations.push(TextRange {
+                    start_char: start,
+                    end_char: end,
+                    start_line: line,
+                    end_line: line,
+                });
+                start = end;
+            }
+            line += 1;
         }
         locations
     }
@@ -237,7 +247,12 @@ mod tests {
                         "Spline".to_string(),
                         "Spineless".to_string(),
                     ],
-                    locations: vec![TextRange { start: 10, end: 18 }],
+                    locations: vec![TextRange {
+                        start_char: 10,
+                        end_char: 18,
+                        start_line: 0,
+                        end_line: 0,
+                    }],
                 }],
             ),
             (
@@ -250,7 +265,12 @@ mod tests {
                             "word".to_string(),
                             "wold".to_string(),
                         ],
-                        locations: vec![TextRange { start: 26, end: 31 }],
+                        locations: vec![TextRange {
+                            start_char: 26,
+                            end_char: 31,
+                            start_line: 0,
+                            end_line: 0,
+                        }],
                     },
                     SpellCheckResult {
                         word: "Wolrd".to_string(),
@@ -259,7 +279,22 @@ mod tests {
                             "Word".to_string(),
                             "Wold".to_string(),
                         ],
-                        locations: vec![TextRange { start: 20, end: 25 }],
+                        locations: vec![TextRange {
+                            start_char: 20,
+                            end_char: 25,
+                            start_line: 0,
+                            end_line: 0,
+                        }],
+                    },
+                    SpellCheckResult {
+                        word: "regulr".to_string(),
+                        suggestions: vec!["regular".to_string(), "Regulus".to_string()],
+                        locations: vec![TextRange {
+                            start_char: 6,
+                            end_char: 12,
+                            start_line: 1,
+                            end_line: 1,
+                        }],
                     },
                 ],
             ),
@@ -284,7 +319,10 @@ mod tests {
         let files = [
             ("example.html", vec!["Spelin", "Wolrd", "sor"]),
             ("example.py", vec!["Pthon", "Wolrd"]),
-            ("example.md", vec!["Wolrd", "bvd", "splellin", "wolrd"]),
+            (
+                "example.md",
+                vec!["Wolrd", "bvd", "regulr", "splellin", "wolrd"],
+            ),
             ("example.txt", vec!["Splellin", "bd"]),
             ("example.rs", vec!["birt", "curent", "jalopin", "usr"]),
             (
