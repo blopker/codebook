@@ -9,4 +9,4 @@ build:
 	cd codebook-lsp && cargo build
 
 integration_test: build
-	cd integration_tests && .venv/bin/python -m pytest -s
+	cd integration_tests && bun test

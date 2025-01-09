@@ -71,7 +71,7 @@ impl Backend {
         // Convert the file URI to a local file path (if needed).
         let uri = text_document.uri.clone();
         let file_path = text_document.uri.to_file_path().unwrap_or_default();
-
+        info!("Spell-checking file: {:?}", file_path);
         // 1) Perform spell-check (stubbed function below).
         let spell_results =
             spell_check(file_path.to_str().unwrap_or_default(), &text_document.text);
@@ -95,7 +95,7 @@ impl Backend {
                     severity: Some(DiagnosticSeverity::WARNING),
                     code: None,
                     code_description: None,
-                    source: Some("SpellCheck".to_string()),
+                    source: Some("Codebook".to_string()),
                     message: format!(
                         "Possible spelling error: '{}'. Suggestions: {:?}",
                         res.word, res.suggestions
@@ -107,10 +107,12 @@ impl Backend {
             })
             .collect();
 
+        info!("Diagnostics: {:?}", diagnostics);
         // 3) Send the diagnostics to the client.
         self.client
             .publish_diagnostics(uri, diagnostics, None)
             .await;
+        info!("Published diagnostics for: {:?}", file_path);
     }
 }
 

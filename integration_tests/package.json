@@ -1,0 +1,17 @@
+{
+  "name": "integration_tests",
+  "module": "index.test.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/vscode": "^1.96.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "vscode": "^1.1.37",
+    "vscode-languageclient": "^9.0.1",
+    "vscode-test": "^1.6.1"
+  }
+}
