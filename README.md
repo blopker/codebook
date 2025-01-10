@@ -2,7 +2,9 @@
 
 Currently there are only tests.
 
-Run them with `make test`. Dictionaries will downlaod to a cache for you.
+Run them with `make test`. Dictionaries will download to a cache for you.
+
+![screenshot](assets/screenshot.png)
 
 ## Acknowledgments
 - Harper: https://writewithharper.com/
