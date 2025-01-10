@@ -8,8 +8,11 @@ test:
 build:
 	cd codebook-lsp && cargo build
 
+build-release:
+	cd codebook-lsp && cargo build --release
+
 integration_test: build
 	cd integration_tests && bun test
 
-install_ext: build
+install_ext: build-release
 	cp -f target/debug/codebook-lsp "${HOME}/Library/Application Support/Zed/extensions/work/codebook/"

@@ -63,3 +63,28 @@ test("should provide diagnostics for code", async (done) => {
     },
   });
 });
+
+test("should only highlight word in code", async (done) => {
+  // const languageClient = await makeClient();
+  languageClient.on("textDocument/publishDiagnostics", (params) => {
+    console.log("Received diagnostics:", params);
+    expect(params).toBeDefined();
+    expect(false);
+    done();
+    // assert.ok(Array.isArray(completions));
+  });
+  languageClient.sendNotification("textDocument/didOpen", {
+    textDocument: {
+      uri: "file:///example.py",
+      languageId: "python",
+      version: 1,
+      text: `# Example Pthon fie
+      def main():
+          print("Hello, Wolrd!")
+
+      if __name__ == "__main__":
+          main()
+      `,
+    },
+  });
+});

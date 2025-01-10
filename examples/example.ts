@@ -8,6 +8,10 @@ function validateInputt(userInputt: number | string) {
   return true;
 }
 
+const multiLineString = `This is a multi-line string
+spanning multiple lines
+with some spelling mistkes`;
+
 // Example usege
 const firstNumbr = 10;
 const secandNumbr = 5;
@@ -17,6 +21,7 @@ const arraOfNumbrs = [1, 2, 3, 4, 5];
 
 /*
  Funcshun to prosess array
+ another linet
 */
 function prosessArray(arr: number[]) {
   let totel = 0;

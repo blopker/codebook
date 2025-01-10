@@ -1,4 +1,6 @@
 mod lsp;
+use codebook::downloader::{self, DictionaryDownloader};
+use codebook::CodeDictionary;
 use log::info;
 use lsp::Backend;
 use tower_lsp::{LspService, Server};
@@ -9,6 +11,10 @@ async fn main() {
     env_logger::init();
     info!("Starting SpellCheck Language Server...");
     let (stdin, stdout) = (tokio::io::stdin(), tokio::io::stdout());
-    let (service, socket) = LspService::new(|client| Backend { client });
+    let downloader =
+        DictionaryDownloader::new(downloader::DEFAULT_BASE_URL, "../.cache/dictionaries");
+    let files = downloader.get("en").unwrap();
+    let processor = CodeDictionary::new(&files.aff_local_path, &files.dic_local_path).unwrap();
+    let (service, socket) = LspService::new(|client| Backend { client, processor });
     Server::new(stdin, stdout, socket).serve(service).await;
 }

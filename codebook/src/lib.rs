@@ -14,6 +14,16 @@ pub struct SpellCheckResult {
     pub locations: Vec<TextRange>,
 }
 
+impl SpellCheckResult {
+    pub fn new(word: String, suggestions: Vec<&str>, locations: Vec<TextRange>) -> Self {
+        SpellCheckResult {
+            word,
+            suggestions: suggestions.iter().map(|s| s.to_string()).collect(),
+            locations,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TextRange {
     pub start_char: u32,
@@ -22,6 +32,7 @@ pub struct TextRange {
     pub end_line: u32,
 }
 
+#[derive(Debug)]
 pub struct CodeDictionary {
     custom_dictionary: HashSet<String>,
     dictionary: spellbook::Dictionary,
@@ -113,29 +124,54 @@ impl CodeDictionary {
             for capture in match_.captures {
                 let node = capture.node;
                 let node_text = node.utf8_text(text.as_bytes()).unwrap();
-                self.node_text_to_parts(node_text);
                 let words_to_process = self.node_text_to_parts(node_text);
-                println!("words_to_process: {words_to_process:?}");
+
+                let node_start = node.start_position();
+                let node_text_bytes = node_text.as_bytes();
+
                 for word in words_to_process {
-                    if !self.custom_dictionary.contains(&word) {
-                        if !self.dictionary.check(&word) {
+                    if !self.custom_dictionary.contains(&word) && !self.dictionary.check(&word) {
+                        // Find all occurrences of the word in the node text
+                        let mut start_idx = 0;
+                        while let Some(word_start_idx) = node_text[start_idx..].find(&word) {
+                            let absolute_start_idx = start_idx + word_start_idx;
+                            let word_end_idx = absolute_start_idx + word.len();
+
+                            // Count lines and columns up to the word
+                            let mut lines = 0;
+                            let mut last_newline_pos = 0;
+                            for (idx, &byte) in
+                                node_text_bytes[..absolute_start_idx].iter().enumerate()
+                            {
+                                if byte == b'\n' {
+                                    lines += 1;
+                                    last_newline_pos = idx + 1;
+                                }
+                            }
+
+                            // Calculate start and end positions
+                            let start_col = absolute_start_idx - last_newline_pos;
+                            let end_col = start_col + word.len();
+                            let start_line = node_start.row + lines;
+
                             word_locations
-                                .entry(word)
+                                .entry(word.clone())
                                 .or_insert_with(Vec::new)
                                 .push(TextRange {
-                                    start_char: u32::try_from(node.start_position().column)
+                                    start_char: u32::try_from(node_start.column + start_col)
                                         .unwrap(),
-                                    end_char: u32::try_from(node.end_position().column).unwrap(),
-                                    start_line: u32::try_from(node.start_position().row).unwrap(),
-                                    end_line: u32::try_from(node.end_position().row).unwrap(),
+                                    end_char: u32::try_from(node_start.column + end_col).unwrap(),
+                                    start_line: u32::try_from(start_line).unwrap(),
+                                    end_line: u32::try_from(start_line).unwrap(),
                                 });
+
+                            start_idx = word_end_idx;
                         }
                     }
                 }
             }
         }
 
-        // Check spelling and collect results
         word_locations
             .keys()
             .into_iter()
@@ -244,7 +280,19 @@ mod lib_tests {
     #[test]
     fn test_example_files_word_locations() {
         let files: Vec<(&str, Vec<SpellCheckResult>)> = vec![
-            // ("example.py", vec!["pthon", "wolrd"]),
+            (
+                "example.py",
+                vec![SpellCheckResult::new(
+                    "Pthon".to_string(),
+                    vec!["Python", "Pt hon", "Pt-hon"],
+                    vec![TextRange {
+                        start_char: 10,
+                        end_char: 15,
+                        start_line: 0,
+                        end_line: 0,
+                    }],
+                )],
+            ),
             // ("example.html", vec!["sor", "spelin", "wolrd"]),
             // ("example.md", vec!["bvd", "splellin", "wolrd"]),
             (

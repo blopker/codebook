@@ -2,10 +2,8 @@ use tower_lsp::jsonrpc::Result as RpcResult;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
 
-use log::info;
-
-use codebook::downloader::{self, DictionaryDownloader};
 use codebook::CodeDictionary;
+use log::info;
 
 // #[derive(Clone, Debug)]
 // pub struct TextRange {
@@ -25,6 +23,7 @@ use codebook::CodeDictionary;
 #[derive(Debug)]
 pub struct Backend {
     pub client: Client,
+    pub processor: CodeDictionary,
 }
 
 #[tower_lsp::async_trait]
@@ -55,26 +54,27 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        self.publish_spellcheck_diagnostics(&params.text_document)
+        self.publish_spellcheck_diagnostics(&params.text_document.uri, &params.text_document.text)
             .await;
     }
 
-    // async fn did_change(&self, params: DidChangeTextDocumentParams) {
-    //     self.publish_spellcheck_diagnostics(&params.text_document.)
-    //         .await;
-    // }
+    async fn did_save(&self, params: DidSaveTextDocumentParams) {
+        if let Some(text) = params.text {
+            self.publish_spellcheck_diagnostics(&params.text_document.uri, &text)
+                .await;
+        }
+    }
 }
 
 impl Backend {
     /// Helper method to publish diagnostics for spell-checking.
-    async fn publish_spellcheck_diagnostics(&self, text_document: &TextDocumentItem) {
+    async fn publish_spellcheck_diagnostics(&self, uri: &Url, text: &str) {
         // Convert the file URI to a local file path (if needed).
-        let uri = text_document.uri.clone();
-        let file_path = text_document.uri.to_file_path().unwrap_or_default();
+        let uri = uri.clone();
+        let file_path = uri.to_file_path().unwrap_or_default();
         info!("Spell-checking file: {:?}", file_path);
         // 1) Perform spell-check (stubbed function below).
-        let spell_results =
-            spell_check(file_path.to_str().unwrap_or_default(), &text_document.text);
+        let spell_results = self.spell_check(file_path.to_str().unwrap_or_default(), text);
 
         // 2) Convert the results to LSP diagnostics.
         let diagnostics: Vec<Diagnostic> = spell_results
@@ -114,38 +114,9 @@ impl Backend {
             .await;
         info!("Published diagnostics for: {:?}", file_path);
     }
-}
 
-/// Stubbed spell-check function.
-/// In a real-world scenario, this might parse the file, identify misspellings,
-/// and provide suggestions.
-fn spell_check(file_name: &str, file_contents: &str) -> Vec<codebook::SpellCheckResult> {
-    let downloader =
-        DictionaryDownloader::new(downloader::DEFAULT_BASE_URL, "../.cache/dictionaries");
-    let files = downloader.get("en").unwrap();
-    let processor = CodeDictionary::new(&files.aff_local_path, &files.dic_local_path).unwrap();
-    processor.spell_check_file_memory(file_name, file_contents)
-
-    // vec![
-    //     SpellCheckResult {
-    //         word: "exampel".to_string(),
-    //         suggestions: vec!["example".to_string(), "sample".to_string()],
-    //         locations: vec![TextRange {
-    //             start_line: 0,
-    //             start_char: 10,
-    //             end_line: 0,
-    //             end_char: 17,
-    //         }],
-    //     },
-    //     SpellCheckResult {
-    //         word: "lenguage".to_string(),
-    //         suggestions: vec!["language".to_string()],
-    //         locations: vec![TextRange {
-    //             start_line: 2,
-    //             start_char: 5,
-    //             end_line: 2,
-    //             end_char: 13,
-    //         }],
-    //     },
-    // ]
+    fn spell_check(&self, file_name: &str, file_contents: &str) -> Vec<codebook::SpellCheckResult> {
+        self.processor
+            .spell_check_file_memory(file_name, file_contents)
+    }
 }
