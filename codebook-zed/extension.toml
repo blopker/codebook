@@ -1,0 +1,55 @@
+id = "codebook"
+name = "Codebook"
+version = "0.1.0"
+description = "Zed extension for codebook."
+authors = ["Bo"]
+license = "MIT"
+schema_version = 1
+# repository = "https://github.com/your-name/my-zed-extension"
+
+[language_servers.codebook]
+name = "codebook"
+languages = [
+    "Markdown",
+    "Plain Text",
+    "HTML",
+    "Shell Script",
+    "C",
+    "C++",
+    "C#",
+    "Clojure",
+    "CoffeeScript",
+    "Dart",
+    "Elixir",
+    "Elm",
+    "Erlang",
+    "F#",
+    "FORTRAN",
+    "Go",
+    "Groovy",
+    "Haskell",
+    "Java",
+    "JavaScript",
+    "JavaScript React",
+    "Julia",
+    "Kotlin",
+    "Lisp",
+    "Lua",
+    "MATLAB",
+    "Perl",
+    "Perl 6",
+    "PHP",
+    "PowerShell",
+    "Puppet",
+    "Python",
+    "R",
+    "Ruby",
+    "Rust",
+    "Scala",
+    "SQL",
+    "Swift",
+    "TypeScript",
+    "TypeScript React",
+    "Verilog",
+    "Visual Basic",
+]

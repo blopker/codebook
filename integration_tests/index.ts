@@ -1,5 +1,5 @@
 import { LSPTestClient } from "./client";
-// Example usage
+// Example uage
 async function main() {
   const client = new LSPTestClient("../target/debug/codebook-lsp");
 

@@ -1,3 +1,4 @@
-/target
+target
 examples/big.html
 .cache
+*.wasm

@@ -10,3 +10,6 @@ build:
 
 integration_test: build
 	cd integration_tests && bun test
+
+install_ext: build
+	cp -f target/debug/codebook-lsp "${HOME}/Library/Application Support/Zed/extensions/work/codebook/"
