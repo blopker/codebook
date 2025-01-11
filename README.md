@@ -1,7 +1,7 @@
 <br />
 <div align="center">
   <a href="https://github.com/blopker/codebook">
-    <img src="assets/codebook.webp" alt="Logo" width="100" >
+    <img src="assets/codebook-nt.webp" alt="Logo" width="200" >
   </a>
   <h3 align="center">CODEBOOK</h3>
   <p align="center">
