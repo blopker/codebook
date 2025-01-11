@@ -12,7 +12,7 @@ use std::{
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SpellCheckResult {
     pub word: String,
     pub suggestions: Vec<String>,
@@ -114,17 +114,75 @@ impl CodeDictionary {
     }
 
     fn spell_check_text(&self, text: &str) -> Vec<SpellCheckResult> {
-        let words = splitter::split_into_words(text);
-        let mut results: Vec<SpellCheckResult> = words
-            .into_iter()
-            .filter(|word| !self.check(word))
-            .map(|word| SpellCheckResult {
-                word: word.clone(),
-                suggestions: self.suggest(&word),
-                locations: self.find_word_locations(&word, text),
-            })
-            .collect();
-        results.sort_by(|a, b| a.word.cmp(&b.word));
+        let mut results: Vec<SpellCheckResult> = Vec::new();
+        let mut current_word = String::new();
+        let mut word_start_char = 0;
+        let mut current_char = 0;
+        let mut current_line = 0;
+
+        // Process each character in the text
+        for c in text.chars() {
+            if c.is_alphabetic() {
+                if current_word.is_empty() {
+                    word_start_char = current_char;
+                }
+                current_word.push(c);
+            } else {
+                // Word boundary found
+                if !current_word.is_empty() {
+                    // Check if word is in dictionary
+                    if !self.check(&current_word) {
+                        // Word not found in dictionary
+                        let mut locations = Vec::new();
+                        locations.push(TextRange {
+                            start_char: word_start_char,
+                            end_char: current_char,
+                            start_line: current_line,
+                            end_line: current_line,
+                        });
+
+                        // Check if we already have this misspelled word
+                        if let Some(existing_result) =
+                            results.iter_mut().find(|r| r.word == current_word)
+                        {
+                            existing_result.locations.push(locations[0].clone());
+                        } else {
+                            results.push(SpellCheckResult {
+                                word: current_word.clone(),
+                                suggestions: self.suggest(&current_word),
+                                locations,
+                            });
+                        }
+                    }
+                    current_word.clear();
+                }
+
+                if c == '\n' {
+                    current_line += 1;
+                    current_char = 0;
+                    continue;
+                }
+            }
+            current_char += 1;
+        }
+
+        // Check the last word if text doesn't end with punctuation
+        if !current_word.is_empty() {
+            if !self.check(current_word.as_str()) {
+                let locations = vec![TextRange {
+                    start_char: word_start_char,
+                    end_char: current_char,
+                    start_line: current_line,
+                    end_line: current_line,
+                }];
+                results.push(SpellCheckResult {
+                    word: current_word.clone(),
+                    suggestions: self.suggest(&current_word),
+                    locations,
+                });
+            }
+        }
+
         results
     }
 
