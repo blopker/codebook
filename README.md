@@ -19,7 +19,7 @@
 
 ## About
 
-Codebook is a spellchecker for code. It binds together the venerable Tree Sitter, the spell checker Spellbook and includes a Language Server for use in any editor. Everything is done in Rust to keep response times snappy.
+Codebook is a spellchecker for code. It binds together the venerable Tree Sitter, the fast spell checker [Spellbook](https://github.com/helix-editor/spellbook) and includes a Language Server for use in any editor. Everything is done in Rust to keep response times snappy.
 
 ## Status
 
