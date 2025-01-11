@@ -1,11 +1,16 @@
 use tree_sitter::Language;
 
-// Use https://intmainreturn0.com/ts-visualizer/ to help with writting grammar queries
+// Use https://intmainreturn0.com/ts-visualizer/ to help with writing grammar queries
 pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
     LanguageSetting {
         name: "rust",
         query: r#"
-                (identifier) @identifier
+                (function_item
+                    name: (identifier) @identifier)
+                (parameter
+                    pattern: (identifier) @identifier)
+                (let_declaration
+                    pattern: (identifier) @identifier)
                 (string_literal) @string
                 (line_comment) @comment
                 (block_comment) @comment

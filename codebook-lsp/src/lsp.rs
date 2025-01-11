@@ -35,10 +35,13 @@ impl LanguageServer for Backend {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
                     TextDocumentSyncKind::FULL,
                 )),
+                // hover_provider: Some(HoverProviderCapability::Simple(true)),
+                // inlay_hint_provider: Some(OneOf::Left(true)),
+                // code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
-                name: "SpellCheck Language Server".to_string(),
+                name: "Codebook Language Server".to_string(),
                 version: Some("0.1.0".to_string()),
             }),
         })
@@ -64,6 +67,14 @@ impl LanguageServer for Backend {
                 .await;
         }
     }
+
+    // async fn hover(&self, params: HoverParams) -> RpcResult<Option<Hover>> {
+    //     let contents = HoverContents::Scalar(MarkedString::String("Hello, world!".to_string()));
+    //     Ok(Some(Hover {
+    //         contents,
+    //         range: None,
+    //     }))
+    // }
 }
 
 impl Backend {

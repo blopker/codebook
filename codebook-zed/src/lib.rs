@@ -1,9 +1,5 @@
 use zed_extension_api::settings::LspSettings;
-use zed_extension_api::{
-    self as zed,
-    lsp::{Completion, Symbol},
-    CodeLabel, Command, LanguageServerId, Result, Worktree,
-};
+use zed_extension_api::{self as zed, Command, LanguageServerId, Result, Worktree};
 
 struct SpellcheckExtension {
     // ... stat
@@ -28,23 +24,6 @@ impl zed::Extension for SpellcheckExtension {
             args: vec![],
             env: vec![],
         })
-    }
-
-    fn label_for_completion(
-        &self,
-        _language_server_id: &LanguageServerId,
-        _completion: Completion,
-    ) -> Option<CodeLabel> {
-        eprintln!("label_for_completion: {:?}", _completion);
-        None
-    }
-    fn label_for_symbol(
-        &self,
-        _language_server_id: &LanguageServerId,
-        _symbol: Symbol,
-    ) -> Option<CodeLabel> {
-        eprintln!("label_for_symbol: {:?}", _symbol);
-        None
     }
 }
 
