@@ -1,3 +1,22 @@
+<br />
+<div align="center">
+  <a href="https://github.com/blopker/codebook">
+    <img src="assets/codebook.webp" alt="Logo" width="100" >
+  </a>
+  <h3 align="center">CODEBOOK</h3>
+  <p align="center">
+      An unholy spellchecker for code.
+    <br />
+    <br />
+    <a href="https://github.com/blopker/codebook/releases/latest/">Download</a>
+    <br />
+    <br />
+    <a href="https://github.com/blopker/codebook/issues">Report Bug</a>
+    ·
+    <a href="https://github.com/blopker/codebook/issues">Request Feature</a>
+  </p>
+</div>
+
 ## Running
 
 Currently there are only tests.
