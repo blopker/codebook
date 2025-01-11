@@ -35,6 +35,10 @@ Codebook will only check the parts of your code where a normal linter wouldn't. 
 
 Codebook comes with a language server. Originally developed for the Zed editor, this language server can be integrated into any editor that supports the language server protocol.
 
+### Dictionary Management
+
+Codebook comes with a dictionary manager, which will automatically download and cache dictionaries for a large number of languages.
+
 ## Running
 
 Currently there are only tests.
