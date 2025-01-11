@@ -45,7 +45,7 @@ Currently there are only tests.
 
 Run them with `make test`.
 
-![screenshot](assets/screenshot.png)
+![screenshot](assets/screenshot.webp)
 
 ## Acknowledgments
 - Harper: https://writewithharper.com/
