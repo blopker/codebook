@@ -272,16 +272,6 @@ mod lib_tests {
         }
         cdict
     }
-    // #[test]
-    // fn test_spell() {
-    //     let aff = std::fs::read_to_string("index.aff").unwrap();
-    //     let dic = std::fs::read_to_string("index.dic").unwrap();
-    //     let dict = spellbook::Dictionary::new(&aff, &dic).unwrap();
-    //     let mut suggestions: Vec<String> = Vec::new();
-    //     dict.suggest("helloWorld", &mut suggestions);
-    //     println!("{:?}", suggestions);
-    //     assert!(false);
-    // }
 
     #[test]
     fn test_spell_checking() {

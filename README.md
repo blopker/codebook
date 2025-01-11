@@ -37,7 +37,7 @@ Codebook comes with a language server. Originally developed for the Zed editor, 
 
 ### Dictionary Management
 
-Codebook comes with a dictionary manager, which will automatically download and cache dictionaries for a large number of languages.
+Codebook comes with a dictionary manager, which will automatically download and cache dictionaries for a large number of written languages.
 
 ## Running
 
