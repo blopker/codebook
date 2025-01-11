@@ -8,7 +8,7 @@
       An unholy spellchecker for code.
     <br />
     <br />
-    <a href="https://github.com/blopker/codebook/releases/latest/">Download</a>
+    <!-- <a href="https://github.com/blopker/codebook/releases/latest/">Download</a> -->
     <br />
     <br />
     <a href="https://github.com/blopker/codebook/issues">Report Bug</a>
@@ -17,11 +17,29 @@
   </p>
 </div>
 
+## About
+
+Codebook is a spellchecker for code. It binds together the venerable Tree Sitter, the spell checker Spellbook and includes a Language Server for use in any editor. Everything is done in Rust to keep response times snappy.
+
+## Status
+
+Codebook is being developed and not yet ready for public (or private, really) use. Hit the Star button to follow for updates though.
+
+## Features
+
+### Code-aware spell checking
+
+Codebook will only check the parts of your code where a normal linter wouldn't. Comments, string literals and variable definitions for example. Codebook knows how to split camel case and snake case variables, and makes suggestions in the original case.
+
+### Language Server
+
+Codebook comes with a language server. Originally developed for the Zed editor, this language server can be integrated into any editor that supports the language server protocol.
+
 ## Running
 
 Currently there are only tests.
 
-Run them with `make test`. Dictionaries will download to a cache for you.
+Run them with `make test`.
 
 ![screenshot](assets/screenshot.png)
 
