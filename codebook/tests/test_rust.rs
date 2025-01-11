@@ -1,3 +1,5 @@
+use codebook::{SpellCheckResult, TextRange};
+
 mod utils;
 
 #[test]
@@ -19,4 +21,26 @@ fn test_rust_simple() {
     misspelled.sort();
     println!("Misspelled words: {misspelled:?}");
     assert_eq!(misspelled, expected);
+}
+
+#[test]
+fn test_rust_comment_location() {
+    let sample_rust = r#"
+        // Comment with a typo: mment
+        "#;
+    let expected = vec![SpellCheckResult::new(
+        "mment".to_string(),
+        vec!["moment", "comment", "Menkent"],
+        vec![TextRange {
+            start_char: 32,
+            end_char: 37,
+            start_line: 1,
+            end_line: 1,
+        }],
+    )];
+    let processor = utils::get_processor();
+    let misspelled = processor.spell_check(sample_rust, "rust").to_vec();
+    println!("Misspelled words: {misspelled:?}");
+    assert_eq!(misspelled, expected);
+    assert!(misspelled[0].locations.len() == 1);
 }

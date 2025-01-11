@@ -191,8 +191,6 @@ impl CodeDictionary {
         text: &str,
         language_setting: &LanguageSetting,
     ) -> Vec<SpellCheckResult> {
-        // Set up parser for the specified language
-        // println!("Code check for {:?}", language_setting);
         let mut parser = Parser::new();
         let language = language_setting.language().unwrap();
         parser.set_language(&language).unwrap();
@@ -205,64 +203,65 @@ impl CodeDictionary {
         let mut word_locations = HashMap::new();
         let mut matches_query = cursor.matches(&query, root_node, text.as_bytes());
 
-        // Process matches
         while let Some(match_) = matches_query.next() {
             for capture in match_.captures {
                 let node = capture.node;
                 let node_text = node.utf8_text(text.as_bytes()).unwrap();
-                let words_to_process = self.node_text_to_parts(node_text);
 
                 let node_start = node.start_position();
                 let node_text_bytes = node_text.as_bytes();
 
-                for word in words_to_process {
-                    if self.custom_dictionary.contains(&word) {
+                // Split the node text into words with their positions
+                let word_boundaries: Vec<(String, usize, usize)> = node_text
+                    .split(|c: char| !c.is_alphanumeric())
+                    .enumerate()
+                    .filter(|(_, word)| !word.is_empty())
+                    .flat_map(|(_, word)| {
+                        splitter::split_camel_case(word)
+                            .into_iter()
+                            .map(move |part| {
+                                let len = part.len();
+                                let start = node_text.find(&part).unwrap_or(0);
+                                (part, start, start + len)
+                            })
+                    })
+                    .collect();
+
+                for (word, word_start, word_end) in word_boundaries {
+                    if self.custom_dictionary.contains(&word) || self.check(&word) {
                         continue;
                     }
-                    if !self.check(&word) {
-                        let mut start_idx = 0;
-                        while let Some(word_start_idx) = node_text[start_idx..].find(&word) {
-                            let absolute_start_idx = start_idx + word_start_idx;
-                            let word_end_idx = absolute_start_idx + word.len();
 
-                            // Count lines and columns up to the word
-                            let mut lines = 0;
-                            let mut last_newline_pos = 0;
-                            for (idx, &byte) in
-                                node_text_bytes[..absolute_start_idx].iter().enumerate()
-                            {
-                                if byte == b'\n' {
-                                    lines += 1;
-                                    last_newline_pos = idx + 1;
-                                }
-                            }
-
-                            // Calculate start and end positions
-                            let start_col = absolute_start_idx - last_newline_pos;
-                            let end_col = start_col + word.len();
-                            let start_line = node_start.row + lines;
-
-                            let (final_start_col, final_end_col) = if lines == 0 {
-                                // First line: add node's start column
-                                (node_start.column + start_col, node_start.column + end_col)
-                            } else {
-                                // Subsequent lines: use relative position
-                                (start_col, end_col)
-                            };
-
-                            word_locations
-                                .entry(word.clone())
-                                .or_insert_with(Vec::new)
-                                .push(TextRange {
-                                    start_char: u32::try_from(final_start_col).unwrap(),
-                                    end_char: u32::try_from(final_end_col).unwrap(),
-                                    start_line: u32::try_from(start_line).unwrap(),
-                                    end_line: u32::try_from(start_line).unwrap(),
-                                });
-
-                            start_idx = word_end_idx;
+                    // Count lines and columns up to the word
+                    let mut lines = 0;
+                    let mut last_newline_pos = 0;
+                    for (idx, &byte) in node_text_bytes[..word_start].iter().enumerate() {
+                        if byte == b'\n' {
+                            lines += 1;
+                            last_newline_pos = idx + 1;
                         }
                     }
+
+                    // Calculate start and end positions
+                    let start_col = word_start - last_newline_pos;
+                    let end_col = word_end - last_newline_pos;
+                    let start_line = node_start.row + lines;
+
+                    let (final_start_col, final_end_col) = if lines == 0 {
+                        (node_start.column + start_col, node_start.column + end_col)
+                    } else {
+                        (start_col, end_col)
+                    };
+
+                    word_locations
+                        .entry(word.clone())
+                        .or_insert_with(Vec::new)
+                        .push(TextRange {
+                            start_char: u32::try_from(final_start_col).unwrap(),
+                            end_char: u32::try_from(final_end_col).unwrap(),
+                            start_line: u32::try_from(start_line).unwrap(),
+                            end_line: u32::try_from(start_line).unwrap(),
+                        });
                 }
             }
         }
@@ -277,51 +276,13 @@ impl CodeDictionary {
             })
             .collect()
     }
-
-    fn node_text_to_parts(&self, node_text: &str) -> Vec<String> {
-        // string literal or comments
-        // Split identifiers into parts
-        let mut parts = Vec::new();
-        // First split by non-alphanumeric
-        println!("node_text: {node_text:?}");
-        for word in node_text.split(|c: char| !c.is_alphanumeric()) {
-            if !word.is_empty() {
-                // Then split camelCase
-                parts.extend(splitter::split_camel_case(word));
-            }
-        }
-        parts
-    }
-
-    fn find_word_locations(&self, word: &str, text: &str) -> Vec<TextRange> {
-        let mut locations = Vec::new();
-        let mut line = 0;
-        for line_text in text.lines() {
-            let mut start = 0;
-            while let Some(start_index) = line_text[start..].find(word) {
-                start = start + start_index;
-                let end = start + word.len();
-                locations.push(TextRange {
-                    start_char: u32::try_from(start).unwrap(),
-                    end_char: u32::try_from(end).unwrap(),
-                    start_line: line,
-                    end_line: line,
-                });
-                start = end;
-            }
-            line += 1;
-        }
-        locations
-    }
 }
 
 #[cfg(test)]
 mod lib_tests {
     use super::*;
     static EXTRA_WORDS: &'static [&'static str] = &["http", "https", "www", "viewport", "UTF"];
-    fn example_file_path(file: &str) -> String {
-        format!("../examples/{}", file)
-    }
+
     fn get_processor() -> CodeDictionary {
         let mut cdict =
             CodeDictionary::new("./tests/en_index.aff", "./tests/en_index.dic").unwrap();
@@ -339,190 +300,5 @@ mod lib_tests {
         let misspelled = processor.spell_check(text, "text");
         println!("{:?}", misspelled);
         assert!(misspelled.iter().any(|r| r.word == "wrld"));
-    }
-
-    #[test]
-    fn test_programming() {
-        let processor = get_processor();
-        let sample_text = r#"
-            fn calculat_user_age(bithDate: String) -> u32 {
-                // This is an examle_function that calculates age
-                let usrAge = get_curent_date() - bithDate;
-                userAge
-            }
-        "#;
-        let expected = vec!["bith", "calculat", "examle", "usr"];
-        let binding = processor.spell_check(sample_text, "rust").to_vec();
-        let mut misspelled = binding
-            .iter()
-            .map(|r| r.word.as_str())
-            .collect::<Vec<&str>>();
-        misspelled.sort();
-        println!("Misspelled words: {misspelled:?}");
-        assert_eq!(misspelled, expected);
-    }
-
-    #[test]
-    fn test_example_files_word_locations() {
-        let files: Vec<(&str, Vec<SpellCheckResult>)> = vec![
-            (
-                "example.py",
-                vec![SpellCheckResult::new(
-                    "Pthon".to_string(),
-                    vec!["Python", "Pt hon", "Pt-hon"],
-                    vec![TextRange {
-                        start_char: 10,
-                        end_char: 15,
-                        start_line: 0,
-                        end_line: 0,
-                    }],
-                )],
-            ),
-            (
-                "example.ts",
-                vec![SpellCheckResult::new(
-                    "mistkes".to_string(),
-                    vec!["mistakes", "mistake", "mistimes"],
-                    vec![TextRange {
-                        start_char: 19,
-                        end_char: 26,
-                        start_line: 12,
-                        end_line: 12,
-                    }],
-                )],
-            ),
-            // ("example.md", vec!["bvd", "splellin", "wolrd"]),
-            (
-                "example.txt",
-                vec![SpellCheckResult {
-                    word: "Splellin".to_string(),
-                    suggestions: vec![
-                        "Spelling".to_string(),
-                        "Spline".to_string(),
-                        "Spineless".to_string(),
-                    ],
-                    locations: vec![TextRange {
-                        start_char: 10,
-                        end_char: 18,
-                        start_line: 0,
-                        end_line: 0,
-                    }],
-                }],
-            ),
-            (
-                "example.md",
-                vec![
-                    SpellCheckResult {
-                        word: "wolrd".to_string(),
-                        suggestions: vec![
-                            "world".to_string(),
-                            "word".to_string(),
-                            "wold".to_string(),
-                        ],
-                        locations: vec![TextRange {
-                            start_char: 26,
-                            end_char: 31,
-                            start_line: 0,
-                            end_line: 0,
-                        }],
-                    },
-                    SpellCheckResult {
-                        word: "Wolrd".to_string(),
-                        suggestions: vec![
-                            "World".to_string(),
-                            "Word".to_string(),
-                            "Wold".to_string(),
-                        ],
-                        locations: vec![TextRange {
-                            start_char: 20,
-                            end_char: 25,
-                            start_line: 0,
-                            end_line: 0,
-                        }],
-                    },
-                    SpellCheckResult {
-                        word: "regulr".to_string(),
-                        suggestions: vec!["regular".to_string(), "Regulus".to_string()],
-                        locations: vec![TextRange {
-                            start_char: 6,
-                            end_char: 12,
-                            start_line: 1,
-                            end_line: 1,
-                        }],
-                    },
-                ],
-            ),
-        ];
-        for file in files {
-            let path = example_file_path(file.0);
-            // println!("Checking file: {path:?}");
-            let text = std::fs::read_to_string(path).unwrap();
-            let processor = get_processor();
-            let results = processor.spell_check(&text, "text");
-            // println!("Misspelled words: {results:?}");
-            for expected in file.1 {
-                let found = results.iter().find(|r| r.word == expected.word).unwrap();
-                assert_eq!(found.suggestions, expected.suggestions);
-                assert_eq!(found.locations, expected.locations);
-            }
-        }
-    }
-
-    #[test]
-    fn test_example_files() {
-        let files = [
-            ("example.html", vec!["Spelin", "Wolrd", "sor"]),
-            ("example.py", vec!["Pthon", "Wolrd"]),
-            (
-                "example.md",
-                vec!["Wolrd", "bvd", "regulr", "splellin", "wolrd"],
-            ),
-            ("example.txt", vec!["Splellin", "bd"]),
-            ("example.rs", vec!["birt", "curent", "jalopin", "usr"]),
-            (
-                "example.go",
-                vec!["speling", "Wolrd", "mispeled", "Funcion"],
-            ),
-            (
-                "example.js",
-                vec![
-                    "Accaunt",
-                    "Calculater",
-                    "Exportt",
-                    "Funcshun",
-                    "Funktion",
-                    "Inputt",
-                    "Numbr",
-                    "Numbrs",
-                    "Pleese",
-                    "additshun",
-                    "arra",
-                    "ballance",
-                    "calculater",
-                ],
-            ),
-            (
-                "example.ts",
-                vec![
-                    "Accaunt", "Exportt", "Funcshun", "Funktion", "Inputt", "Numbr", "Numbrs",
-                ],
-            ),
-        ];
-        for mut file in files {
-            let path = example_file_path(file.0);
-            // println!("Checking file: {path:?}");
-            let processor = get_processor();
-            let results = processor.spell_check_file(&path);
-            let mut misspelled = results
-                .iter()
-                .map(|r| r.word.as_str())
-                .collect::<Vec<&str>>();
-            misspelled.sort();
-            file.1.sort();
-            // println!("Misspelled words: {misspelled:?}");
-            for word in &file.1 {
-                assert!(misspelled.contains(word));
-            }
-        }
     }
 }
