@@ -217,13 +217,44 @@ impl CodeDictionary {
                     .enumerate()
                     .filter(|(_, word)| !word.is_empty())
                     .flat_map(|(_, word)| {
-                        splitter::split_camel_case(word)
-                            .into_iter()
-                            .map(move |part| {
-                                let len = part.len();
-                                let start = node_text.find(&part).unwrap_or(0);
-                                (part, start, start + len)
+                        // First split by whitespace and punctuation
+                        word.split_whitespace().flat_map(|w| {
+                            // Then split camel case
+                            splitter::split_camel_case(w).into_iter().map(move |part| {
+                                // Find the exact position of this part in the original text
+                                let mut start = 0;
+                                let mut found = false;
+                                for (idx, _) in node_text.match_indices(&part) {
+                                    // Verify this is a whole word by checking boundaries
+                                    let before = if idx > 0 {
+                                        node_text
+                                            .chars()
+                                            .nth(idx - 1)
+                                            .map_or(true, |c| !c.is_alphanumeric())
+                                    } else {
+                                        true
+                                    };
+                                    let after = if idx + part.len() < node_text.len() {
+                                        node_text
+                                            .chars()
+                                            .nth(idx + part.len())
+                                            .map_or(true, |c| !c.is_alphanumeric())
+                                    } else {
+                                        true
+                                    };
+                                    if before && after {
+                                        start = idx;
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                                if found {
+                                    (part.to_string(), start, start + part.len())
+                                } else {
+                                    (part.to_string(), 0, 0) // This should rarely happen
+                                }
                             })
+                        })
                     })
                     .collect();
 
