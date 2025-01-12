@@ -61,7 +61,7 @@ impl CodeDictionary {
     }
 
     pub fn check(&self, word: &str) -> bool {
-        self.dictionary.check(word)
+        self.custom_dictionary.contains(word) || self.dictionary.check(word)
         // self.dictionary_lookup_cache.read().unwrap().contains(word) || self.dictionary.check(word)
     }
 
@@ -186,6 +186,44 @@ impl CodeDictionary {
         results
     }
 
+    fn get_words_from_text(&self, text: &str) -> Vec<(String, (u32, u32))> {
+        // Return Vec of words and their start char and line
+        let mut words = Vec::new();
+        let mut current_word = String::new();
+        let mut word_start_char: u32 = 0;
+        let mut current_char: u32 = 0;
+        let mut current_line: u32 = 0;
+
+        for line in text.lines() {
+            for (i, c) in line.chars().enumerate() {
+                let is_contraction = c == '\''
+                    && i > 0
+                    && i < line.len() - 1
+                    && line.chars().nth(i - 1).unwrap().is_alphabetic()
+                    && line.chars().nth(i + 1).unwrap().is_alphabetic();
+                if c.is_alphabetic() || is_contraction {
+                    if current_word.is_empty() {
+                        word_start_char = current_char;
+                    }
+                    current_word.push(c);
+                } else {
+                    if !current_word.is_empty() {
+                        words.push((current_word.clone(), (word_start_char, current_line)));
+                        current_word.clear();
+                    }
+                }
+                current_char += 1;
+            }
+            if !current_word.is_empty() {
+                words.push((current_word.clone(), (word_start_char, current_line)));
+                current_word.clear();
+            }
+            current_line += 1;
+            current_char = 0;
+        }
+        words
+    }
+
     fn spell_check_code(
         &self,
         text: &str,
@@ -200,99 +238,42 @@ impl CodeDictionary {
 
         let query = Query::new(&language, language_setting.query).unwrap();
         let mut cursor = QueryCursor::new();
-        let mut word_locations = HashMap::new();
+        let mut word_locations: HashMap<String, Vec<TextRange>> = HashMap::new();
         let mut matches_query = cursor.matches(&query, root_node, text.as_bytes());
 
         while let Some(match_) = matches_query.next() {
             for capture in match_.captures {
                 let node = capture.node;
                 let node_text = node.utf8_text(text.as_bytes()).unwrap();
-
                 let node_start = node.start_position();
-                let node_text_bytes = node_text.as_bytes();
-
-                // Split the node text into words with their positions
-                let word_boundaries: Vec<(String, usize, usize)> = node_text
-                    .split(|c: char| !c.is_alphanumeric())
-                    .enumerate()
-                    .filter(|(_, word)| !word.is_empty())
-                    .flat_map(|(_, word)| {
-                        // First split by whitespace and punctuation
-                        word.split_whitespace().flat_map(|w| {
-                            // Then split camel case
-                            splitter::split_camel_case(w).into_iter().map(move |part| {
-                                // Find the exact position of this part in the original text
-                                let mut start = 0;
-                                let mut found = false;
-                                for (idx, _) in node_text.match_indices(&part) {
-                                    // Verify this is a whole word by checking boundaries
-                                    let before = if idx > 0 {
-                                        node_text
-                                            .chars()
-                                            .nth(idx - 1)
-                                            .map_or(true, |c| !c.is_alphanumeric())
-                                    } else {
-                                        true
-                                    };
-                                    let after = if idx + part.len() < node_text.len() {
-                                        node_text
-                                            .chars()
-                                            .nth(idx + part.len())
-                                            .map_or(true, |c| !c.is_alphanumeric())
-                                    } else {
-                                        true
-                                    };
-                                    if before && after {
-                                        start = idx;
-                                        found = true;
-                                        break;
-                                    }
-                                }
-                                if found {
-                                    (part.to_string(), start, start + part.len())
-                                } else {
-                                    (part.to_string(), 0, 0) // This should rarely happen
-                                }
-                            })
-                        })
-                    })
-                    .collect();
-
-                for (word, word_start, word_end) in word_boundaries {
-                    if self.custom_dictionary.contains(&word) || self.check(&word) {
-                        continue;
-                    }
-
-                    // Count lines and columns up to the word
-                    let mut lines = 0;
-                    let mut last_newline_pos = 0;
-                    for (idx, &byte) in node_text_bytes[..word_start].iter().enumerate() {
-                        if byte == b'\n' {
-                            lines += 1;
-                            last_newline_pos = idx + 1;
+                let current_line = node_start.row as u32;
+                let current_column = node_start.column as u32;
+                let words = self.get_words_from_text(node_text);
+                println!("Words:: {words:?}");
+                println!("Column: {current_column}");
+                println!("Line: {current_line}");
+                for (word_text, (text_start_char, text_line)) in words {
+                    let split = splitter::split_camel_case(&word_text);
+                    println!("Checking: {:?}", split);
+                    for split_word in split {
+                        if !self.check(&split_word.word) {
+                            let base_start_char = text_start_char + current_column;
+                            let location = TextRange {
+                                start_char: base_start_char + split_word.start_char,
+                                end_char: base_start_char
+                                    + split_word.start_char
+                                    + split_word.word.chars().count() as u32,
+                                start_line: text_line + current_line,
+                                end_line: text_line + current_line,
+                            };
+                            if let Some(existing_result) = word_locations.get_mut(&split_word.word)
+                            {
+                                existing_result.push(location);
+                            } else {
+                                word_locations.insert(split_word.word.clone(), vec![location]);
+                            }
                         }
                     }
-
-                    // Calculate start and end positions
-                    let start_col = word_start - last_newline_pos;
-                    let end_col = word_end - last_newline_pos;
-                    let start_line = node_start.row + lines;
-
-                    let (final_start_col, final_end_col) = if lines == 0 {
-                        (node_start.column + start_col, node_start.column + end_col)
-                    } else {
-                        (start_col, end_col)
-                    };
-
-                    word_locations
-                        .entry(word.clone())
-                        .or_insert_with(Vec::new)
-                        .push(TextRange {
-                            start_char: u32::try_from(final_start_col).unwrap(),
-                            end_char: u32::try_from(final_end_col).unwrap(),
-                            start_line: u32::try_from(start_line).unwrap(),
-                            end_line: u32::try_from(start_line).unwrap(),
-                        });
                 }
             }
         }
@@ -331,5 +312,36 @@ mod lib_tests {
         let misspelled = processor.spell_check(text, "text");
         println!("{:?}", misspelled);
         assert!(misspelled.iter().any(|r| r.word == "wrld"));
+    }
+
+    #[test]
+    fn test_get_words_from_text() {
+        let cdict = CodeDictionary::new("./tests/en_index.aff", "./tests/en_index.dic").unwrap();
+        let text = r#"
+            HelloWorld calc_wrld
+            I'm a contraction, don't ignore me
+            this is a 3rd line.
+            "#;
+        let expected = vec![
+            ("HelloWorld", (12, 1)),
+            ("calc", (23, 1)),
+            ("wrld", (28, 1)),
+            ("I'm", (12, 2)),
+            ("a", (16, 2)),
+            ("contraction", (18, 2)),
+            ("don't", (31, 2)),
+            ("ignore", (37, 2)),
+            ("me", (44, 2)),
+            ("this", (12, 3)),
+            ("is", (17, 3)),
+            ("a", (20, 3)),
+            ("rd", (23, 3)),
+            ("line", (26, 3)),
+        ];
+        let words = cdict.get_words_from_text(text);
+        println!("{:?}", words);
+        for (i, w) in expected.into_iter().enumerate() {
+            assert_eq!(words[i], (w.0.to_string(), w.1));
+        }
     }
 }

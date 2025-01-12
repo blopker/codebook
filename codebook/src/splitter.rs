@@ -1,34 +1,34 @@
 use std::collections::HashSet;
 
-fn should_skip_word(word: &str) -> bool {
-    if word.len() <= 1 {
-        return true;
-    }
+// fn should_skip_word(word: &str) -> bool {
+//     if word.len() <= 1 {
+//         return true;
+//     }
 
-    false
-}
+//     false
+// }
 
-pub fn split_into_words(text: &str) -> HashSet<String> {
-    let mut words_to_check = HashSet::new();
+// pub fn split_into_words(text: &str) -> HashSet<String> {
+//     let mut words_to_check = HashSet::new();
 
-    // Split text into words and handle punctuation
-    for word in text.split(|c: char| !c.is_alphanumeric()) {
-        if word.is_empty() || should_skip_word(word) {
-            continue;
-        }
+//     // Split text into words and handle punctuation
+//     for word in text.split(|c: char| !c.is_alphanumeric()) {
+//         if word.is_empty() || should_skip_word(word) {
+//             continue;
+//         }
 
-        // Handle camelCase and PascalCase
-        let parts = split_camel_case(word);
+//         // Handle camelCase and PascalCase
+//         let parts = split_camel_case(word);
 
-        for part in parts {
-            if !should_skip_word(&part) {
-                words_to_check.insert(part);
-            }
-        }
-    }
+//         for part in parts {
+//             if !should_skip_word(&part) {
+//                 words_to_check.insert(part);
+//             }
+//         }
+//     }
 
-    words_to_check
-}
+//     words_to_check
+// }
 
 #[derive(PartialEq)]
 enum CharType {
@@ -37,7 +37,13 @@ enum CharType {
     Digit,
 }
 
-pub fn split_camel_case(s: &str) -> Vec<String> {
+#[derive(Debug, PartialEq)]
+pub struct SplitCamelCase {
+    pub word: String,
+    pub start_char: u32,
+}
+
+pub fn split_camel_case(s: &str) -> Vec<SplitCamelCase> {
     let mut result = Vec::new();
     let mut current_word = String::new();
     let mut prev_char_type = None;
@@ -80,8 +86,11 @@ pub fn split_camel_case(s: &str) -> Vec<String> {
         };
 
         if should_split && !current_word.is_empty() {
-            result.push(current_word);
-            current_word = String::new();
+            result.push(SplitCamelCase {
+                word: current_word.clone(),
+                start_char: (i - current_word.chars().count()) as u32,
+            });
+            current_word.clear();
         }
 
         current_word.push(c);
@@ -89,7 +98,11 @@ pub fn split_camel_case(s: &str) -> Vec<String> {
     }
 
     if !current_word.is_empty() {
-        result.push(current_word);
+        let start = s.chars().count() - current_word.chars().count();
+        result.push(SplitCamelCase {
+            word: current_word,
+            start_char: start as u32,
+        });
     }
 
     result
@@ -101,37 +114,68 @@ mod tests {
 
     #[test]
     fn test_camel_case_splitting() {
-        let words = split_camel_case("calculateUserAge");
+        let words: Vec<String> = split_camel_case("calculateUserAge")
+            .into_iter()
+            .map(|s| s.word)
+            .collect();
         assert_eq!(words, vec!["calculate", "User", "Age"]);
     }
 
     #[test]
     fn test_complex_camel_case() {
         let words = split_camel_case("XMLHttpRequest");
-        assert_eq!(words, vec!["XML", "Http", "Request"]);
+        assert_eq!(
+            words,
+            vec![
+                SplitCamelCase {
+                    word: "XML".to_string(),
+                    start_char: 0
+                },
+                SplitCamelCase {
+                    word: "Http".to_string(),
+                    start_char: 3
+                },
+                SplitCamelCase {
+                    word: "Request".to_string(),
+                    start_char: 7
+                }
+            ]
+        );
     }
 
     #[test]
     fn test_number() {
-        let words = split_camel_case("userAge10");
+        let words: Vec<String> = split_camel_case("userAge10")
+            .into_iter()
+            .map(|s| s.word)
+            .collect();
         assert_eq!(words, vec!["user", "Age", "10"]);
     }
 
     #[test]
     fn test_uppercase() {
-        let words = split_camel_case("EXAMPLE");
+        let words: Vec<String> = split_camel_case("EXAMPLE")
+            .into_iter()
+            .map(|s| s.word)
+            .collect();
         assert_eq!(words, vec!["EXAMPLE"]);
     }
 
     #[test]
     fn test_uppercase_first() {
-        let words = split_camel_case("Example");
+        let words: Vec<String> = split_camel_case("Example")
+            .into_iter()
+            .map(|s| s.word)
+            .collect();
         assert_eq!(words, vec!["Example"]);
     }
 
     #[test]
     fn test_unicode() {
-        let words = split_camel_case("こんにちは");
+        let words: Vec<String> = split_camel_case("こんにちは")
+            .into_iter()
+            .map(|s| s.word)
+            .collect();
         assert_eq!(words, vec!["こんにちは"]);
     }
 }

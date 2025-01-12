@@ -11,10 +11,7 @@ pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
                     pattern: (identifier) @identifier)
                 (let_declaration
                     pattern: (identifier) @identifier)
-                (string_literal) @string
-                (line_comment) @comment
-                (block_comment) @comment
-                (raw_string_literal) @string
+                (string_content) @string
                 (char_literal) @string
                 "#,
         extensions: &["rs"],
@@ -23,10 +20,8 @@ pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
         name: "python",
         query: r#"
             (identifier) @identifier
-            (string) @string
             (comment) @comment
-            (string_content) @string
-            (concatenated_string) @string
+            (string) @string
             (decorated_definition) @identifier
             (function_definition
                 name: (identifier) @identifier)
