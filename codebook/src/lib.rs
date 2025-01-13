@@ -249,6 +249,7 @@ impl CodeDictionary {
                 let current_line = node_start.row as u32;
                 let current_column = node_start.column as u32;
                 let words = self.get_words_from_text(node_text);
+                println!("Found Capture:: {node_text:?}");
                 println!("Words:: {words:?}");
                 println!("Column: {current_column}");
                 println!("Line: {current_line}");
@@ -257,7 +258,8 @@ impl CodeDictionary {
                     println!("Checking: {:?}", split);
                     for split_word in split {
                         if !self.check(&split_word.word) {
-                            let base_start_char = text_start_char + current_column;
+                            let offset = if text_line == 0 { current_column } else { 0 };
+                            let base_start_char = text_start_char + offset;
                             let location = TextRange {
                                 start_char: base_start_char + split_word.start_char,
                                 end_char: base_start_char

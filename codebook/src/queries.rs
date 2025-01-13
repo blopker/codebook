@@ -11,6 +11,7 @@ pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
                     pattern: (identifier) @identifier)
                 (let_declaration
                     pattern: (identifier) @identifier)
+                (line_comment) @comment
                 (string_content) @string
                 (char_literal) @string
                 "#,

@@ -5,16 +5,16 @@ mod utils;
 #[test]
 fn test_go_location() {
     let sample_text = r#"
-        func mispeledFuncion() string {
-            return ""
-        }"#;
+    func mispeledFuncion() string {
+        return ""
+    }"#;
     let expected = vec![
         SpellCheckResult::new(
             "mispeled".to_string(),
             vec!["misspelled", "dispelled", "misspell", "misled"],
             vec![TextRange {
-                start_char: 13,
-                end_char: 21,
+                start_char: 9,
+                end_char: 17,
                 start_line: 1,
                 end_line: 1,
             }],
@@ -23,8 +23,8 @@ fn test_go_location() {
             "Funcion".to_string(),
             vec!["Function"],
             vec![TextRange {
-                start_char: 21,
-                end_char: 28,
+                start_char: 17,
+                end_char: 24,
                 start_line: 1,
                 end_line: 1,
             }],

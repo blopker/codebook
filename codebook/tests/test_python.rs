@@ -6,13 +6,13 @@ mod utils;
 fn test_python_simple() {
     let processor = utils::get_processor();
     let sample_text = r#"
-        def calculat_user_age(bithDate: str) -> int:
+        def calculat_user_age(bithDate) -> int:
             # This is an examle_function that calculates age
             usrAge = get_curent_date() - bithDate
             userAge
     "#;
-    let expected = vec!["bith", "calculat", "examle", "usr"];
-    let binding = processor.spell_check(sample_text, "rust").to_vec();
+    let expected = vec!["bith", "calculat", "curent", "examle", "usr"];
+    let binding = processor.spell_check(sample_text, "python").to_vec();
     let mut misspelled = binding
         .iter()
         .map(|r| r.word.as_str())
@@ -45,10 +45,10 @@ multi_line_comment = '''
             "linet".to_string(),
             vec![],
             vec![TextRange {
-                start_char: 57,
-                end_char: 62,
-                start_line: 2,
-                end_line: 2,
+                start_char: 12,
+                end_char: 17,
+                start_line: 3,
+                end_line: 3,
             }],
         ),
     ];
