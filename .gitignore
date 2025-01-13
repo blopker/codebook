@@ -2,3 +2,5 @@ target
 examples/big.html
 .cache
 *.wasm
+
+node_modules
