@@ -1,35 +1,3 @@
-use std::collections::HashSet;
-
-// fn should_skip_word(word: &str) -> bool {
-//     if word.len() <= 1 {
-//         return true;
-//     }
-
-//     false
-// }
-
-// pub fn split_into_words(text: &str) -> HashSet<String> {
-//     let mut words_to_check = HashSet::new();
-
-//     // Split text into words and handle punctuation
-//     for word in text.split(|c: char| !c.is_alphanumeric()) {
-//         if word.is_empty() || should_skip_word(word) {
-//             continue;
-//         }
-
-//         // Handle camelCase and PascalCase
-//         let parts = split_camel_case(word);
-
-//         for part in parts {
-//             if !should_skip_word(&part) {
-//                 words_to_check.insert(part);
-//             }
-//         }
-//     }
-
-//     words_to_check
-// }
-
 #[derive(PartialEq)]
 enum CharType {
     Lower,
@@ -51,7 +19,7 @@ pub fn split_camel_case(s: &str) -> Vec<SplitCamelCase> {
     for (i, c) in s.chars().enumerate() {
         assert!(
             !c.is_whitespace(),
-            "There should be no whitespace in the input."
+            "There should be no white space in the input."
         );
         let char_type = if c.is_ascii_uppercase() {
             CharType::Upper

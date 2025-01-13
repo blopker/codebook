@@ -1,7 +1,7 @@
 // Funktion to validate user inputt
 function validateInputt(userInputt: number | string) {
   if (typeof userInputt !== "number") {
-    console.logg("Pleese enter a valid numbr");
+    console.log("Pleese enter a valid numbr");
     return false;
   }
 
