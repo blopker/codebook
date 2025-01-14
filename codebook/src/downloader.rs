@@ -68,7 +68,7 @@ impl CacheMetadata {
     }
 }
 
-/// A downloader for dictionaries from a remote GitHub repository (by default
+/// A down-loader for dictionaries from a remote GitHub repository (by default
 /// https://github.com/blopker/dictionaries), storing them in a local cache
 /// and avoiding re-download if unchanged.
 ///

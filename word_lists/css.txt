@@ -1,4 +1,3 @@
-a
 aaa
 ab
 abbr
@@ -46,7 +45,6 @@ auto
 avatar
 avoid
 awesome
-b
 backdrop
 backface
 background
@@ -77,7 +75,7 @@ border
 bordered
 both
 bottom
-bowercomponents
+bower
 box
 br
 brand
@@ -90,7 +88,6 @@ button
 buttonelement
 buttons
 by
-c
 calc
 calendar
 callout
@@ -155,7 +152,6 @@ cubic
 current
 cursor
 custom
-d
 danger
 dark
 darken
@@ -199,7 +195,6 @@ dt
 duration
 dx
 dximagetransform
-e
 ease
 ebebeb
 edit
@@ -226,7 +221,6 @@ events
 expand
 ext
 external
-f
 fa
 face
 fade
@@ -292,7 +286,6 @@ grey
 grid
 group
 gt
-h
 half
 hand
 handle
@@ -317,7 +310,6 @@ href
 html
 http
 https
-i
 icon
 icons
 ie
@@ -357,12 +349,10 @@ jstree
 jumbotron
 justified
 justify
-k
 kbd
 keyframes
 khtml
 km
-l
 label
 large
 last
@@ -386,7 +376,6 @@ local
 localhost
 login
 logo
-m
 mail
 main
 map
@@ -428,7 +417,6 @@ mui
 multi
 multiple
 mywebsite
-n
 name
 nav
 navbar
@@ -452,7 +440,6 @@ notification
 nowrap
 nth
 number
-o
 object
 odd
 of
@@ -480,7 +467,6 @@ over
 overflow
 overlay
 owl
-p
 packages
 padding
 page
@@ -527,7 +513,6 @@ pull
 purple
 push
 px
-q
 radio
 radius
 range
@@ -559,7 +544,6 @@ rotatey
 round
 row
 rtl
-s
 safari
 sans
 sass
@@ -644,7 +628,6 @@ sup
 support
 svg
 switch
-t
 tab
 table
 tablet
@@ -703,10 +686,10 @@ translatez
 transparent
 tree
 triangle
+tta
 twitter
 two
 type
-u
 ui
 uk
 ul
@@ -718,12 +701,9 @@ uppercase
 url
 use
 user
-v
 value
 var
-vcbtn
-vcgrid
-vctta
+vc
 verdana
 vertical
 video
@@ -734,7 +714,6 @@ visible
 visited
 vjs
 volume
-w
 warning
 webdev
 webkit
@@ -756,11 +735,8 @@ wp
 wrap
 wrapper
 www
-x
 xl
 xs
-y
 yellow
 yui
-z
 zoom

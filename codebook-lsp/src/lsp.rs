@@ -5,21 +5,6 @@ use tower_lsp::{Client, LanguageServer};
 use codebook::CodeDictionary;
 use log::info;
 
-// #[derive(Clone, Debug)]
-// pub struct TextRange {
-//     pub start_line: u32,
-//     pub start_char: u32,
-//     pub end_line: u32,
-//     pub end_char: u32,
-// }
-
-// #[derive(Clone, Debug)]
-// pub struct SpellCheckResult {
-//     pub word: String,
-//     pub suggestions: Vec<String>,
-//     pub locations: Vec<TextRange>,
-// }
-
 #[derive(Debug)]
 pub struct Backend {
     pub client: Client,
@@ -108,8 +93,9 @@ impl Backend {
                     code_description: None,
                     source: Some("Codebook".to_string()),
                     message: format!(
-                        "Possible spelling error: '{}'. Suggestions: {:?}",
-                        res.word, res.suggestions
+                        "Possible spelling error: '{}'. Suggestions: {}",
+                        res.word,
+                        res.suggestions.join(", ")
                     ),
                     related_information: None,
                     tags: None,

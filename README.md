@@ -25,6 +25,23 @@ Codebook is a spellchecker for code. It binds together the venerable Tree Sitter
 
 Codebook is being developed and not yet ready for public (or private, really) use. Hit the Star button to follow for updates though.
 
+## Goals
+
+Spellchecking is complicated and opinions about how it should be done, especially with code, differs. This section is about the trade offs that steer Codebook's decisions.
+
+### Privacy
+
+No remote calls for spellchecking or analytics. Once dictionaries are cached, Codebook needs to be usable offline. Codebook will never send the contents of files to a remote server.
+
+### Low noise/High signal
+
+Codebook should only highlight words that users have control over. For example, a misspelled word in an imported function should not be highlighted as the user can't do anything about it.
+
+### Efficient
+
+All features will be weighed against their impact on CPU and memory impact. Codebook should be fast on even low-end hardware to spellcheck on every keystroke.
+
+
 ## Features
 
 ### Code-aware spell checking

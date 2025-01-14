@@ -8,3 +8,7 @@ pub fn get_processor() -> CodeDictionary {
     }
     cdict
 }
+
+pub fn init_logging() {
+    let _ = env_logger::builder().is_test(true).try_init();
+}

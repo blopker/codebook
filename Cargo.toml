@@ -1,3 +1,6 @@
 [workspace]
-members = [ "codebook","codebook-lsp", "codebook-zed"]
+members = ["codebook", "codebook-lsp", "codebook-zed"]
 resolver = "2"
+
+[profile.test]
+env = { RUST_LOG = "debug" }

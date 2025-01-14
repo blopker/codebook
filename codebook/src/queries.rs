@@ -28,7 +28,7 @@ impl LanguageType {
     }
 }
 
-pub static COMMON_DICTIONARY: &str = include_str!("../../wordlists/common.txt");
+static COMMON_DICTIONARY: &str = include_str!("../../word_lists/combined.gen.txt");
 // Use https://intmainreturn0.com/ts-visualizer/ to help with writing grammar queries
 pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
     LanguageSetting {
@@ -41,6 +41,10 @@ pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
                     pattern: (identifier) @identifier)
                 (let_declaration
                     pattern: (identifier) @identifier)
+                (struct_item
+                    name: (type_identifier) @identifier)
+                (field_declaration
+                    name: (field_identifier) @identifier)
                 (line_comment) @comment
                 (string_content) @string
                 (char_literal) @string
@@ -177,4 +181,8 @@ pub fn get_language_name_from_filename(filename: &str) -> Option<LanguageType> {
         }
     }
     None
+}
+
+pub fn get_common_dictionary() -> impl Iterator<Item = &'static str> {
+    COMMON_DICTIONARY.lines().filter(|l| !l.contains('#'))
 }

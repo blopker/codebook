@@ -1,4 +1,4 @@
-// a script that gets all the wordlists for codebook and writes them to a file
+// a script that gets all the wordLists for codebook and writes them to a file
 // data in https://github.com/blopker/common-words/tree/master/web/static/data
 // Use `fetch` to get the data
 // folder format: [programming_language]/index.json
@@ -39,68 +39,48 @@ interface WordSummary {
 }
 const languages = ["rs", "py", "java", "html", "css", "go", "js"];
 
-const wordlistsPath = path.join(__dirname, "..", "wordlists");
+const wordListsPath = path.join(__dirname, "..", "word_lists");
 // ensure the folder exists
-fs.mkdirSync(wordlistsPath, { recursive: true });
-// map of language to wordlist
+fs.mkdirSync(wordListsPath, { recursive: true });
+// map of language to wordList
 // key: language in data repo, value: name in queries.rs
-
-const commonWords: Set<string> = new Set();
-
-function addToCommonWords(data: WordSummary) {
-  commonWords.add(data.text);
-}
 
 const fetch = async (url: string) => {
   const response = await globalThis.fetch(url);
   return response.json();
 };
 
-const getWordlist = async (language: string) => {
+const getWordList = async (language: string) => {
   const url = `https://raw.githubusercontent.com/blopker/common-words/master/web/static/data/${language}/index.json`;
-  let data = (await fetch(url)) as WordSummary[];
-  data = data
-    .map((d) => {
-      return {
-        ...d,
-        text: cleanWord(d.text.toLowerCase()),
-      };
+  const data = (await fetch(url)) as WordSummary[];
+  const words = data
+    .flatMap((d) => {
+      return cleanWord(d.text.toLowerCase());
     })
-    .filter((d) => d.text.length > 0);
-  // dedupe
-  const seen = new Set();
-  data = data.filter((item) => {
-    if (seen.has(item.text)) {
-      return false;
-    }
-    seen.add(item.text);
-    return true;
-  });
-  for (const item of data) {
-    addToCommonWords(item);
-  }
-  const words = data.map((item: WordSummary) => item.text);
-  return words.toSorted();
+    .filter((d) => d.length > 1);
+  const set = new Set(words); // De-dupe
+  return Array.from(set).toSorted();
 };
 
-const writeWordlist = async (language: string) => {
-  const words = await getWordlist(language);
-  const wordlistPath = path.join(wordlistsPath, `${language}.txt`);
-  fs.writeFileSync(wordlistPath, words.join("\n"));
+const writeWordList = async (language: string) => {
+  const words = await getWordList(language);
+  const wordListPath = path.join(wordListsPath, `${language}.txt`);
+  fs.writeFileSync(wordListPath, words.join("\n"));
 };
 
 const cleanWord = (word: string) => {
-  // strip numbers and special characters
-  return word.replace(/[^a-zA-Z]/g, "");
+  // split on underscore, strip numbers and special characters
+  const words = word.split(/[_\W]/);
+  for (let i = 0; i < words.length; i++) {
+    words[i] = words[i].replace(/[^a-zA-Z]/g, "");
+  }
+  return words;
 };
 
 const main = async () => {
   for (const language of languages) {
-    await writeWordlist(language);
+    await writeWordList(language);
   }
-  const commonWordsPath = path.join(wordlistsPath, "common.txt");
-  const commonList = Array.from(commonWords).toSorted();
-  fs.writeFileSync(commonWordsPath, commonList.join("\n"));
 };
 
 main();

@@ -1,11 +1,12 @@
 pub mod downloader;
 mod queries;
 mod splitter;
+use log::info;
 use lru::LruCache;
 
 use crate::queries::{
-    get_language_name_from_filename, get_language_setting, LanguageSetting, LanguageType,
-    COMMON_DICTIONARY,
+    get_common_dictionary, get_language_name_from_filename, get_language_setting, LanguageSetting,
+    LanguageType,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -54,7 +55,7 @@ impl CodeDictionary {
         let dict = spellbook::Dictionary::new(&aff, &dic)
             .map_err(|e| format!("Dictionary parse error: {}", e))?;
         let mut custom_dictionary: HashSet<String> = HashSet::new();
-        for word in COMMON_DICTIONARY.lines() {
+        for word in get_common_dictionary() {
             custom_dictionary.insert(word.to_string());
         }
         Ok(CodeDictionary {
@@ -85,10 +86,10 @@ impl CodeDictionary {
     }
 
     pub fn suggest(&self, word: &str) -> Vec<String> {
-        println!("Checking Cache: {:?}", word);
+        info!("Checking Cache: {:?}", word);
         // First try to get from cache with write lock since get() needs to modify LRU order
         if let Some(suggestions) = self.suggestion_cache.write().unwrap().get_mut(word) {
-            println!("Cache hit for {:?}", word);
+            info!("Cache hit for {:?}", word);
             return suggestions.clone();
         }
 
@@ -278,13 +279,13 @@ impl CodeDictionary {
                 let current_line = node_start.row as u32;
                 let current_column = node_start.column as u32;
                 let words = self.get_words_from_text(node_text);
-                println!("Found Capture:: {node_text:?}");
-                println!("Words:: {words:?}");
-                println!("Column: {current_column}");
-                println!("Line: {current_line}");
+                info!("Found Capture:: {node_text:?}");
+                info!("Words:: {words:?}");
+                info!("Column: {current_column}");
+                info!("Line: {current_line}");
                 for (word_text, (text_start_char, text_line)) in words {
                     let split = splitter::split_camel_case(&word_text);
-                    println!("Checking: {:?}", split);
+                    info!("Checking: {:?}", split);
                     for split_word in split {
                         if !self.check(&split_word.word) {
                             let offset = if text_line == 0 { current_column } else { 0 };
@@ -327,12 +328,11 @@ mod lib_tests {
     static EXTRA_WORDS: &'static [&'static str] = &["http", "https", "www", "viewport", "UTF"];
 
     fn get_processor() -> CodeDictionary {
-        let mut cdict =
-            CodeDictionary::new("./tests/en_index.aff", "./tests/en_index.dic").unwrap();
+        let dict = CodeDictionary::new("./tests/en_index.aff", "./tests/en_index.dic").unwrap();
         for word in EXTRA_WORDS {
-            cdict.add_to_dictionary(word);
+            dict.add_to_dictionary(word);
         }
-        cdict
+        dict
     }
 
     #[test]
@@ -347,7 +347,7 @@ mod lib_tests {
 
     #[test]
     fn test_get_words_from_text() {
-        let cdict = CodeDictionary::new("./tests/en_index.aff", "./tests/en_index.dic").unwrap();
+        let dict = CodeDictionary::new("./tests/en_index.aff", "./tests/en_index.dic").unwrap();
         let text = r#"
             HelloWorld calc_wrld
             I'm a contraction, don't ignore me
@@ -369,7 +369,7 @@ mod lib_tests {
             ("rd", (23, 3)),
             ("line", (26, 3)),
         ];
-        let words = cdict.get_words_from_text(text);
+        let words = dict.get_words_from_text(text);
         println!("{:?}", words);
         for (i, w) in expected.into_iter().enumerate() {
             assert_eq!(words[i], (w.0.to_string(), w.1));

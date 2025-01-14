@@ -1,9 +1,11 @@
 use codebook::{SpellCheckResult, TextRange};
 
 mod utils;
-// im a bd speler
+use utils::init_logging;
+
 #[test]
 fn test_rust_simple() {
+    init_logging();
     let processor = utils::get_processor();
     let sample_text = r#"
         fn calculat_user_age(bithDate: String) -> u32 {
@@ -25,6 +27,7 @@ fn test_rust_simple() {
 
 #[test]
 fn test_rust_comment_location() {
+    init_logging();
     let sample_rust = r#"
         // Comment with a typo: mment
         "#;
@@ -43,4 +46,57 @@ fn test_rust_comment_location() {
     println!("Misspelled words: {misspelled:?}");
     assert_eq!(misspelled, expected);
     assert!(misspelled[0].locations.len() == 1);
+}
+
+#[test]
+fn test_rust_struct() {
+    init_logging();
+    let sample_rust = r#"
+        pub struct BadSpeler {
+            /// Terrible spelling: dwnloader
+            pub dataz: String,
+        }
+        "#;
+    let expected = vec![
+        SpellCheckResult::new(
+            "Speler".to_string(),
+            vec!["Speer", "Speller", "Spewer", "Spengler", "Peeler"],
+            vec![TextRange {
+                start_char: 22,
+                end_char: 28,
+                start_line: 1,
+                end_line: 1,
+            }],
+        ),
+        SpellCheckResult::new(
+            "dwnloader".to_string(),
+            vec!["loader"],
+            vec![TextRange {
+                start_char: 35,
+                end_char: 44,
+                start_line: 2,
+                end_line: 2,
+            }],
+        ),
+        SpellCheckResult::new(
+            "dataz".to_string(),
+            vec!["data", "data z"],
+            vec![TextRange {
+                start_char: 16,
+                end_char: 21,
+                start_line: 3,
+                end_line: 3,
+            }],
+        ),
+    ];
+    let processor = utils::get_processor();
+    let misspelled = processor.spell_check(sample_rust, "rust").to_vec();
+    println!("Misspelled words: {misspelled:?}");
+    for expect in expected.iter() {
+        println!("Expecting {}", expect.word);
+        let result = misspelled.iter().find(|r| r.word == expect.word).unwrap();
+        assert_eq!(result.word, expect.word);
+        assert_eq!(result.suggestions, expect.suggestions);
+        assert_eq!(result.locations, expect.locations);
+    }
 }

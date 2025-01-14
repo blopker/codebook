@@ -1,4 +1,3 @@
-a
 about
 abs
 absolute
@@ -49,7 +48,6 @@ author
 auto
 avoid
 axis
-b
 back
 backbone
 bar
@@ -86,7 +84,6 @@ button
 buttons
 by
 bytes
-c
 cache
 call
 callback
@@ -176,7 +173,6 @@ cur
 current
 cursor
 custom
-d
 data
 datatype
 date
@@ -232,7 +228,6 @@ dropdown
 drupal
 dt
 duration
-e
 each
 easing
 editor
@@ -276,7 +271,6 @@ expression
 ext
 extend
 extra
-f
 faces
 factory
 fail
@@ -311,7 +305,6 @@ func
 function
 functions
 fx
-g
 geometry
 get
 getattribute
@@ -327,7 +320,6 @@ grid
 group
 grunt
 gulp
-h
 handle
 handleobj
 handler
@@ -353,7 +345,6 @@ href
 html
 http
 https
-i
 icon
 id
 idx
@@ -395,7 +386,6 @@ item
 items
 iterator
 its
-j
 javascript
 join
 jpg
@@ -405,11 +395,9 @@ js
 jshint
 json
 just
-k
 key
 keycode
 keys
-l
 label
 lang
 language
@@ -442,7 +430,6 @@ location
 lodash
 log
 loop
-m
 main
 make
 map
@@ -485,7 +472,6 @@ ms
 msg
 multiple
 must
-n
 name
 names
 namespace
@@ -511,7 +497,6 @@ now
 null
 num
 number
-o
 obj
 object
 objects
@@ -550,7 +535,6 @@ over
 overflow
 owner
 ownerdocument
-p
 padding
 page
 panel
@@ -607,10 +591,8 @@ ptr
 public
 push
 px
-q
 query
 queue
-r
 radius
 random
 range
@@ -659,7 +641,6 @@ rows
 rule
 rules
 run
-s
 same
 save
 scale
@@ -737,7 +718,6 @@ support
 sure
 svg
 switch
-t
 tab
 table
 tabs
@@ -798,7 +778,6 @@ two
 type
 typeof
 types
-u
 ui
 uifaces
 ul
@@ -815,7 +794,6 @@ users
 using
 util
 utils
-v
 val
 valid
 validate
@@ -831,13 +809,12 @@ view
 views
 visible
 void
-w
 want
 warn
 was
 way
 we
-webpackrequire
+webpack
 week
 when
 where
@@ -856,11 +833,8 @@ wrap
 wrapper
 write
 www
-x
 xhr
 xml
-y
 year
 you
 your
-z
