@@ -19,7 +19,7 @@
 
 ## About
 
-Codebook is a spellchecker for code. It binds together the venerable Tree Sitter, the fast spell checker [Spellbook](https://github.com/helix-editor/spellbook) and includes a Language Server for use in any editor. Everything is done in Rust to keep response times snappy.
+Codebook is a spellchecker for code. It binds together the venerable Tree Sitter and the fast spell checker [Spellbook](https://github.com/helix-editor/spellbook). Included is a Language Server for use in any editor. Everything is done in Rust to keep response times snappy and memory usage _low_.
 
 ## Status
 
@@ -54,3 +54,5 @@ Run them with `make test`.
 - cSpell for VSCode: https://marketplace.visualstudio.com/items?itemName=streetsidesoftware.code-spell-checker
 - Vale: https://github.com/errata-ai/vale-ls
 - TreeSitter Visualizer: https://intmainreturn0.com/ts-visualizer/
+- common-words: https://github.com/anvaka/common-words
+- Hunspell dictionaries in UTF-8: https://github.com/wooorm/dictionaries
