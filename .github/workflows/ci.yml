@@ -101,9 +101,8 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: artifacts
           path: artifacts
-          pattern: codebook-lsp-*
+          pattern: codebook-lsp*
       - name: Make release
         uses: softprops/action-gh-release@v2
         with:
