@@ -96,12 +96,9 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
           pattern: codebook-lsp*
       - name: Make release
         uses: softprops/action-gh-release@v2
