@@ -8,6 +8,7 @@ fn example_file_path(file: &str) -> String {
 
 #[test]
 fn test_example_files_word_locations() {
+    utils::init_logging();
     let files: Vec<(&str, Vec<SpellCheckResult>)> = vec![
         (
             "example.py",
@@ -106,6 +107,7 @@ fn test_example_files_word_locations() {
 
 #[test]
 fn test_example_files() {
+    utils::init_logging();
     let files = [
         ("example.html", vec!["Spelin", "Wolrd", "sor"]),
         ("example.py", vec!["Pthon", "Wolrd"]),

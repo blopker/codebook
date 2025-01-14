@@ -1,11 +1,10 @@
 use codebook::{SpellCheckResult, TextRange};
 
 mod utils;
-use utils::init_logging;
 
 #[test]
 fn test_rust_simple() {
-    init_logging();
+    utils::init_logging();
     let processor = utils::get_processor();
     let sample_text = r#"
         fn calculat_user_age(bithDate: String) -> u32 {
@@ -27,7 +26,7 @@ fn test_rust_simple() {
 
 #[test]
 fn test_rust_comment_location() {
-    init_logging();
+    utils::init_logging();
     let sample_rust = r#"
         // Comment with a typo: mment
         "#;
@@ -50,7 +49,7 @@ fn test_rust_comment_location() {
 
 #[test]
 fn test_rust_struct() {
-    init_logging();
+    utils::init_logging();
     let sample_rust = r#"
         pub struct BadSpeler {
             /// Terrible spelling: dwnloader
