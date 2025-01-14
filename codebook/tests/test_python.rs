@@ -11,7 +11,7 @@ fn test_python_simple() {
             usrAge = get_curent_date() - bithDate
             userAge
     "#;
-    let expected = vec!["bith", "calculat", "curent", "examle", "usr"];
+    let expected = vec!["bith", "calculat", "curent", "examle"];
     let binding = processor.spell_check(sample_text, "python").to_vec();
     let mut misspelled = binding
         .iter()

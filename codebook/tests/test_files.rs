@@ -114,7 +114,7 @@ fn test_example_files() {
             vec!["Wolrd", "bvd", "regulr", "splellin", "wolrd"],
         ),
         ("example.txt", vec!["Splellin", "bd"]),
-        ("example.rs", vec!["birt", "curent", "jalopin", "usr"]),
+        ("example.rs", vec!["birt", "calclate", "curent", "jalopin"]),
         (
             "example.go",
             vec!["speling", "Wolrd", "mispeled", "Funcion"],
@@ -146,7 +146,7 @@ fn test_example_files() {
     ];
     for mut file in files {
         let path = example_file_path(file.0);
-        println!("Checking file: {path:?}");
+        println!("---------- Checking file: {path:?} ----------");
         let processor = utils::get_processor();
         let results = processor.spell_check_file(&path);
         let mut misspelled = results

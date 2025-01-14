@@ -1,8 +1,38 @@
 use tree_sitter::Language;
 
+#[derive(Debug, Clone, PartialEq, Copy)]
+pub enum LanguageType {
+    Rust,
+    Python,
+    Javascript,
+    Typescript,
+    Html,
+    Css,
+    Go,
+    Text,
+}
+
+impl LanguageType {
+    pub fn from_str(s: &str) -> Option<LanguageType> {
+        match s {
+            "rust" => Some(LanguageType::Rust),
+            "python" => Some(LanguageType::Python),
+            "javascript" => Some(LanguageType::Javascript),
+            "typescript" => Some(LanguageType::Typescript),
+            "html" => Some(LanguageType::Html),
+            "css" => Some(LanguageType::Css),
+            "go" => Some(LanguageType::Go),
+            "text" => Some(LanguageType::Text),
+            _ => None,
+        }
+    }
+}
+
+pub static COMMON_DICTIONARY: &str = include_str!("../../wordlists/common.txt");
 // Use https://intmainreturn0.com/ts-visualizer/ to help with writing grammar queries
 pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
     LanguageSetting {
+        type_: LanguageType::Rust,
         name: "rust",
         query: r#"
                 (function_item
@@ -18,6 +48,7 @@ pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
         extensions: &["rs"],
     },
     LanguageSetting {
+        type_: LanguageType::Python,
         name: "python",
         query: r#"
             (identifier) @identifier
@@ -32,6 +63,7 @@ pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
         extensions: &["py"],
     },
     LanguageSetting {
+        type_: LanguageType::Javascript,
         name: "javascript",
         query: r#"
             (identifier) @identifier
@@ -49,6 +81,7 @@ pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
         extensions: &["js"],
     },
     LanguageSetting {
+        type_: LanguageType::Typescript,
         name: "typescript",
         query: r#"
             (identifier) @identifier
@@ -65,6 +98,7 @@ pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
         extensions: &["ts"],
     },
     LanguageSetting {
+        type_: LanguageType::Html,
         name: "html",
         query: r#"
             (text) @string
@@ -74,6 +108,7 @@ pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
         extensions: &["html", "htm"],
     },
     LanguageSetting {
+        type_: LanguageType::Css,
         name: "css",
         query: r#"
             (class_name) @identifier
@@ -86,6 +121,7 @@ pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
         extensions: &["css"],
     },
     LanguageSetting {
+        type_: LanguageType::Go,
         name: "go",
         query: r#"
                 (comment) @comment
@@ -99,6 +135,7 @@ pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
 
 #[derive(Debug)]
 pub struct LanguageSetting {
+    pub type_: LanguageType,
     pub query: &'static str,
     pub name: &'static str,
     pub extensions: &'static [&'static str],
@@ -106,21 +143,22 @@ pub struct LanguageSetting {
 
 impl LanguageSetting {
     pub fn language(&self) -> Option<Language> {
-        match self.name {
-            "rust" => Some(tree_sitter_rust::LANGUAGE.into()),
-            "python" => Some(tree_sitter_python::LANGUAGE.into()),
-            "javascript" => Some(tree_sitter_javascript::LANGUAGE.into()),
-            "typescript" => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
-            "html" => Some(tree_sitter_html::LANGUAGE.into()),
-            "go" => Some(tree_sitter_go::LANGUAGE.into()),
-            _ => None,
+        match self.type_ {
+            LanguageType::Rust => Some(tree_sitter_rust::LANGUAGE.into()),
+            LanguageType::Python => Some(tree_sitter_python::LANGUAGE.into()),
+            LanguageType::Javascript => Some(tree_sitter_javascript::LANGUAGE.into()),
+            LanguageType::Typescript => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
+            LanguageType::Html => Some(tree_sitter_html::LANGUAGE.into()),
+            LanguageType::Css => None,
+            LanguageType::Go => Some(tree_sitter_go::LANGUAGE.into()),
+            LanguageType::Text => None,
         }
     }
 }
 
-pub fn get_language_setting(language_name: &str) -> Option<&LanguageSetting> {
+pub fn get_language_setting(language_type: LanguageType) -> Option<&'static LanguageSetting> {
     for setting in LANGUAGE_SETTINGS.iter() {
-        if setting.name == language_name {
+        if setting.type_ == language_type {
             if setting.language().is_some() {
                 return Some(setting);
             }
@@ -129,14 +167,14 @@ pub fn get_language_setting(language_name: &str) -> Option<&LanguageSetting> {
     None
 }
 
-pub fn get_language_name_from_filename(filename: &str) -> String {
+pub fn get_language_name_from_filename(filename: &str) -> Option<LanguageType> {
     let extension = filename.split('.').last().unwrap();
     for setting in LANGUAGE_SETTINGS.iter() {
         for ext in setting.extensions.iter() {
             if ext == &extension {
-                return setting.name.to_string();
+                return Some(setting.type_);
             }
         }
     }
-    "text".to_string()
+    None
 }

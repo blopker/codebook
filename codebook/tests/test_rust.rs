@@ -12,7 +12,7 @@ fn test_rust_simple() {
             userAge
         }
     "#;
-    let expected = vec!["bith", "calculat", "examle", "usr"];
+    let expected = vec!["bith", "calculat", "examle"];
     let binding = processor.spell_check(sample_text, "rust").to_vec();
     let mut misspelled = binding
         .iter()

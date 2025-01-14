@@ -1,5 +1,4 @@
 mod downloader;
-
 use codebook::CodeDictionary;
 use downloader::DictionaryDownloader;
 use std::env;
@@ -7,9 +6,8 @@ use std::path::Path;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let downloader =
-        DictionaryDownloader::new(downloader::DEFAULT_BASE_URL, "../.cache/dictionaries");
-    let files = downloader.get("en").unwrap();
+    let loader = DictionaryDownloader::new(downloader::DEFAULT_BASE_URL, "../.cache/dictionaries");
+    let files = loader.get("en").unwrap();
     let processor = CodeDictionary::new(&files.aff_local_path, &files.dic_local_path).unwrap();
 
     // println!("My path is {:?}", args);

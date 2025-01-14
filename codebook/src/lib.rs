@@ -3,7 +3,10 @@ mod queries;
 mod splitter;
 use lru::LruCache;
 
-use crate::queries::{get_language_name_from_filename, get_language_setting, LanguageSetting};
+use crate::queries::{
+    get_language_name_from_filename, get_language_setting, LanguageSetting, LanguageType,
+    COMMON_DICTIONARY,
+};
 use std::{
     collections::{HashMap, HashSet},
     num::NonZeroUsize,
@@ -39,9 +42,9 @@ pub struct TextRange {
 
 #[derive(Debug)]
 pub struct CodeDictionary {
-    custom_dictionary: HashSet<String>,
+    custom_dictionary: Arc<RwLock<HashSet<String>>>,
     dictionary: spellbook::Dictionary,
-    dictionary_lookup_cache: Arc<RwLock<LruCache<String, Vec<String>>>>,
+    suggestion_cache: Arc<RwLock<LruCache<String, Vec<String>>>>,
 }
 
 impl CodeDictionary {
@@ -50,29 +53,41 @@ impl CodeDictionary {
         let dic = std::fs::read_to_string(dic_path)?;
         let dict = spellbook::Dictionary::new(&aff, &dic)
             .map_err(|e| format!("Dictionary parse error: {}", e))?;
-
+        let mut custom_dictionary: HashSet<String> = HashSet::new();
+        for word in COMMON_DICTIONARY.lines() {
+            custom_dictionary.insert(word.to_string());
+        }
         Ok(CodeDictionary {
-            custom_dictionary: HashSet::new(),
+            custom_dictionary: Arc::new(RwLock::new(custom_dictionary)),
             dictionary: dict,
-            dictionary_lookup_cache: Arc::new(RwLock::new(LruCache::new(
+            suggestion_cache: Arc::new(RwLock::new(LruCache::new(
                 NonZeroUsize::new(10000).unwrap(),
             ))),
         })
     }
 
     pub fn check(&self, word: &str) -> bool {
-        self.custom_dictionary.contains(word) || self.dictionary.check(word)
-        // self.dictionary_lookup_cache.read().unwrap().contains(word) || self.dictionary.check(word)
+        self.custom_dictionary
+            .read()
+            .unwrap()
+            .contains(word.to_lowercase().as_str())
+            || self.dictionary.check(word)
+        // self.lookup_cache.read().unwrap().contains(word) || self.dictionary.check(word)
     }
 
-    pub fn add_to_dictionary(&mut self, word: String) {
-        self.custom_dictionary.insert(word);
+    pub fn add_to_dictionary(&self, strings: &str) {
+        for line in strings.lines() {
+            self.custom_dictionary
+                .write()
+                .unwrap()
+                .insert(line.to_string());
+        }
     }
 
     pub fn suggest(&self, word: &str) -> Vec<String> {
         println!("Checking Cache: {:?}", word);
         // First try to get from cache with write lock since get() needs to modify LRU order
-        if let Some(suggestions) = self.dictionary_lookup_cache.write().unwrap().get_mut(word) {
+        if let Some(suggestions) = self.suggestion_cache.write().unwrap().get_mut(word) {
             println!("Cache hit for {:?}", word);
             return suggestions.clone();
         }
@@ -81,7 +96,7 @@ impl CodeDictionary {
         let mut suggestions = Vec::new();
         self.dictionary.suggest(word, &mut suggestions);
         if !suggestions.is_empty() {
-            self.dictionary_lookup_cache
+            self.suggestion_cache
                 .write()
                 .unwrap()
                 .put(word.to_string(), suggestions.clone());
@@ -90,27 +105,41 @@ impl CodeDictionary {
     }
 
     pub fn spell_check(&self, text: &str, language: &str) -> Vec<SpellCheckResult> {
-        // print!("language: {:?}", language);
-        let lang = get_language_setting(language);
-        match lang {
+        let lang_type = LanguageType::from_str(language);
+        return self.spell_check_enum(text, lang_type);
+    }
+
+    pub fn spell_check_file(&self, path: &str) -> Vec<SpellCheckResult> {
+        let lang_type = get_language_name_from_filename(path);
+        let file_text = std::fs::read_to_string(path).unwrap();
+        return self.spell_check_enum(&file_text, lang_type);
+    }
+
+    pub fn spell_check_file_memory(&self, path: &str, contents: &str) -> Vec<SpellCheckResult> {
+        let lang_type = get_language_name_from_filename(path);
+        return self.spell_check_enum(&contents, lang_type);
+    }
+
+    fn spell_check_enum(
+        &self,
+        text: &str,
+        language_type: Option<LanguageType>,
+    ) -> Vec<SpellCheckResult> {
+        let language = match language_type {
+            None => None,
+            Some(lang) => get_language_setting(lang),
+        };
+        match language {
             None => {
                 return self.spell_check_text(text);
             }
             Some(lang) => {
+                // if let Some(dictionary) = lang.language_dictionary {
+                //     self.add_to_dictionary(dictionary);
+                // }
                 return self.spell_check_code(text, lang);
             }
         }
-    }
-
-    pub fn spell_check_file(&self, path: &str) -> Vec<SpellCheckResult> {
-        let lang_name = get_language_name_from_filename(path);
-        let file_text = std::fs::read_to_string(path).unwrap();
-        return self.spell_check(&file_text, &lang_name);
-    }
-
-    pub fn spell_check_file_memory(&self, path: &str, contents: &str) -> Vec<SpellCheckResult> {
-        let lang_name = get_language_name_from_filename(path);
-        return self.spell_check(&contents, &lang_name);
     }
 
     fn spell_check_text(&self, text: &str) -> Vec<SpellCheckResult> {
@@ -301,7 +330,7 @@ mod lib_tests {
         let mut cdict =
             CodeDictionary::new("./tests/en_index.aff", "./tests/en_index.dic").unwrap();
         for word in EXTRA_WORDS {
-            cdict.add_to_dictionary(word.to_string());
+            cdict.add_to_dictionary(word);
         }
         cdict
     }
@@ -311,7 +340,7 @@ mod lib_tests {
         let processor = get_processor();
 
         let text = "HelloWorld calc_wrld";
-        let misspelled = processor.spell_check(text, "text");
+        let misspelled = processor.spell_check_enum(text, None);
         println!("{:?}", misspelled);
         assert!(misspelled.iter().any(|r| r.word == "wrld"));
     }
