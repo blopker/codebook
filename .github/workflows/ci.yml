@@ -49,14 +49,14 @@ jobs:
             name: codebook-lsp-aarch64-apple-darwin.tar.gz
             command: build
           - release_for: Linux-x86_64-GNU
-            os: ubuntu-20.04
+            os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             project: codebook-lsp
             bin: codebook-lsp
             name: codebook-lsp-x86_64-unknown-linux-gnu.tar.gz
             command: build
           - release_for: Linux-aarch64-GNU
-            os: ubuntu-20.04
+            os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             project: codebook-lsp
             bin: codebook-lsp
@@ -102,7 +102,7 @@ jobs:
         with:
           pattern: codebook-lsp*
       - name: ls
-        run: ls -la
+        run: ls -laR
       - name: Make release
         uses: softprops/action-gh-release@v2
         with:
