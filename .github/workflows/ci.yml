@@ -102,7 +102,7 @@ jobs:
         with:
           pattern: codebook-lsp*
       - name: ls
-        run: ls
+        run: ls -la
       - name: Make release
         uses: softprops/action-gh-release@v2
         with:
