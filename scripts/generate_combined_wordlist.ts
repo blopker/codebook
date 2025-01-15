@@ -22,7 +22,7 @@ for (const file of wordLists) {
       .split("\n");
     for (const word of words) {
       if (word.length > 1) {
-        combined.add(word);
+        combined.add(word.toLowerCase());
       }
     }
   }

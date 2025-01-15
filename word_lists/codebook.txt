@@ -9,12 +9,16 @@ jsx
 linter
 linux
 lsp
-macOS
+macos
 msvc
 pc
 prerelease
+pst
 rpc
+semibold
 sha
 tsx
+ttf
 ubuntu
+uncomment
 webp

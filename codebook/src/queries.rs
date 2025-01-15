@@ -101,8 +101,6 @@ pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
                 name: (identifier) @identifier)
             (method_definition
                 name: (property_identifier) @identifier)
-            (class_declaration
-                name: (identifier) @identifier)
                 "#,
         extensions: &["ts"],
     },

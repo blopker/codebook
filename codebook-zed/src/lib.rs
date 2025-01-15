@@ -157,13 +157,19 @@ impl zed::Extension for CodebookExtension {
         worktree: &zed::Worktree,
     ) -> Result<zed::Command> {
         let binary = self.get_binary(language_server_id, worktree)?;
+        let current_working_dir = std::env::current_dir()
+            .map_err(|e| format!("Failed to get current working directory: {}", e))?;
+        let cache_dir = current_working_dir.join(".cache");
+        let cache_dir = cache_dir
+            .to_str()
+            .ok_or("Failed to convert cache dir to string")?;
         Ok(zed::Command {
             command: binary
                 .path
                 .to_str()
                 .ok_or("Failed to convert binary path to string")?
                 .to_string(),
-            args: vec![],
+            args: vec![format!("--cache-dir={cache_dir}"), "serve".to_string()],
             env: binary.env.unwrap_or_default(),
         })
     }
