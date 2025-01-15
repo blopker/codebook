@@ -301,6 +301,7 @@ ccccff
 ccx
 cd
 cdata
+cdn
 cell
 cellpadding
 cellspacing
@@ -966,6 +967,7 @@ hostname
 hover
 hr
 href
+htm
 html
 htmlelement
 http
@@ -1123,6 +1125,7 @@ jsonobject
 jsontypeinfo
 jsref
 jstree
+jsx
 juju
 jumbotron
 junit
@@ -1198,6 +1201,7 @@ linkcol
 linkedlist
 links
 lint
+linter
 list
 listener
 listeners
@@ -1238,6 +1242,7 @@ longhands
 loop
 loose
 lower
+lsp
 lt
 lucene
 ma
@@ -1781,6 +1786,7 @@ row
 rowcolor
 rows
 rowspan
+rpc
 rr
 rs
 rt
@@ -1880,6 +1886,7 @@ setup
 setvalue
 setvisible
 sf
+sha
 shadow
 shape
 share
@@ -2200,6 +2207,7 @@ try
 trydecodeasnil
 ts
 tsd
+tsx
 tt
 tta
 tuple
@@ -2337,6 +2345,7 @@ we
 web
 webdev
 webkit
+webp
 webpack
 websites
 week

@@ -5,10 +5,10 @@ export RUST_LOG=info
 test:
 	cargo test
 
-build:
+build: generate_word_list
 	cd codebook-lsp && cargo build
 
-build-release:
+build-release: generate_word_list
 	cd codebook-lsp && cargo build --release
 
 integration_test: build
@@ -16,3 +16,6 @@ integration_test: build
 
 install_ext: build-release
 	cp -f target/release/codebook-lsp "${HOME}/Library/Application Support/Zed/extensions/work/codebook/"
+
+generate_word_list:
+	bun run scripts/generate_combined_wordlist.ts

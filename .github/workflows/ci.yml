@@ -91,6 +91,8 @@ jobs:
           path: ${{ matrix.platform.name }}
   release:
     name: Release
+    permissions:
+      contents: write
     needs:
       - build
       - test
@@ -111,5 +113,3 @@ jobs:
           generate_release_notes: true
           draft: false
           tag_name: ${{ github.ref_name }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

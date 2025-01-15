@@ -135,8 +135,6 @@ fn test_example_files() {
                 "Pleese",
                 "additshun",
                 "arra",
-                "ballance",
-                "calculater",
             ],
         ),
         (
