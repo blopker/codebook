@@ -17,5 +17,8 @@ integration_test: build
 install_ext: build-release
 	cp -f target/release/codebook-lsp "${HOME}/Library/Application Support/Zed/extensions/work/codebook/"
 
+uninstall_ext:
+	rm -f "${HOME}/Library/Application Support/Zed/extensions/work/codebook/codebook-lsp"
+
 generate_word_list:
 	bun run scripts/generate_combined_wordlist.ts

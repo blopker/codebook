@@ -90,16 +90,19 @@ pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
         type_: LanguageType::Typescript,
         name: "typescript",
         query: r#"
-            (identifier) @identifier
-            (string) @string
             (comment) @comment
-            (template_string) @string
+            (string_fragment) @string
+            (string) @string
+            (variable_declarator
+                name: (identifier) @identifier)
             (jsx_text) @string
-            (property_identifier) @identifier
             (shorthand_property_identifier) @identifier
+            (function_declaration
+                name: (identifier) @identifier)
             (method_definition
                 name: (property_identifier) @identifier)
-
+            (class_declaration
+                name: (identifier) @identifier)
                 "#,
         extensions: &["ts"],
     },

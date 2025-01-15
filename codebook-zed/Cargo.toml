@@ -3,7 +3,7 @@ name = "codebook-zed"
 version = "0.1.0"
 edition = "2021"
 authors = ["Bo"]
-description = "Zed extension for spellchecking."
+description = "Codebook: A Zed extension for spellchecking."
 
 [dependencies]
 zed_extension_api = "<1"
