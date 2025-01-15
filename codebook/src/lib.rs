@@ -96,6 +96,7 @@ impl CodeDictionary {
         // If not in cache, generate suggestions
         let mut suggestions = Vec::new();
         self.dictionary.suggest(word, &mut suggestions);
+        suggestions.truncate(5);
         if !suggestions.is_empty() {
             self.suggestion_cache
                 .write()
