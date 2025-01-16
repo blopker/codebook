@@ -45,9 +45,8 @@ await new Promise((resolve) => setTimeout(resolve, 500));
 await $`cargo update --workspace`; // update the lock file
 await $`git add ."`;
 await $`git commit -m "release codebook-lsp ${newVersion}"`;
-await $`git push origin`;
 await $`git tag "v${newVersion}"`;
-await $`git push origin --tags`;
+await $`git push origin HEAD --tags`;
 
 console.log("Released codebook-lsp", newVersion);
 console.log("Go to https://github.com/blopker/codebook/releases to publish.");
