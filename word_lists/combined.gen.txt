@@ -1251,8 +1251,8 @@ lsp
 lt
 lucene
 ma
-macOS
 machine
+macos
 macro
 mail
 main

@@ -22,3 +22,6 @@ uninstall_ext:
 
 generate_word_list:
 	bun run scripts/generate_combined_wordlist.ts
+
+release-lsp:
+	bun run scripts/release_lsp.ts

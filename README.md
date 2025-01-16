@@ -33,14 +33,13 @@ Spellchecking is complicated and opinions about how it should be done, especiall
 
 No remote calls for spellchecking or analytics. Once dictionaries are cached, Codebook needs to be usable offline. Codebook will never send the contents of files to a remote server.
 
-### Low noise/High signal
+### Don't be annoying
 
-Codebook should only highlight words that users have control over. For example, a misspelled word in an imported function should not be highlighted as the user can't do anything about it.
+Codebook should have high signal and low noise. It should only highlight words that users have control over. For example, a misspelled word in an imported function should not be highlighted as the user can't do anything about it.
 
 ### Efficient
 
-All features will be weighed against their impact on CPU and memory impact. Codebook should be fast on even low-end hardware to spellcheck on every keystroke.
-
+All features will be weighed against their impact on CPU and memory impact. Codebook should be fast enough to spellcheck on every keystroke on even low-end hardware.
 
 ## Features
 
@@ -73,3 +72,12 @@ Run them with `make test`.
 - TreeSitter Visualizer: https://intmainreturn0.com/ts-visualizer/
 - common-words: https://github.com/anvaka/common-words
 - Hunspell dictionaries in UTF-8: https://github.com/wooorm/dictionaries
+
+## Release
+
+To update the Language server:
+
+1. Run `make release-lsp`
+1. Follow instructions
+1. Go to GitHub Releases
+1. Un-mark "prerelease" and publish
