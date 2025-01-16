@@ -40,6 +40,8 @@ const newVersion =
 console.log("New version:", newVersion);
 const newCargo = cargo.replace(version, newVersion);
 fs.writeFileSync(cargoPath, newCargo);
+// sleep to let the user see the change
+await new Promise((resolve) => setTimeout(resolve, 500));
 
 await $`git add ."`;
 await $`git commit -m "release codebook-lsp ${newVersion}"`;
