@@ -54,7 +54,6 @@ function prosessArray(arr) {
   for (let i = 0; i < arr.lenght; i++) {
     totel += arr[i];
   }
-
   return totel;
 }
 

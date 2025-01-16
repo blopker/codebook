@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use tower_lsp::jsonrpc::Result as RpcResult;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
@@ -43,6 +45,13 @@ impl LanguageServer for Backend {
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         self.publish_spellcheck_diagnostics(&params.text_document.uri, &params.text_document.text)
+            .await;
+    }
+
+    async fn did_close(&self, params: DidCloseTextDocumentParams) {
+        // Clear diagnostics when a file is closed.
+        self.client
+            .publish_diagnostics(params.text_document.uri, vec![], None)
             .await;
     }
 
