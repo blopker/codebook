@@ -46,7 +46,7 @@ await $`cargo update --workspace`; // update the lock file
 await $`git add ."`;
 await $`git commit -m "release codebook-lsp ${newVersion}"`;
 await $`git push origin`;
-await $`git tag ${newVersion}`;
+await $`git tag "v${newVersion}"`;
 await $`git push origin --tags`;
 
 console.log("Released codebook-lsp", newVersion);

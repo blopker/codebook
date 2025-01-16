@@ -2,9 +2,9 @@ name: Test
 
 on:
   push:
-    branches: ["main"]
     tags:
       - v*
+    branches: ["main"]
   pull_request:
     branches: ["main"]
 
