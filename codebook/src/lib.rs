@@ -33,7 +33,7 @@ impl SpellCheckResult {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Ord, Eq, PartialOrd)]
 pub struct TextRange {
     pub start_char: u32,
     pub end_char: u32,
@@ -169,20 +169,21 @@ impl CodeDictionary {
                     // Check if word is in dictionary
                     if !self.check(&current_word) {
                         // Word not found in dictionary
-                        let mut locations = Vec::new();
-                        locations.push(TextRange {
+                        let range = TextRange {
                             start_char: word_start_char,
                             end_char: current_char,
                             start_line: current_line,
                             end_line: current_line,
-                        });
+                        };
 
                         // Check if we already have this misspelled word
                         if let Some(existing_result) =
                             results.iter_mut().find(|r| r.word == current_word)
                         {
-                            existing_result.locations.push(locations[0].clone());
+                            existing_result.locations.push(range);
                         } else {
+                            let mut locations = Vec::new();
+                            locations.push(range);
                             results.push(SpellCheckResult {
                                 word: current_word.clone(),
                                 suggestions: self.suggest(&current_word),
@@ -306,6 +307,10 @@ impl CodeDictionary {
                             };
                             if let Some(existing_result) = word_locations.get_mut(&split_word.word)
                             {
+                                #[cfg(debug_assertions)]
+                                if existing_result.contains(&location) {
+                                    panic!("Two of the same locations found. Make a better query.")
+                                }
                                 existing_result.push(location);
                             } else {
                                 word_locations.insert(split_word.word.clone(), vec![location]);

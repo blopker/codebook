@@ -55,12 +55,12 @@ pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
         type_: LanguageType::Python,
         name: "python",
         query: r#"
-            (identifier) @identifier
             (comment) @comment
             (string) @string
-            (decorated_definition) @identifier
             (function_definition
                 name: (identifier) @identifier)
+            (function_definition
+                parameters: (parameters) @identifier)
             (class_definition
                 name: (identifier) @identifier)
                 "#,
@@ -72,7 +72,6 @@ pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
         query: r#"
             (comment) @comment
             (string_fragment) @string
-            (string) @string
             (variable_declarator
                 name: (identifier) @identifier)
             (jsx_text) @string
@@ -92,7 +91,6 @@ pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
         query: r#"
             (comment) @comment
             (string_fragment) @string
-            (string) @string
             (variable_declarator
                 name: (identifier) @identifier)
             (jsx_text) @string
