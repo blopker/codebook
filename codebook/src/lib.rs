@@ -45,6 +45,7 @@ pub struct TextRange {
 pub struct CodeDictionary {
     custom_dictionary: Arc<RwLock<HashSet<String>>>,
     dictionary: spellbook::Dictionary,
+    pub make_suggestions: bool,
     suggestion_cache: Arc<RwLock<LruCache<String, Vec<String>>>>,
 }
 
@@ -61,6 +62,7 @@ impl CodeDictionary {
         Ok(CodeDictionary {
             custom_dictionary: Arc::new(RwLock::new(custom_dictionary)),
             dictionary: dict,
+            make_suggestions: true,
             suggestion_cache: Arc::new(RwLock::new(LruCache::new(
                 NonZeroUsize::new(10000).unwrap(),
             ))),
@@ -86,6 +88,9 @@ impl CodeDictionary {
     }
 
     pub fn suggest(&self, word: &str) -> Vec<String> {
+        if !self.make_suggestions {
+            return Vec::new();
+        }
         info!("Checking Cache: {:?}", word);
         // First try to get from cache with write lock since get() needs to modify LRU order
         if let Some(suggestions) = self.suggestion_cache.write().unwrap().get_mut(word) {

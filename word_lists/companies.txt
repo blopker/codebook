@@ -1,0 +1,4 @@
+mailersend
+mailerlite
+mailgun
+brevo

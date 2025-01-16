@@ -5,7 +5,7 @@ mod utils;
 #[test]
 fn test_rust_simple() {
     utils::init_logging();
-    let processor = utils::get_processor();
+    let processor = utils::get_processor(true);
     let sample_text = r#"
         fn calculat_user_age(bithDate: String) -> u32 {
             // This is an examle_function that calculates age
@@ -40,7 +40,7 @@ fn test_rust_comment_location() {
             end_line: 1,
         }],
     )];
-    let processor = utils::get_processor();
+    let processor = utils::get_processor(true);
     let misspelled = processor.spell_check(sample_rust, "rust").to_vec();
     println!("Misspelled words: {misspelled:?}");
     assert_eq!(misspelled, expected);
@@ -88,7 +88,7 @@ fn test_rust_struct() {
             }],
         ),
     ];
-    let processor = utils::get_processor();
+    let processor = utils::get_processor(true);
     let misspelled = processor.spell_check(sample_rust, "rust").to_vec();
     println!("Misspelled words: {misspelled:?}");
     for expect in expected.iter() {

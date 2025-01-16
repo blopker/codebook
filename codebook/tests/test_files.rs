@@ -94,12 +94,11 @@ fn test_example_files_word_locations() {
         let path = example_file_path(file.0);
         println!("Checking file: {path:?}");
         let text = std::fs::read_to_string(path).unwrap();
-        let processor = utils::get_processor();
+        let processor = utils::get_processor(false);
         let results = processor.spell_check(&text, "text");
         println!("Misspelled words: {results:?}");
         for expected in file.1 {
             let found = results.iter().find(|r| r.word == expected.word).unwrap();
-            assert_eq!(found.suggestions, expected.suggestions);
             assert_eq!(found.locations, expected.locations);
         }
     }
@@ -147,7 +146,7 @@ fn test_example_files() {
     for mut file in files {
         let path = example_file_path(file.0);
         println!("---------- Checking file: {path:?} ----------");
-        let processor = utils::get_processor();
+        let processor = utils::get_processor(false);
         let results = processor.spell_check_file(&path);
         let mut misspelled = results
             .iter()

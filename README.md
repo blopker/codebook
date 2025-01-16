@@ -23,7 +23,24 @@ Codebook is a spellchecker for code. It binds together the venerable Tree Sitter
 
 ## Status
 
-Codebook is being developed and not yet ready for public (or private, really) use. Hit the Star button to follow for updates though.
+Codebook is being developed and not yet ready for public (or private, really) use. Hit the Star button to follow for updates though. Currently only US English is supported.
+
+### Supported Languages
+
+| Language | Status |
+| --- | --- |
+| Markdown | ✅ |
+| Plain Text | ✅ |
+| HTML | ⚠️ |
+| CSS | ⚠️ |
+| Go | ⚠️ |
+| JavaScript | ✅ |
+| TypeScript | ⚠️ |
+| Python | ⚠️ |
+| Rust | ✅ |
+
+✅ = Good to go
+⚠️ = Supported, but needs more testing
 
 ## Goals
 
@@ -54,6 +71,14 @@ Codebook comes with a language server. Originally developed for the Zed editor, 
 ### Dictionary Management
 
 Codebook comes with a dictionary manager, which will automatically download and cache dictionaries for a large number of written languages.
+
+## Roadmap
+
+- [ ] Support more languages than US English
+- [ ] Support custom project dictionaries
+- [ ] Support custom global dictionaries
+- [ ] Support per file extension dictionaries
+- [ ] Add code actions to correct spelling
 
 ## Running
 

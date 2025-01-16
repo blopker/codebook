@@ -1,8 +1,9 @@
 use codebook::CodeDictionary;
 static EXTRA_WORDS: &'static [&'static str] = &["http", "https", "www", "viewport", "UTF"];
 
-pub fn get_processor() -> CodeDictionary {
-    let dict = CodeDictionary::new("./tests/en_index.aff", "./tests/en_index.dic").unwrap();
+pub fn get_processor(make_suggestions: bool) -> CodeDictionary {
+    let mut dict = CodeDictionary::new("./tests/en_index.aff", "./tests/en_index.dic").unwrap();
+    dict.make_suggestions = make_suggestions;
     for word in EXTRA_WORDS {
         dict.add_to_dictionary(word);
     }

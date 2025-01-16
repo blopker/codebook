@@ -4,7 +4,7 @@ mod utils;
 
 #[test]
 fn test_python_simple() {
-    let processor = utils::get_processor();
+    let processor = utils::get_processor(true);
     let sample_text = r#"
         def calculat_user_age(bithDate) -> int:
             # This is an examle_function that calculates age
@@ -52,7 +52,7 @@ multi_line_comment = '''
             }],
         ),
     ];
-    let processor = utils::get_processor();
+    let processor = utils::get_processor(true);
     let misspelled = processor.spell_check(sample_python, "python").to_vec();
     println!("Misspelled words: {misspelled:?}");
     for e in &expected {

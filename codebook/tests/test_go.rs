@@ -30,7 +30,7 @@ fn test_go_location() {
             }],
         ),
     ];
-    let processor = utils::get_processor();
+    let processor = utils::get_processor(true);
     let misspelled = processor.spell_check(sample_text, "go").to_vec();
     println!("Misspelled words: {misspelled:?}");
     for e in &expected {
