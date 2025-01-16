@@ -42,7 +42,7 @@ const newCargo = cargo.replace(version, newVersion);
 fs.writeFileSync(cargoPath, newCargo);
 // sleep to let the user see the change
 await new Promise((resolve) => setTimeout(resolve, 500));
-
+await $`cargo update --workspace`; // update the lock file
 await $`git add ."`;
 await $`git commit -m "release codebook-lsp ${newVersion}"`;
 await $`git tag ${newVersion}`;
