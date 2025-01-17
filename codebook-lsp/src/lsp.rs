@@ -1,5 +1,3 @@
-use std::sync::{Arc, Mutex};
-
 use tower_lsp::jsonrpc::Result as RpcResult;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
@@ -29,7 +27,7 @@ impl LanguageServer for Backend {
             },
             server_info: Some(ServerInfo {
                 name: "Codebook Language Server".to_string(),
-                version: Some("0.1.0".to_string()),
+                version: Some(env!("CARGO_PKG_VERSION").to_string()),
             }),
         })
     }
