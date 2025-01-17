@@ -1,6 +1,7 @@
 pub mod downloader;
 mod queries;
 mod splitter;
+use codebook_config::CodebookConfig;
 use log::info;
 use lru::LruCache;
 
@@ -47,10 +48,15 @@ pub struct CodeDictionary {
     dictionary: spellbook::Dictionary,
     pub make_suggestions: bool,
     suggestion_cache: Arc<RwLock<LruCache<String, Vec<String>>>>,
+    config: Arc<RwLock<CodebookConfig>>,
 }
 
 impl CodeDictionary {
-    pub fn new(aff_path: &str, dic_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(
+        config: CodebookConfig,
+        aff_path: &str,
+        dic_path: &str,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let aff = std::fs::read_to_string(aff_path)?;
         let dic = std::fs::read_to_string(dic_path)?;
         let dict = spellbook::Dictionary::new(&aff, &dic)
@@ -60,6 +66,7 @@ impl CodeDictionary {
             custom_dictionary.insert(word.to_string());
         }
         Ok(CodeDictionary {
+            config: Arc::new(RwLock::new(config)),
             custom_dictionary: Arc::new(RwLock::new(custom_dictionary)),
             dictionary: dict,
             make_suggestions: true,
@@ -339,7 +346,9 @@ mod lib_tests {
     static EXTRA_WORDS: &'static [&'static str] = &["http", "https", "www", "viewport", "UTF"];
 
     fn get_processor() -> CodeDictionary {
-        let dict = CodeDictionary::new("./tests/en_index.aff", "./tests/en_index.dic").unwrap();
+        let config = CodebookConfig::default();
+        let dict =
+            CodeDictionary::new(config, "./tests/en_index.aff", "./tests/en_index.dic").unwrap();
         for word in EXTRA_WORDS {
             dict.add_to_dictionary(word);
         }
@@ -358,7 +367,9 @@ mod lib_tests {
 
     #[test]
     fn test_get_words_from_text() {
-        let dict = CodeDictionary::new("./tests/en_index.aff", "./tests/en_index.dic").unwrap();
+        let config = CodebookConfig::default();
+        let dict =
+            CodeDictionary::new(config, "./tests/en_index.aff", "./tests/en_index.dic").unwrap();
         let text = r#"
             HelloWorld calc_wrld
             I'm a contraction, don't ignore me

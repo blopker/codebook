@@ -8,7 +8,9 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let loader = DictionaryDownloader::new(downloader::DEFAULT_BASE_URL, "../.cache/dictionaries");
     let files = loader.get("en").unwrap();
-    let processor = CodeDictionary::new(&files.aff_local_path, &files.dic_local_path).unwrap();
+    let config = codebook_config::CodebookConfig::load().unwrap();
+    let processor =
+        CodeDictionary::new(config, &files.aff_local_path, &files.dic_local_path).unwrap();
 
     // println!("My path is {:?}", args);
     if args.len() < 2 {

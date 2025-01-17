@@ -2,8 +2,6 @@ mod lsp;
 use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
-use codebook::downloader::{self, DictionaryDownloader};
-use codebook::CodeDictionary;
 use log::info;
 use lsp::Backend;
 use tower_lsp::{LspService, Server};
@@ -46,9 +44,6 @@ async fn main() {
 async fn serve_lsp(cache_dir: &Path) {
     info!("Starting SpellCheck Language Server...");
     let (stdin, stdout) = (tokio::io::stdin(), tokio::io::stdout());
-    let downloader = DictionaryDownloader::new(downloader::DEFAULT_BASE_URL, cache_dir);
-    let files = downloader.get("en").unwrap();
-    let processor = CodeDictionary::new(&files.aff_local_path, &files.dic_local_path).unwrap();
-    let (service, socket) = LspService::new(|client| Backend { client, processor });
+    let (service, socket) = LspService::new(|client| Backend::new(client, cache_dir.to_path_buf()));
     Server::new(stdin, stdout, socket).serve(service).await;
 }

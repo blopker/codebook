@@ -156,7 +156,7 @@ impl DictionaryDownloader {
     // ------------------------------------------------------------------------
     /// Download `.dic` and `.aff` for a single dictionary, respecting ETag/Last-Modified caching.
     /// Returns the [DownloadInfo] for the 2 files on success.
-    pub fn download_dictionary_files(
+    fn download_dictionary_files(
         &self,
         dictionary_name: &str,
     ) -> Result<Vec<DownloadInfo>, Box<dyn std::error::Error>> {

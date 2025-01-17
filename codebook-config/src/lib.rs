@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct CodebookConfig {
     /// List of dictionaries to use for spell checking
-    #[serde(default)]
+    #[serde(default = "default_dictionary")]
     pub dictionaries: Vec<String>,
 
     /// Custom allowlist of words
@@ -26,6 +26,10 @@ pub struct CodebookConfig {
     /// Keep track of the config file path when loaded
     #[serde(skip)]
     config_path: Option<PathBuf>,
+}
+
+fn default_dictionary() -> Vec<String> {
+    vec!["en".to_string()]
 }
 
 impl CodebookConfig {

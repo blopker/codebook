@@ -226,6 +226,7 @@ checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 name = "codebook"
 version = "0.1.0"
 dependencies = [
+ "codebook_config",
  "env_logger",
  "fs2",
  "lazy_static",
@@ -252,23 +253,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "codebook-config"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "glob",
- "serde",
- "tempfile",
- "toml",
-]
-
-[[package]]
 name = "codebook-lsp"
 version = "0.1.7"
 dependencies = [
  "cc",
  "clap",
  "codebook",
+ "codebook_config",
  "env_logger",
  "fs2",
  "lazy_static",
@@ -296,6 +287,17 @@ name = "codebook-zed"
 version = "0.1.0"
 dependencies = [
  "zed_extension_api",
+]
+
+[[package]]
+name = "codebook_config"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "glob",
+ "serde",
+ "tempfile",
+ "toml",
 ]
 
 [[package]]

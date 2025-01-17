@@ -1,8 +1,12 @@
+use std::path::PathBuf;
+
+use codebook::downloader::{self, DictionaryDownloader};
 use tower_lsp::jsonrpc::Result as RpcResult;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
 
 use codebook::CodeDictionary;
+use codebook_config::CodebookConfig;
 use log::info;
 
 #[derive(Debug)]
@@ -70,6 +74,14 @@ impl LanguageServer for Backend {
 }
 
 impl Backend {
+    pub fn new(client: Client, cache_dir: PathBuf) -> Self {
+        let downloader = DictionaryDownloader::new(downloader::DEFAULT_BASE_URL, cache_dir);
+        let files = downloader.get("en").unwrap();
+        let config = CodebookConfig::load().unwrap();
+        let processor =
+            CodeDictionary::new(config, &files.aff_local_path, &files.dic_local_path).unwrap();
+        Self { client, processor }
+    }
     /// Helper method to publish diagnostics for spell-checking.
     async fn publish_spellcheck_diagnostics(&self, uri: &Url, text: &str) {
         // Convert the file URI to a local file path (if needed).
