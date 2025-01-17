@@ -38,6 +38,7 @@ Codebook is being developed and not yet ready for public (or private, really) us
 | TypeScript | ⚠️ |
 | Python | ⚠️ |
 | Rust | ✅ |
+| TOML | ✅ |
 
 ✅ = Good to go
 ⚠️ = Supported, but needs more testing

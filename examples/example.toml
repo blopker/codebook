@@ -1,0 +1,26 @@
+[spelling]
+# basic words to test
+words = [
+    "friend",
+    "correct",
+    "misspeled",  # intentionally misspelld
+    "accomodate", # intentionally misspelled
+    "occured",    # intentionally misspelled
+    "recieve",    # intentionally misspelled
+]
+
+# test sentences
+sentences = [
+    "My freind is comming over",
+    "The accomodation was nice",
+    "I recieved your mesage",
+    "This sentense has erors",
+]
+
+[ignore]
+custom_words = ["regex", "yaml", "toml"]
+
+[settings]
+case_sensitive = false
+check_numbrs = false
+check_urls = false

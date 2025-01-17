@@ -1,0 +1,38 @@
+/* mispelled words */
+.recieve {
+    color: blue;
+}
+
+.seperate {
+    background: yellow;
+}
+
+.definately {
+    font-weight: bold;
+}
+
+.accomodate {
+    text-decoration: underline;
+}
+
+/* correctly spelled but often confused */
+.their {
+    border: 1px solid red;
+}
+
+.there {
+    border: 2px solid green;
+}
+
+/* common typos */
+.teh {
+    font-style: italic;
+}
+
+.adn {
+    font-variant: small-caps;
+}
+
+.becuase {
+    text-transform: uppercase;
+}

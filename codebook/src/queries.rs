@@ -2,14 +2,15 @@ use tree_sitter::Language;
 
 #[derive(Debug, Clone, PartialEq, Copy)]
 pub enum LanguageType {
-    Rust,
-    Python,
-    Javascript,
-    Typescript,
-    Html,
     Css,
     Go,
+    Html,
+    Javascript,
+    Python,
+    Rust,
+    TOML,
     Text,
+    Typescript,
 }
 
 impl LanguageType {
@@ -23,6 +24,7 @@ impl LanguageType {
             "css" => Some(LanguageType::Css),
             "go" => Some(LanguageType::Go),
             "text" => Some(LanguageType::Text),
+            "toml" => Some(LanguageType::TOML),
             _ => None,
         }
     }
@@ -30,7 +32,7 @@ impl LanguageType {
 
 static COMMON_DICTIONARY: &str = include_str!("../../word_lists/combined.gen.txt");
 // Use https://intmainreturn0.com/ts-visualizer/ to help with writing grammar queries
-pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
+pub static LANGUAGE_SETTINGS: [LanguageSetting; 8] = [
     LanguageSetting {
         type_: LanguageType::Rust,
         name: "rust",
@@ -136,6 +138,15 @@ pub static LANGUAGE_SETTINGS: [LanguageSetting; 7] = [
                 "#,
         extensions: &["go"],
     },
+    LanguageSetting {
+        type_: LanguageType::TOML,
+        name: "toml",
+        query: r#"
+            (string) @string
+            (comment) @comment
+            "#,
+        extensions: &["toml"],
+    },
 ];
 
 #[derive(Debug)]
@@ -154,8 +165,9 @@ impl LanguageSetting {
             LanguageType::Javascript => Some(tree_sitter_javascript::LANGUAGE.into()),
             LanguageType::Typescript => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
             LanguageType::Html => Some(tree_sitter_html::LANGUAGE.into()),
-            LanguageType::Css => None,
+            LanguageType::Css => Some(tree_sitter_css::LANGUAGE.into()),
             LanguageType::Go => Some(tree_sitter_go::LANGUAGE.into()),
+            LanguageType::TOML => Some(tree_sitter_toml_ng::LANGUAGE.into()),
             LanguageType::Text => None,
         }
     }
