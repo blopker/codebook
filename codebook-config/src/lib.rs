@@ -1,11 +1,11 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use glob::Pattern;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct CodebookConfig {
     /// List of dictionaries to use for spell checking
     #[serde(default)]
@@ -22,6 +22,10 @@ pub struct CodebookConfig {
     /// Glob patterns for paths to ignore
     #[serde(default)]
     pub ignore_paths: Vec<String>,
+
+    /// Keep track of the config file path when loaded
+    #[serde(skip)]
+    config_path: Option<PathBuf>,
 }
 
 impl CodebookConfig {
@@ -31,9 +35,83 @@ impl CodebookConfig {
         Self::find_and_load_config(&current_dir)
     }
 
+    pub fn reload(&mut self) -> Result<()> {
+        let config_path = self.config_path.as_ref().ok_or_else(|| {
+            anyhow!("No config file path available. Config was not loaded from a file.")
+        })?;
+
+        let content = fs::read_to_string(config_path)
+            .with_context(|| format!("Failed to read config file: {}", config_path.display()))?;
+
+        *self = toml::from_str(&content)
+            .with_context(|| format!("Failed to parse config file: {}", config_path.display()))?;
+
+        Ok(())
+    }
+
     /// Load configuration starting from a specific directory
     pub fn load_from_dir<P: AsRef<Path>>(start_dir: P) -> Result<Self> {
         Self::find_and_load_config(start_dir.as_ref())
+    }
+
+    /// Add a word to the allowlist and save the configuration
+    pub fn add_word(&mut self, word: &str) -> Result<()> {
+        // Check if word already exists
+        if self.words.contains(&word.to_string()) {
+            return Ok(());
+        }
+
+        // Add the word
+        self.words.push(word.to_string());
+        // Sort for consistency
+        self.words.sort();
+
+        // Save the changes
+        self.save()?;
+
+        Ok(())
+    }
+
+    /// Save the configuration to its file
+    pub fn save(&self) -> Result<()> {
+        let config_path = self.config_path.as_ref().ok_or_else(|| {
+            anyhow!("No config file path available. Config was not loaded from a file.")
+        })?;
+
+        let content = toml::to_string_pretty(self).context("Failed to serialize config")?;
+
+        fs::write(config_path, content).with_context(|| {
+            format!("Failed to write config to file: {}", config_path.display())
+        })?;
+
+        Ok(())
+    }
+
+    /// Create a new configuration file if one doesn't exist
+    pub fn create_if_not_exists(directory: Option<&PathBuf>) -> Result<Self> {
+        let current_dir = env::current_dir().context("Failed to get current directory")?;
+        let default_name = "codebook.toml";
+        let config_path = match directory {
+            Some(d) => d.join(default_name),
+            None => current_dir.join(default_name),
+        };
+
+        if config_path.exists() {
+            return Self::load_from_file(&config_path);
+        }
+
+        let config = Self {
+            config_path: Some(config_path.clone()),
+            ..Default::default()
+        };
+
+        // Save the new config
+        let content = toml::to_string_pretty(&config).context("Failed to serialize config")?;
+
+        fs::write(&config_path, content)
+            .with_context(|| format!("Failed to create config file: {}", config_path.display()))?;
+
+        Ok(config)
     }
 
     /// Recursively search for and load config from the given directory and its parents
@@ -62,11 +140,15 @@ impl CodebookConfig {
 
     /// Load configuration from a specific file
     pub fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let content = fs::read_to_string(&path)
-            .with_context(|| format!("Failed to read config file: {}", path.as_ref().display()))?;
+        let path = path.as_ref();
+        let content = fs::read_to_string(path)
+            .with_context(|| format!("Failed to read config file: {}", path.display()))?;
 
-        let config: Self = toml::from_str(&content)
-            .with_context(|| format!("Failed to parse config file: {}", path.as_ref().display()))?;
+        let mut config: Self = toml::from_str(&content)
+            .with_context(|| format!("Failed to parse config file: {}", path.display()))?;
+
+        // Store the config file path
+        config.config_path = Some(path.to_path_buf());
 
         Ok(config)
     }
@@ -100,14 +182,34 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
+    fn test_add_word() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let config_path = temp_dir.path().join("codebook.toml");
+
+        // Create initial config
+        let mut config = CodebookConfig {
+            config_path: Some(config_path.clone()),
+            ..Default::default()
+        };
+        config.save()?;
+
+        // Add a word
+        config.add_word("testword")?;
+
+        // Reload config and verify
+        let loaded_config = CodebookConfig::load_from_file(&config_path)?;
+        assert!(loaded_config.is_allowed_word("testword"));
+
+        Ok(())
+    }
+
+    #[test]
     fn test_config_recursive_search() -> Result<()> {
-        // Create a temporary directory structure
         let temp_dir = TempDir::new()?;
         let sub_dir = temp_dir.path().join("sub");
         let sub_sub_dir = sub_dir.join("subsub");
         fs::create_dir_all(&sub_sub_dir)?;
 
-        // Create a config file in the root temp directory
         let config_path = temp_dir.path().join("codebook.toml");
         let mut file = File::create(&config_path)?;
         write!(
@@ -120,9 +222,69 @@ mod tests {
         "#
         )?;
 
-        // Test finding config from different directories
         let config = CodebookConfig::load_from_dir(&sub_sub_dir)?;
         assert!(config.words.contains(&"testword".to_string()));
+        // Check that the config file path is stored
+        assert_eq!(config.config_path, Some(config_path));
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_if_not_exists() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let config_dir_path = temp_dir.path().to_path_buf();
+        let config_path = config_dir_path.join("codebook.toml");
+
+        // Create a new config file
+        let config = CodebookConfig::create_if_not_exists(Some(&config_dir_path))?;
+        assert_eq!(config.config_path, Some(config_path.clone()));
+
+        // Check that the file was created
+        assert!(config_path.exists());
+
+        // Check that the file can be loaded
+        let loaded_config = CodebookConfig::load_from_file(&config_path)?;
+        assert_eq!(config, loaded_config);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_should_ignore_path() -> Result<()> {
+        let config = CodebookConfig {
+            ignore_paths: vec!["target/**/*".to_string()],
+            ..Default::default()
+        };
+
+        assert!(config.should_ignore_path("target/debug/build"));
+        assert!(!config.should_ignore_path("src/main.rs"));
+
+        Ok(())
+    }
+    #[test]
+    fn test_reload() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let config_path = temp_dir.path().join("codebook.toml");
+
+        // Create initial config
+        let mut config = CodebookConfig {
+            config_path: Some(config_path.clone()),
+            ..Default::default()
+        };
+        config.save()?;
+
+        // Add a word to the toml file
+        let mut file = File::create(&config_path)?;
+        write!(
+            file,
+            r#"
+            words = ["testword"]
+            "#
+        )?;
+
+        // Reload config and verify
+        config.reload()?;
+        assert!(config.is_allowed_word("testword"));
 
         Ok(())
     }
