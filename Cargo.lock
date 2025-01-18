@@ -295,6 +295,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "glob",
+ "log",
  "serde",
  "tempfile",
  "toml",

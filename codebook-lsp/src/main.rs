@@ -13,6 +13,10 @@ struct Cli {
     #[arg(short, long, value_name = "FOLDER")]
     cache_dir: Option<PathBuf>,
 
+    /// Root of the workspace/project being checked
+    #[arg(short, long, value_name = "FOLDER")]
+    root: Option<PathBuf>,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -33,17 +37,23 @@ async fn main() {
         Some(path) => path,
         None => Path::new(".cache/dictionaries/"),
     };
+
+    let root = match cli.root.as_deref() {
+        Some(path) => path,
+        None => Path::new("."),
+    };
+
     match &cli.command {
         Some(Commands::Serve {}) => {
-            serve_lsp(cache_dir).await;
+            serve_lsp(&cache_dir.to_path_buf(), &root.to_path_buf()).await;
         }
         None => {}
     }
 }
 
-async fn serve_lsp(cache_dir: &Path) {
+async fn serve_lsp(cache_dir: &PathBuf, root: &PathBuf) {
     info!("Starting SpellCheck Language Server...");
     let (stdin, stdout) = (tokio::io::stdin(), tokio::io::stdout());
-    let (service, socket) = LspService::new(|client| Backend::new(client, cache_dir.to_path_buf()));
+    let (service, socket) = LspService::new(|client| Backend::new(client, cache_dir, root));
     Server::new(stdin, stdout, socket).serve(service).await;
 }

@@ -1,18 +1,19 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
-use codebook::downloader::{self, DictionaryDownloader};
 use tower_lsp::jsonrpc::Result as RpcResult;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
 
-use codebook::CodeDictionary;
+use codebook::Codebook;
 use codebook_config::CodebookConfig;
 use log::info;
 
 #[derive(Debug)]
 pub struct Backend {
     pub client: Client,
-    pub processor: CodeDictionary,
+    pub codebook: Codebook,
+    pub config: Arc<CodebookConfig>,
 }
 
 #[tower_lsp::async_trait]
@@ -74,16 +75,21 @@ impl LanguageServer for Backend {
 }
 
 impl Backend {
-    pub fn new(client: Client, cache_dir: PathBuf) -> Self {
-        let downloader = DictionaryDownloader::new(downloader::DEFAULT_BASE_URL, cache_dir);
-        let files = downloader.get("en").unwrap();
-        let config = CodebookConfig::load().unwrap();
-        let processor =
-            CodeDictionary::new(config, &files.aff_local_path, &files.dic_local_path).unwrap();
-        Self { client, processor }
+    pub fn new(client: Client, cache_dir: &PathBuf, workspace_dir: &PathBuf) -> Self {
+        let mut config =
+            CodebookConfig::load_from_dir(workspace_dir).expect("Unable to make config.");
+        config.cache_dir = cache_dir.clone();
+        let config_arc = Arc::new(config);
+        let codebook = Codebook::new(Arc::clone(&config_arc)).expect("Unable to make codebook");
+        Self {
+            client,
+            codebook,
+            config: Arc::clone(&config_arc),
+        }
     }
     /// Helper method to publish diagnostics for spell-checking.
     async fn publish_spellcheck_diagnostics(&self, uri: &Url, text: &str) {
+        self.config.reload();
         // Convert the file URI to a local file path (if needed).
         let uri = uri.clone();
         let file_path = uri.to_file_path().unwrap_or_default();
@@ -131,8 +137,13 @@ impl Backend {
         info!("Published diagnostics for: {:?}", file_path);
     }
 
-    fn spell_check(&self, file_name: &str, file_contents: &str) -> Vec<codebook::SpellCheckResult> {
-        self.processor
+    fn spell_check(
+        &self,
+        file_name: &str,
+        file_contents: &str,
+    ) -> Vec<codebook::dictionary::SpellCheckResult> {
+        self.codebook
+            .dictionary
             .spell_check_file_memory(file_name, file_contents)
     }
 }

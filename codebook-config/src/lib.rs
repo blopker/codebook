@@ -1,14 +1,17 @@
 use anyhow::{anyhow, Context, Result};
 use glob::Pattern;
+use log::info;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::RwLock;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
-pub struct CodebookConfig {
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct ConfigSettings {
     /// List of dictionaries to use for spell checking
-    #[serde(default = "default_dictionary")]
+    #[serde(default)]
     pub dictionaries: Vec<String>,
 
     /// Custom allowlist of words
@@ -22,14 +25,34 @@ pub struct CodebookConfig {
     /// Glob patterns for paths to ignore
     #[serde(default)]
     pub ignore_paths: Vec<String>,
-
-    /// Keep track of the config file path when loaded
-    #[serde(skip)]
-    config_path: Option<PathBuf>,
 }
 
-fn default_dictionary() -> Vec<String> {
-    vec!["en".to_string()]
+impl Default for ConfigSettings {
+    fn default() -> Self {
+        Self {
+            dictionaries: vec!["en".to_string()],
+            words: Vec::new(),
+            flag_words: Vec::new(),
+            ignore_paths: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CodebookConfig {
+    pub settings: Arc<RwLock<ConfigSettings>>,
+    pub config_path: Option<PathBuf>,
+    pub cache_dir: PathBuf,
+}
+
+impl Default for CodebookConfig {
+    fn default() -> Self {
+        Self {
+            settings: Arc::new(RwLock::new(ConfigSettings::default())),
+            config_path: None,
+            cache_dir: env::temp_dir().join("codebook"),
+        }
+    }
 }
 
 impl CodebookConfig {
@@ -39,17 +62,24 @@ impl CodebookConfig {
         Self::find_and_load_config(&current_dir)
     }
 
-    pub fn reload(&mut self) -> Result<()> {
-        let config_path = self.config_path.as_ref().ok_or_else(|| {
-            anyhow!("No config file path available. Config was not loaded from a file.")
-        })?;
+    pub fn reload(&self) -> Result<()> {
+        let config_path = self
+            .config_path
+            .as_ref()
+            .ok_or_else(|| anyhow!("config_path was never set, can't reload config."))?;
 
-        let content = fs::read_to_string(config_path)
-            .with_context(|| format!("Failed to read config file: {}", config_path.display()))?;
-
-        *self = toml::from_str(&content)
-            .with_context(|| format!("Failed to parse config file: {}", config_path.display()))?;
-
+        // get file contents or reset config to default, with the config_path set
+        let new_settings = match fs::read_to_string(config_path) {
+            Ok(content) => toml::from_str(&content)
+                .with_context(|| format!("Failed to parse config file: {}", config_path.display())),
+            Err(_) => {
+                info!("Failed to read config file, resetting to default config.");
+                let new_settings = ConfigSettings::default();
+                Ok(new_settings)
+            }
+        }?;
+        let mut settings = self.settings.write().unwrap();
+        *settings = new_settings;
         Ok(())
     }
 
@@ -60,29 +90,32 @@ impl CodebookConfig {
 
     /// Add a word to the allowlist and save the configuration
     pub fn add_word(&mut self, word: &str) -> Result<()> {
-        // Check if word already exists
-        if self.words.contains(&word.to_string()) {
-            return Ok(());
+        {
+            let settings = &mut self.settings.write().unwrap();
+            // Check if word already exists
+            if settings.words.contains(&word.to_string()) {
+                return Ok(());
+            }
+
+            // Add the word
+            settings.words.push(word.to_string());
+            // Sort for consistency
+            settings.words.sort();
         }
-
-        // Add the word
-        self.words.push(word.to_string());
-        // Sort for consistency
-        self.words.sort();
-
         // Save the changes
         self.save()?;
-
         Ok(())
     }
 
     /// Save the configuration to its file
     pub fn save(&self) -> Result<()> {
-        let config_path = self.config_path.as_ref().ok_or_else(|| {
-            anyhow!("No config file path available. Config was not loaded from a file.")
-        })?;
+        let config_path = self
+            .config_path
+            .as_ref()
+            .ok_or_else(|| anyhow!("No config file path available."))?;
 
-        let content = toml::to_string_pretty(self).context("Failed to serialize config")?;
+        let content = toml::to_string_pretty(&*self.settings.read().unwrap())
+            .context("Failed to serialize config")?;
 
         fs::write(config_path, content).with_context(|| {
             format!("Failed to write config to file: {}", config_path.display())
@@ -110,7 +143,8 @@ impl CodebookConfig {
         };
 
         // Save the new config
-        let content = toml::to_string_pretty(&config).context("Failed to serialize config")?;
+        let content = toml::to_string_pretty(&*config.settings.read().unwrap())
+            .context("Failed to serialize config")?;
 
         fs::write(&config_path, content)
             .with_context(|| format!("Failed to create config file: {}", config_path.display()))?;
@@ -139,7 +173,9 @@ impl CodebookConfig {
         }
 
         // If no config file is found, return default config
-        Ok(Self::default())
+        let mut config = Self::default();
+        config.config_path = Some(start_dir.join(config_files[0]));
+        Ok(config)
     }
 
     /// Load configuration from a specific file
@@ -148,11 +184,15 @@ impl CodebookConfig {
         let content = fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file: {}", path.display()))?;
 
-        let mut config: Self = toml::from_str(&content)
+        let settings: ConfigSettings = toml::from_str(&content)
             .with_context(|| format!("Failed to parse config file: {}", path.display()))?;
-
+        let settings_arc = Arc::new(RwLock::new(settings));
         // Store the config file path
-        config.config_path = Some(path.to_path_buf());
+        let config = Self {
+            settings: settings_arc,
+            config_path: Some(path.to_path_buf()),
+            ..Default::default()
+        };
 
         Ok(config)
     }
@@ -160,21 +200,36 @@ impl CodebookConfig {
     /// Check if a path should be ignored based on the ignore_paths patterns
     pub fn should_ignore_path<P: AsRef<Path>>(&self, path: P) -> bool {
         let path_str = path.as_ref().to_string_lossy();
-        self.ignore_paths.iter().any(|pattern| {
-            Pattern::new(pattern)
-                .map(|p| p.matches(&path_str))
-                .unwrap_or(false)
-        })
+        self.settings
+            .read()
+            .unwrap()
+            .ignore_paths
+            .iter()
+            .any(|pattern| {
+                Pattern::new(pattern)
+                    .map(|p| p.matches(&path_str))
+                    .unwrap_or(false)
+            })
     }
 
     /// Check if a word is in the custom allowlist
     pub fn is_allowed_word(&self, word: &str) -> bool {
-        self.words.iter().any(|w| w == word)
+        self.settings
+            .read()
+            .unwrap()
+            .words
+            .iter()
+            .any(|w| w == word)
     }
 
     /// Check if a word should be flagged
     pub fn should_flag_word(&self, word: &str) -> bool {
-        self.flag_words.iter().any(|w| w == word)
+        self.settings
+            .read()
+            .unwrap()
+            .flag_words
+            .iter()
+            .any(|w| w == word)
     }
 }
 
@@ -196,7 +251,6 @@ mod tests {
             ..Default::default()
         };
         config.save()?;
-
         // Add a word
         config.add_word("testword")?;
 
@@ -227,7 +281,12 @@ mod tests {
         )?;
 
         let config = CodebookConfig::load_from_dir(&sub_sub_dir)?;
-        assert!(config.words.contains(&"testword".to_string()));
+        assert!(config
+            .settings
+            .read()
+            .unwrap()
+            .words
+            .contains(&"testword".to_string()));
         // Check that the config file path is stored
         assert_eq!(config.config_path, Some(config_path));
         Ok(())
@@ -248,18 +307,23 @@ mod tests {
 
         // Check that the file can be loaded
         let loaded_config = CodebookConfig::load_from_file(&config_path)?;
-        assert_eq!(config, loaded_config);
+        assert_eq!(
+            config.settings.read().unwrap().clone(),
+            loaded_config.settings.read().unwrap().clone()
+        );
 
         Ok(())
     }
 
     #[test]
     fn test_should_ignore_path() -> Result<()> {
-        let config = CodebookConfig {
-            ignore_paths: vec!["target/**/*".to_string()],
-            ..Default::default()
-        };
-
+        let config = CodebookConfig::default();
+        config
+            .settings
+            .write()
+            .unwrap()
+            .ignore_paths
+            .push("target/**/*".to_string());
         assert!(config.should_ignore_path("target/debug/build"));
         assert!(!config.should_ignore_path("src/main.rs"));
 
@@ -271,7 +335,7 @@ mod tests {
         let config_path = temp_dir.path().join("codebook.toml");
 
         // Create initial config
-        let mut config = CodebookConfig {
+        let config = CodebookConfig {
             config_path: Some(config_path.clone()),
             ..Default::default()
         };
@@ -289,6 +353,41 @@ mod tests {
         // Reload config and verify
         config.reload()?;
         assert!(config.is_allowed_word("testword"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_reload_when_deleted() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let config_path = temp_dir.path().join("codebook.toml");
+
+        // Create initial config
+        let config = CodebookConfig {
+            config_path: Some(config_path.clone()),
+            ..Default::default()
+        };
+        config.save()?;
+
+        // Add a word to the toml file
+        let mut file = File::create(&config_path)?;
+        write!(
+            file,
+            r#"
+            words = ["testword"]
+            "#
+        )?;
+
+        // Reload config and verify
+        config.reload()?;
+        assert!(config.is_allowed_word("testword"));
+
+        // Delete the config file
+        fs::remove_file(&config_path)?;
+
+        // Reload config and verify
+        config.reload().unwrap();
+        assert!(!config.is_allowed_word("testword"));
 
         Ok(())
     }

@@ -163,13 +163,18 @@ impl zed::Extension for CodebookExtension {
         let cache_dir = cache_dir
             .to_str()
             .ok_or("Failed to convert cache dir to string")?;
+        let project_path = worktree.root_path();
         Ok(zed::Command {
             command: binary
                 .path
                 .to_str()
                 .ok_or("Failed to convert binary path to string")?
                 .to_string(),
-            args: vec![format!("--cache-dir={cache_dir}"), "serve".to_string()],
+            args: vec![
+                format!("--cache-dir={cache_dir}"),
+                format!("--root={project_path}"),
+                "serve".to_string(),
+            ],
             env: binary.env.unwrap_or_default(),
         })
     }

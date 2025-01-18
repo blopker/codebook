@@ -1,4 +1,4 @@
-use codebook::{SpellCheckResult, TextRange};
+use codebook::dictionary::{SpellCheckResult, TextRange};
 
 mod utils;
 

@@ -1,16 +1,13 @@
 mod downloader;
-use codebook::CodeDictionary;
-use downloader::DictionaryDownloader;
+use codebook::Codebook;
 use std::env;
 use std::path::Path;
+use std::sync::Arc;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let loader = DictionaryDownloader::new(downloader::DEFAULT_BASE_URL, "../.cache/dictionaries");
-    let files = loader.get("en").unwrap();
-    let config = codebook_config::CodebookConfig::load().unwrap();
-    let processor =
-        CodeDictionary::new(config, &files.aff_local_path, &files.dic_local_path).unwrap();
+    let config = Arc::new(codebook_config::CodebookConfig::load().unwrap());
+    let processor = Codebook::new(config).unwrap();
 
     // println!("My path is {:?}", args);
     if args.len() < 2 {
@@ -22,7 +19,7 @@ fn main() {
             }
         "#;
 
-        let misspelled = processor.spell_check(sample_text, "rust");
+        let misspelled = processor.dictionary.spell_check(sample_text, "rust");
         println!("Misspelled words: {:?}", misspelled);
         return;
     }
@@ -32,7 +29,9 @@ fn main() {
         eprintln!("Can't find file {path:?}");
         return;
     }
-    let results = processor.spell_check_file(path.to_str().unwrap());
+    let results = processor
+        .dictionary
+        .spell_check_file(path.to_str().unwrap());
     println!("Misspelled words: {:?}", results);
     println!("Done");
 }

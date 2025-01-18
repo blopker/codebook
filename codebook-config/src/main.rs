@@ -5,7 +5,10 @@ fn main() -> anyhow::Result<()> {
     let config = CodebookConfig::load()?;
 
     // Use the configuration
-    println!("Loaded dictionaries: {:?}", config.dictionaries);
+    println!(
+        "Loaded dictionaries: {:?}",
+        config.settings.read().unwrap().dictionaries
+    );
 
     // Check if a path should be ignored
     let should_ignore = config.should_ignore_path("target/debug/build");

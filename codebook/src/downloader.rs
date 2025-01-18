@@ -73,6 +73,7 @@ impl CacheMetadata {
 /// and avoiding re-download if unchanged.
 ///
 /// - **File locks** are used to prevent concurrent writes to the same dictionary.
+#[derive(Debug)]
 pub struct DictionaryDownloader {
     /// Base URL for the dictionaries.
     /// Defaults to: https://raw.githubusercontent.com/blopker/dictionaries
@@ -89,6 +90,14 @@ impl DictionaryDownloader {
             base_url: base_url.into(),
             cache_dir: cache_dir.into(),
         }
+    }
+
+    pub fn with_cache(cache_dir: impl Into<PathBuf>) -> Self {
+        Self::new(DEFAULT_BASE_URL, cache_dir)
+    }
+
+    pub fn default() -> Self {
+        Self::new(DEFAULT_BASE_URL, "./.cache/dictionaries")
     }
 
     /// Ensures the cache directory exists. Returns an error if creation fails.
@@ -388,20 +397,20 @@ mod tests {
         let temp_dir = TempDir::new()?;
         let downloader = DictionaryDownloader::new(DEFAULT_BASE_URL, temp_dir.path());
 
-        let first_infos = downloader.download_dictionary_files("en")?;
-        let second_infos = downloader.download_dictionary_files("en")?;
+        let first_info = downloader.download_dictionary_files("en")?;
+        let second_info = downloader.download_dictionary_files("en")?;
 
-        assert_eq!(first_infos.len(), 2);
-        assert_eq!(second_infos.len(), 2);
+        assert_eq!(first_info.len(), 2);
+        assert_eq!(second_info.len(), 2);
 
         // The first time should be was_downloaded = true
-        assert!(first_infos[0].was_downloaded);
-        assert!(first_infos[1].was_downloaded);
+        assert!(first_info[0].was_downloaded);
+        assert!(first_info[1].was_downloaded);
 
         // The second time should be was_downloaded = false if the server responds with 304
         // (assuming the dictionary hasn't changed upstream).
         // We'll check at least that we didn't fail:
-        for info in &second_infos {
+        for info in &second_info {
             // It's *possible* the remote dictionary changed, but typically not.
             // We'll do a "best effort" test: if it didn't change, was_downloaded == false
             // If it changed, oh well. It won't fail though.
