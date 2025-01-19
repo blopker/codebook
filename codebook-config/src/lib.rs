@@ -10,7 +10,7 @@ use std::sync::RwLock;
 
 static CACHE_DIR: &str = "codebook";
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct ConfigSettings {
     /// List of dictionaries to use for spell checking
     #[serde(default)]
@@ -37,6 +37,36 @@ impl Default for ConfigSettings {
             flag_words: Vec::new(),
             ignore_paths: Vec::new(),
         }
+    }
+}
+
+impl<'de> Deserialize<'de> for ConfigSettings {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        fn to_lowercase_vec(v: Vec<String>) -> Vec<String> {
+            v.into_iter().map(|s| s.to_lowercase()).collect()
+        }
+        #[derive(Deserialize)]
+        struct Helper {
+            #[serde(default)]
+            dictionaries: Vec<String>,
+            #[serde(default)]
+            words: Vec<String>,
+            #[serde(default)]
+            flag_words: Vec<String>,
+            #[serde(default)]
+            ignore_paths: Vec<String>,
+        }
+
+        let helper = Helper::deserialize(deserializer)?;
+        Ok(ConfigSettings {
+            dictionaries: to_lowercase_vec(helper.dictionaries),
+            words: to_lowercase_vec(helper.words),
+            flag_words: to_lowercase_vec(helper.flag_words),
+            ignore_paths: helper.ignore_paths, // Keep paths as-is
+        })
     }
 }
 
@@ -101,6 +131,7 @@ impl CodebookConfig {
     /// Add a word to the allowlist and save the configuration
     pub fn add_word(&mut self, word: &str) -> Result<()> {
         {
+            let word = word.to_lowercase();
             let settings = &mut self.settings.write().unwrap();
             // Check if word already exists
             if settings.words.contains(&word.to_string()) {
@@ -224,22 +255,24 @@ impl CodebookConfig {
 
     /// Check if a word is in the custom allowlist
     pub fn is_allowed_word(&self, word: &str) -> bool {
+        let word = word.to_lowercase();
         self.settings
             .read()
             .unwrap()
             .words
             .iter()
-            .any(|w| w == word)
+            .any(|w| w == &word)
     }
 
     /// Check if a word should be flagged
     pub fn should_flag_word(&self, word: &str) -> bool {
+        let word = word.to_lowercase();
         self.settings
             .read()
             .unwrap()
             .flag_words
             .iter()
-            .any(|w| w == word)
+            .any(|w| w == &word)
     }
 }
 
@@ -398,6 +431,29 @@ mod tests {
         // Reload config and verify
         config.reload().unwrap();
         assert!(!config.is_allowed_word("testword"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_word_case() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let config_path = temp_dir.path().join("codebook.toml");
+
+        // Create initial config
+        let mut config = CodebookConfig {
+            config_path: Some(config_path.clone()),
+            ..Default::default()
+        };
+        config.save()?;
+        // Add a word with mixed case
+        config.add_word("TestWord")?;
+
+        // Reload config and verify with different cases
+        let loaded_config = CodebookConfig::load_from_file(&config_path)?;
+        assert!(loaded_config.is_allowed_word("testword"));
+        assert!(loaded_config.is_allowed_word("TESTWORD"));
+        assert!(loaded_config.is_allowed_word("TestWord"));
 
         Ok(())
     }
