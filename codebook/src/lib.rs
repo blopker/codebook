@@ -1,5 +1,6 @@
 pub mod dictionary;
 pub mod downloader;
+mod log;
 mod queries;
 mod splitter;
 

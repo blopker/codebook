@@ -703,6 +703,7 @@ errorisnil
 errors
 errs
 errunexpectedeof
+etag
 etc
 etcd
 ev

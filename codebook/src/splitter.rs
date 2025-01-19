@@ -76,8 +76,39 @@ pub fn split_camel_case(s: &str) -> Vec<SplitCamelCase> {
     result
 }
 
+pub fn find_url(text: &str) -> Option<(usize, usize)> {
+    // Find the first occurrence of '://'
+    let start = text.find("://")?;
+    // Valid URL characters
+    let valid_chars = |c: char| {
+        c.is_alphanumeric()
+            || c == '.'
+            || c == '-'
+            || c == '_'
+            || c == '/'
+            || c == '~'
+            || c == ':'
+            || c == '?'
+            || c == '='
+            || c == '&'
+            || c == '%'
+            || c == '#'
+            || c == '+'
+    };
+
+    // Find the end of the URL
+    let end = text[start..]
+        .find(|c: char| !valid_chars(c))
+        .map_or(text.len(), |pos| start + pos);
+
+    // Extract the URL
+    Some((start, end))
+}
+
 #[cfg(test)]
 mod tests {
+    use log::info;
+
     use super::*;
 
     #[test]
@@ -145,5 +176,14 @@ mod tests {
             .map(|s| s.word)
             .collect();
         assert_eq!(words, vec!["こんにちは"]);
+    }
+
+    #[test]
+    fn test_find_url() {
+        crate::log::init_test_logging();
+        let text = "This is a URL: https://example.com/path/to/file.html)not a url";
+        let (start, end) = find_url(text).unwrap();
+        info!("URL: {}", &text[start..end]);
+        assert_eq!(&text[start..end], "://example.com/path/to/file.html");
     }
 }

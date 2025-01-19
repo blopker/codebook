@@ -1,6 +1,6 @@
 use crate::splitter;
 use codebook_config::CodebookConfig;
-use log::info;
+use log::{debug, info};
 use lru::LruCache;
 
 use crate::queries::{
@@ -178,8 +178,9 @@ impl CodeDictionary {
         results
     }
 
+    /// Return Vec of words and their start char and line
+    /// Skips URLs
     fn get_words_from_text(&self, text: &str) -> Vec<(String, (u32, u32))> {
-        // Return Vec of words and their start char and line
         let mut words = Vec::new();
         let mut current_word = String::new();
         let mut word_start_char: u32 = 0;
@@ -203,7 +204,23 @@ impl CodeDictionary {
         };
 
         for line in text.lines() {
+            let mut chars_to_skip = 0;
             for (i, c) in line.chars().enumerate() {
+                if chars_to_skip > 0 {
+                    chars_to_skip -= 1;
+                    continue;
+                }
+                if c == ':' {
+                    if let Some((url_start, url_end)) = splitter::find_url(&line[i..]) {
+                        debug!(
+                            "Found url: {}, skipping: {}",
+                            &line[url_start + i..url_end + i],
+                            url_end
+                        );
+                        chars_to_skip = url_end as usize;
+                        continue;
+                    }
+                }
                 let is_contraction = c == '\''
                     && i > 0
                     && i < line.len() - 1
@@ -349,15 +366,17 @@ mod dictionary_tests {
         }
     }
 
-    // #[test]
-    // fn test_is_url() {
-    //     let dict = get_dict();
-    //     let text = "https://www.google.com";
-    //     let words = dict.get_words_from_text(text);
-    //     println!("{:?}", words);
-    //     assert_eq!(words.len(), 1);
-    //     assert_eq!(words[0].0, "https");
-    // }
+    #[test]
+    fn test_is_url() {
+        crate::log::init_test_logging();
+        let dict = get_dict();
+        let text = "https://www.google.com";
+        let words = dict.get_words_from_text(text);
+        println!("{:?}", words);
+        assert_eq!(words.len(), 1);
+        assert_eq!(words[0].0, "https");
+    }
+
     #[test]
     fn test_contraction() {
         let dict = get_dict();
