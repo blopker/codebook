@@ -89,7 +89,7 @@ impl Backend {
     }
     /// Helper method to publish diagnostics for spell-checking.
     async fn publish_spellcheck_diagnostics(&self, uri: &Url, text: &str) {
-        self.config.reload();
+        let _ = self.config.reload();
         // Convert the file URI to a local file path (if needed).
         let uri = uri.clone();
         let file_path = uri.to_file_path().unwrap_or_default();

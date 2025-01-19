@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::RwLock;
 
+static CACHE_DIR: &str = "codebook";
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ConfigSettings {
     /// List of dictionaries to use for spell checking
@@ -50,7 +52,7 @@ impl Default for CodebookConfig {
         Self {
             settings: Arc::new(RwLock::new(ConfigSettings::default())),
             config_path: None,
-            cache_dir: env::temp_dir().join("codebook"),
+            cache_dir: env::temp_dir().join(CACHE_DIR),
         }
     }
 }
@@ -60,6 +62,14 @@ impl CodebookConfig {
     pub fn load() -> Result<Self> {
         let current_dir = env::current_dir().context("Failed to get current directory")?;
         Self::find_and_load_config(&current_dir)
+    }
+
+    pub fn new_no_file() -> Self {
+        Self {
+            settings: Arc::new(RwLock::new(ConfigSettings::default())),
+            config_path: None,
+            cache_dir: env::temp_dir().join(CACHE_DIR),
+        }
     }
 
     pub fn reload(&self) -> Result<()> {
@@ -109,10 +119,10 @@ impl CodebookConfig {
 
     /// Save the configuration to its file
     pub fn save(&self) -> Result<()> {
-        let config_path = self
-            .config_path
-            .as_ref()
-            .ok_or_else(|| anyhow!("No config file path available."))?;
+        let config_path = match self.config_path.as_ref() {
+            Some(c) => c,
+            None => return Ok(()),
+        };
 
         let content = toml::to_string_pretty(&*self.settings.read().unwrap())
             .context("Failed to serialize config")?;

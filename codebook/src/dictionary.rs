@@ -15,6 +15,8 @@ use std::{
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
 
+static COMMON_DICTIONARY: &str = include_str!("../../word_lists/combined.gen.txt");
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpellCheckResult {
     pub word: String,
@@ -75,12 +77,14 @@ impl CodeDictionary {
     }
 
     pub fn check(&self, word: &str) -> bool {
-        self.custom_dictionary
-            .read()
-            .unwrap()
-            .contains(word.to_lowercase().as_str())
-            || self.dictionary.check(word)
-        // self.lookup_cache.read().unwrap().contains(word) || self.dictionary.check(word)
+        let lower_word = word.to_lowercase();
+        if self.custom_dictionary.read().unwrap().contains(&lower_word) {
+            return true;
+        }
+        if self.config.is_allowed_word(&lower_word) {
+            return true;
+        }
+        self.dictionary.check(word)
     }
 
     pub fn add_to_dictionary(&self, strings: &str) {
@@ -312,16 +316,23 @@ impl CodeDictionary {
 #[cfg(test)]
 mod dictionary_tests {
     use super::*;
-    static EXTRA_WORDS: &'static [&'static str] = &["http", "https", "www", "viewport", "UTF"];
 
     fn get_dict() -> CodeDictionary {
-        let config = Arc::new(CodebookConfig::default());
-        let dict =
-            CodeDictionary::new(config, "./tests/en_index.aff", "./tests/en_index.dic").unwrap();
-        for word in EXTRA_WORDS {
-            dict.add_to_dictionary(word);
-        }
+        let mut config = CodebookConfig::new_no_file();
+        config.add_word("badword").unwrap();
+        let dict = CodeDictionary::new(
+            Arc::new(config),
+            "./tests/en_index.aff",
+            "./tests/en_index.dic",
+        )
+        .unwrap();
         dict
+    }
+
+    #[test]
+    fn test_spell_checking_custom_word() {
+        let processor = get_dict();
+        assert!(processor.check("badword"));
     }
 
     #[test]
