@@ -5,7 +5,7 @@ use std::time::{Duration, SystemTime};
 
 use fs2::FileExt; // For lock-exclusive, unlock, etc.
 
-pub const DEFAULT_BASE_URL: &str = "https://raw.githubusercontent.com/blopker/dictionaries";
+const DEFAULT_BASE_URL: &str = "https://raw.githubusercontent.com/blopker/dictionaries";
 
 /// When we explicitly download a file (e.g. `index.dic`), we return this info.
 #[derive(Debug)]
@@ -68,7 +68,7 @@ impl CacheMetadata {
     }
 }
 
-/// A down-loader for dictionaries from a remote GitHub repository (by default
+/// A downloader for dictionaries from a remote GitHub repository (by default
 /// https://github.com/blopker/dictionaries), storing them in a local cache
 /// and avoiding re-download if unchanged.
 ///
@@ -85,7 +85,7 @@ pub struct DictionaryDownloader {
 impl DictionaryDownloader {
     /// Create a new `DictionaryDownloader` with a configurable base URL
     /// and cache directory.
-    pub fn new(base_url: impl Into<String>, cache_dir: impl Into<PathBuf>) -> Self {
+    fn new(base_url: impl Into<String>, cache_dir: impl Into<PathBuf>) -> Self {
         Self {
             base_url: base_url.into(),
             cache_dir: cache_dir.into(),
@@ -94,10 +94,6 @@ impl DictionaryDownloader {
 
     pub fn with_cache(cache_dir: impl Into<PathBuf>) -> Self {
         Self::new(DEFAULT_BASE_URL, cache_dir)
-    }
-
-    pub fn default() -> Self {
-        Self::new(DEFAULT_BASE_URL, "./.cache/dictionaries")
     }
 
     /// Ensures the cache directory exists. Returns an error if creation fails.

@@ -156,64 +156,14 @@ impl CodeDictionary {
 
     fn spell_check_text(&self, text: &str) -> Vec<SpellCheckResult> {
         let mut results: Vec<SpellCheckResult> = Vec::new();
-        let mut current_word = String::new();
-        let mut word_start_char = 0;
-        let mut current_char = 0;
-        let mut current_line = 0;
-
-        // Process each character in the text
-        for c in text.chars() {
-            if c.is_alphabetic() {
-                if current_word.is_empty() {
-                    word_start_char = current_char;
-                }
-                current_word.push(c);
-            } else {
-                // Word boundary found
-                if !current_word.is_empty() {
-                    // Check if word is in dictionary
-                    if !self.check(&current_word) {
-                        // Word not found in dictionary
-                        let range = TextRange {
-                            start_char: word_start_char,
-                            end_char: current_char,
-                            start_line: current_line,
-                            end_line: current_line,
-                        };
-
-                        // Check if we already have this misspelled word
-                        if let Some(existing_result) =
-                            results.iter_mut().find(|r| r.word == current_word)
-                        {
-                            existing_result.locations.push(range);
-                        } else {
-                            let mut locations = Vec::new();
-                            locations.push(range);
-                            results.push(SpellCheckResult {
-                                word: current_word.clone(),
-                                suggestions: self.suggest(&current_word),
-                                locations,
-                            });
-                        }
-                    }
-                    current_word.clear();
-                }
-
-                if c == '\n' {
-                    current_line += 1;
-                    current_char = 0;
-                    continue;
-                }
-            }
-            current_char += 1;
-        }
+        let words = self.get_words_from_text(text);
 
         // Check the last word if text doesn't end with punctuation
-        if !current_word.is_empty() {
-            if !self.check(current_word.as_str()) {
+        for (current_word, (word_start_char, current_line)) in words {
+            if !self.check(&current_word) {
                 let locations = vec![TextRange {
                     start_char: word_start_char,
-                    end_char: current_char,
+                    end_char: word_start_char + current_word.chars().count() as u32,
                     start_line: current_line,
                     end_line: current_line,
                 }];
@@ -236,6 +186,22 @@ impl CodeDictionary {
         let mut current_char: u32 = 0;
         let mut current_line: u32 = 0;
 
+        let add_word_fn = |current_word: &mut String,
+                           words: &mut Vec<(String, (u32, u32))>,
+                           word_start_char: u32,
+                           current_line: u32| {
+            if !current_word.is_empty() {
+                let split = splitter::split_camel_case(&current_word);
+                for split_word in split {
+                    words.push((
+                        split_word.word.clone(),
+                        (word_start_char + split_word.start_char, current_line),
+                    ));
+                }
+                current_word.clear();
+            }
+        };
+
         for line in text.lines() {
             for (i, c) in line.chars().enumerate() {
                 let is_contraction = c == '\''
@@ -249,17 +215,11 @@ impl CodeDictionary {
                     }
                     current_word.push(c);
                 } else {
-                    if !current_word.is_empty() {
-                        words.push((current_word.clone(), (word_start_char, current_line)));
-                        current_word.clear();
-                    }
+                    add_word_fn(&mut current_word, &mut words, word_start_char, current_line);
                 }
                 current_char += 1;
             }
-            if !current_word.is_empty() {
-                words.push((current_word.clone(), (word_start_char, current_line)));
-                current_word.clear();
-            }
+            add_word_fn(&mut current_word, &mut words, word_start_char, current_line);
             current_line += 1;
             current_char = 0;
         }
@@ -296,30 +256,24 @@ impl CodeDictionary {
                 info!("Column: {current_column}");
                 info!("Line: {current_line}");
                 for (word_text, (text_start_char, text_line)) in words {
-                    let split = splitter::split_camel_case(&word_text);
-                    info!("Checking: {:?}", split);
-                    for split_word in split {
-                        if !self.check(&split_word.word) {
-                            let offset = if text_line == 0 { current_column } else { 0 };
-                            let base_start_char = text_start_char + offset;
-                            let location = TextRange {
-                                start_char: base_start_char + split_word.start_char,
-                                end_char: base_start_char
-                                    + split_word.start_char
-                                    + split_word.word.chars().count() as u32,
-                                start_line: text_line + current_line,
-                                end_line: text_line + current_line,
-                            };
-                            if let Some(existing_result) = word_locations.get_mut(&split_word.word)
-                            {
-                                #[cfg(debug_assertions)]
-                                if existing_result.contains(&location) {
-                                    panic!("Two of the same locations found. Make a better query.")
-                                }
-                                existing_result.push(location);
-                            } else {
-                                word_locations.insert(split_word.word.clone(), vec![location]);
+                    info!("Checking: {:?}", word_text);
+                    if !self.check(&word_text) {
+                        let offset = if text_line == 0 { current_column } else { 0 };
+                        let base_start_char = text_start_char + offset;
+                        let location = TextRange {
+                            start_char: base_start_char,
+                            end_char: base_start_char + word_text.chars().count() as u32,
+                            start_line: text_line + current_line,
+                            end_line: text_line + current_line,
+                        };
+                        if let Some(existing_result) = word_locations.get_mut(&word_text) {
+                            #[cfg(debug_assertions)]
+                            if existing_result.contains(&location) {
+                                panic!("Two of the same locations found. Make a better query.")
                             }
+                            existing_result.push(location);
+                        } else {
+                            word_locations.insert(word_text.clone(), vec![location]);
                         }
                     }
                 }
@@ -339,7 +293,7 @@ impl CodeDictionary {
 }
 
 #[cfg(test)]
-mod lib_tests {
+mod dictionary_tests {
     use super::*;
     static EXTRA_WORDS: &'static [&'static str] = &["http", "https", "www", "viewport", "UTF"];
 
@@ -372,7 +326,8 @@ mod lib_tests {
             this is a 3rd line.
             "#;
         let expected = vec![
-            ("HelloWorld", (12, 1)),
+            ("Hello", (12, 1)),
+            ("World", (17, 1)),
             ("calc", (23, 1)),
             ("wrld", (28, 1)),
             ("I'm", (12, 2)),
@@ -392,5 +347,37 @@ mod lib_tests {
         for (i, w) in expected.into_iter().enumerate() {
             assert_eq!(words[i], (w.0.to_string(), w.1));
         }
+    }
+
+    // #[test]
+    // fn test_is_url() {
+    //     let dict = get_dict();
+    //     let text = "https://www.google.com";
+    //     let words = dict.get_words_from_text(text);
+    //     println!("{:?}", words);
+    //     assert_eq!(words.len(), 1);
+    //     assert_eq!(words[0].0, "https");
+    // }
+    #[test]
+    fn test_contraction() {
+        let dict = get_dict();
+        let text = "I'm a contraction, wouldn't you agree?";
+        let words = dict.get_words_from_text(text);
+        println!("{:?}", words);
+        assert_eq!(words[0].0, "I'm");
+        assert_eq!(words[1].0, "a");
+        assert_eq!(words[2].0, "contraction");
+        assert_eq!(words[3].0, "wouldn't");
+        assert_eq!(words[4].0, "you");
+        assert_eq!(words[5].0, "agree");
+    }
+
+    #[test]
+    fn test_contraction_text() {
+        let dict = get_dict();
+        let text = "I'm a contraction, wouldn't you agre?";
+        let words = dict.spell_check_text(text);
+        println!("{:?}", words);
+        assert_eq!(words[0].word, "agre");
     }
 }

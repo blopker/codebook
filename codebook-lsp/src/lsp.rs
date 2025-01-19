@@ -113,7 +113,7 @@ impl Backend {
                             character: loc.end_char,
                         },
                     },
-                    severity: Some(DiagnosticSeverity::WARNING),
+                    severity: Some(DiagnosticSeverity::INFORMATION),
                     code: None,
                     code_description: None,
                     source: Some("Codebook".to_string()),

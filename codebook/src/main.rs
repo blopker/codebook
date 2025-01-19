@@ -1,4 +1,3 @@
-mod downloader;
 use codebook::Codebook;
 use std::env;
 use std::path::Path;
