@@ -1257,6 +1257,7 @@ longhands
 loop
 loose
 lower
+lru
 lsp
 lt
 lucene
@@ -1728,6 +1729,7 @@ rect
 recv
 red
 redirect
+redownload
 ref
 refcell
 reference
