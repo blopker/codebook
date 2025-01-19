@@ -2,7 +2,7 @@
 dictionaries = ["en_US", "tech_terms"]
 
 # Custom allowed words
-words = ["codebook", "allowlist"]
+words = ["codebook", "allowlist", "aff", "dic", "blopker"]
 
 # Words to always flag
 flag_words = ["todo", "fixme"]

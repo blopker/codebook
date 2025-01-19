@@ -4,8 +4,7 @@ use log::{debug, info};
 use lru::LruCache;
 
 use crate::queries::{
-    get_common_dictionary, get_language_name_from_filename, get_language_setting, LanguageSetting,
-    LanguageType,
+    get_language_name_from_filename, get_language_setting, LanguageSetting, LanguageType,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -16,6 +15,9 @@ use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
 
 static COMMON_DICTIONARY: &str = include_str!("../../word_lists/combined.gen.txt");
+fn get_common_dictionary() -> impl Iterator<Item = &'static str> {
+    COMMON_DICTIONARY.lines().filter(|l| !l.contains('#'))
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpellCheckResult {
@@ -216,6 +218,8 @@ impl CodeDictionary {
                 }
                 if c == ':' {
                     if let Some((url_start, url_end)) = splitter::find_url(&line[i..]) {
+                        // Toss the current word and skip the URL
+                        current_word.clear();
                         debug!(
                             "Found url: {}, skipping: {}",
                             &line[url_start + i..url_end + i],
@@ -384,8 +388,19 @@ mod dictionary_tests {
         let text = "https://www.google.com";
         let words = dict.get_words_from_text(text);
         println!("{:?}", words);
-        assert_eq!(words.len(), 1);
-        assert_eq!(words[0].0, "https");
+        assert_eq!(words.len(), 0);
+    }
+
+    #[test]
+    fn test_is_url_in_context() {
+        crate::log::init_test_logging();
+        let dict = get_dict();
+        let text = "Use https://intmainreturn0.com/ts-visualizer/ to";
+        let words = dict.get_words_from_text(text);
+        println!("{:?}", words);
+        assert_eq!(words.len(), 2);
+        assert_eq!(words[0].0, "Use");
+        assert_eq!(words[1].0, "to");
     }
 
     #[test]

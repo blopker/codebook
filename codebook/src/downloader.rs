@@ -322,8 +322,8 @@ impl DictionaryDownloader {
 //     let results = downloader.download_dictionaries(vec!["de", "fr"]);
 //     for res in results {
 //         match res {
-//             Ok(infos) => {
-//                 for info in infos {
+//             Ok(info) => {
+//                 for info in info {
 //                     println!("Downloaded => {:?}", info);
 //                 }
 //             },

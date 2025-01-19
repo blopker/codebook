@@ -19,6 +19,7 @@ pub struct Codebook {
 
 impl Codebook {
     pub fn new(config: Arc<CodebookConfig>) -> Result<Self, Box<dyn std::error::Error>> {
+        crate::log::init_logging();
         let downloader = DictionaryDownloader::with_cache(&config.cache_dir);
         let files = downloader.get("en").unwrap();
         let dictionary = CodeDictionary::new(
