@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use codebook::dictionary::{SpellCheckResult, TextRange};
 use tower_lsp::jsonrpc::Result as RpcResult;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
@@ -87,6 +88,37 @@ impl Backend {
             config: Arc::clone(&config_arc),
         }
     }
+    fn make_diagnostic(&self, result: &SpellCheckResult, range: &TextRange) -> Diagnostic {
+        let suggestion_message = match result.suggestions.len() {
+            0 => "No suggestions found.".to_string(),
+            _ => format!("Suggestions: {}", result.suggestions.join(", ")),
+        };
+        let message = format!(
+            "Possible spelling error: '{}'. {}",
+            result.word, suggestion_message
+        );
+        Diagnostic {
+            range: Range {
+                start: Position {
+                    line: range.start_line,
+                    character: range.start_char,
+                },
+                end: Position {
+                    line: range.end_line,
+                    character: range.end_char,
+                },
+            },
+            severity: Some(DiagnosticSeverity::INFORMATION),
+            code: None,
+            code_description: None,
+            source: Some("Codebook".to_string()),
+            message,
+            related_information: None,
+            tags: None,
+            data: None,
+        }
+    }
+
     /// Helper method to publish diagnostics for spell-checking.
     async fn publish_spellcheck_diagnostics(&self, uri: &Url, text: &str) {
         let _ = self.config.reload();
@@ -102,30 +134,12 @@ impl Backend {
             .into_iter()
             .flat_map(|res| {
                 // For each misspelling, create a diagnostic for each location.
-                res.locations.into_iter().map(move |loc| Diagnostic {
-                    range: Range {
-                        start: Position {
-                            line: loc.start_line,
-                            character: loc.start_char,
-                        },
-                        end: Position {
-                            line: loc.end_line,
-                            character: loc.end_char,
-                        },
-                    },
-                    severity: Some(DiagnosticSeverity::INFORMATION),
-                    code: None,
-                    code_description: None,
-                    source: Some("Codebook".to_string()),
-                    message: format!(
-                        "Possible spelling error: '{}'. Suggestions: {}",
-                        res.word,
-                        res.suggestions.join(", ")
-                    ),
-                    related_information: None,
-                    tags: None,
-                    data: None,
-                })
+                let mut new_locations = vec![];
+                for loc in &res.locations {
+                    let diagnostic = self.make_diagnostic(&res, loc);
+                    new_locations.push(diagnostic);
+                }
+                new_locations
             })
             .collect();
 

@@ -217,7 +217,7 @@ impl CodeDictionary {
                     continue;
                 }
                 if c == ':' {
-                    if let Some((url_start, url_end)) = splitter::find_url(&line[i..]) {
+                    if let Some((url_start, url_end)) = splitter::find_url_end(&line[i..]) {
                         // Toss the current word and skip the URL
                         current_word.clear();
                         debug!(
@@ -225,7 +225,8 @@ impl CodeDictionary {
                             &line[url_start + i..url_end + i],
                             url_end
                         );
-                        chars_to_skip = url_end as usize;
+                        chars_to_skip = url_end;
+                        current_char += url_end as u32 + 1;
                         continue;
                     }
                 }
@@ -395,12 +396,13 @@ mod dictionary_tests {
     fn test_is_url_in_context() {
         crate::log::init_test_logging();
         let dict = get_dict();
-        let text = "Use https://intmainreturn0.com/ts-visualizer/ to";
+        let text = "Usez: https://intmainreturn0.com/ts-visualizer/ badwrd";
         let words = dict.get_words_from_text(text);
         println!("{:?}", words);
         assert_eq!(words.len(), 2);
-        assert_eq!(words[0].0, "Use");
-        assert_eq!(words[1].0, "to");
+        assert_eq!(words[0].0, "Usez");
+        assert_eq!(words[1].0, "badwrd");
+        assert_eq!(words[1].1, (48, 0));
     }
 
     #[test]

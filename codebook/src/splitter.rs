@@ -76,9 +76,12 @@ pub fn split_camel_case(s: &str) -> Vec<SplitCamelCase> {
     result
 }
 
-pub fn find_url(text: &str) -> Option<(usize, usize)> {
+pub fn find_url_end(text: &str) -> Option<(usize, usize)> {
     // Find the first occurrence of '://'
-    let start = text.find("://")?;
+    if !text.starts_with("://") {
+        return None;
+    }
+    let start = 0;
     // Valid URL characters
     let valid_chars = |c: char| {
         c.is_alphanumeric()
@@ -96,8 +99,10 @@ pub fn find_url(text: &str) -> Option<(usize, usize)> {
             || c == '+'
     };
 
+    // Limit the search to 2048 characters
+    let end_index = if text.len() > 2048 { 2048 } else { text.len() };
     // Find the end of the URL
-    let end = text[start..]
+    let end = text[start..end_index]
         .find(|c: char| !valid_chars(c))
         .map_or(text.len(), |pos| start + pos);
 
@@ -182,7 +187,9 @@ mod tests {
     fn test_find_url() {
         crate::log::init_test_logging();
         let text = "This is a URL: https://example.com/path/to/file.html)not a url";
-        let (start, end) = find_url(text).unwrap();
+        assert!(find_url_end(text).is_none());
+        let text = "://example.com/path/to/file.html)not a url";
+        let (start, end) = find_url_end(text).unwrap();
         info!("URL: {}", &text[start..end]);
         assert_eq!(&text[start..end], "://example.com/path/to/file.html");
     }
