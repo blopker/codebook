@@ -1,20 +1,13 @@
 <br />
 <div align="center">
-  <a href="https://github.com/blopker/codebook">
-    <img src="assets/codebook-nt.webp" alt="Logo" width="200" >
-  </a>
-  <h3 align="center">CODEBOOK</h3>
-  <p align="center">
-      An unholy spellchecker for code.
-    <br />
-    <br />
-    <!-- <a href="https://github.com/blopker/codebook/releases/latest/">Download</a> -->
-    <br />
-    <br />
-    <a href="https://github.com/blopker/codebook/issues">Report Bug</a>
-    ·
-    <a href="https://github.com/blopker/codebook/issues">Request Feature</a>
-  </p>
+  <a href="https://github.com/blopker/codebook"> <img
+  src="assets/codebook-nt.webp" alt="Logo" width="200" > </a> <h3
+  align="center">CODEBOOK</h3> <p align="center"> An unholy spellchecker for
+  code. <br /> <br /> <!-- <a
+  href="https://github.com/blopker/codebook/releases/latest/">Download</a> -->
+  <br /> <br /> <a href="https://github.com/blopker/codebook/issues">Report
+  Bug</a> · <a href="https://github.com/blopker/codebook/issues">Request
+  Feature</a> </p>
 </div>
 
 ## About
@@ -45,7 +38,7 @@ Codebook is being developed and not yet ready for public (or private, really) us
 
 ## Goals
 
-Spellchecking is complicated and opinions about how it should be done, especially with code, differs. This section is about the trade offs that steer Codebook's decisions.
+Spellchecking is complicated and opinions about how it should be done, especially with code, differs. This section is about the trade offs that steer decisions.
 
 ### Privacy
 
