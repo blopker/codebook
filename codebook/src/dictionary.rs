@@ -71,7 +71,7 @@ impl CodeDictionary {
             config,
             custom_dictionary: Arc::new(RwLock::new(custom_dictionary)),
             dictionary: dict,
-            make_suggestions: true,
+            make_suggestions: false,
             suggestion_cache: Arc::new(RwLock::new(LruCache::new(
                 NonZeroUsize::new(10000).unwrap(),
             ))),

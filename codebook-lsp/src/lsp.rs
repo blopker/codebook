@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use clap::builder::FalseyValueParser;
 use codebook::dictionary::{SpellCheckResult, TextRange};
 use tower_lsp::jsonrpc::Result as RpcResult;
 use tower_lsp::lsp_types::*;
@@ -26,6 +27,7 @@ impl LanguageServer for Backend {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
                     TextDocumentSyncKind::FULL,
                 )),
+                code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
                 // hover_provider: Some(HoverProviderCapability::Simple(true)),
                 // inlay_hint_provider: Some(OneOf::Left(true)),
                 // code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
@@ -66,9 +68,46 @@ impl LanguageServer for Backend {
         }
     }
 
+    async fn code_action(&self, params: CodeActionParams) -> RpcResult<Option<CodeActionResponse>> {
+        let mut actions: Vec<CodeActionOrCommand> = vec![];
+        actions.push(CodeActionOrCommand::Command(Command::new(
+            "Open URL".to_string(),
+            "HarperOpen".to_string(),
+            Some(vec!["yooooooooo".into()]),
+        )));
+        // let diagnostics = params.context.diagnostics;
+        // let actions = diagnostics
+        //     .iter()
+        //     .flat_map(|diag| {
+        //         let range = diag.range;
+        //         let title = "Replace with suggestion";
+        //         let edit = Some(CodeAction {
+        //             changes: Some(vec![TextEdit {
+        //                 range,
+        //                 new_text: "replacement".to_string(),
+        //             }]),
+        //             document_version: None,
+        //             resource: None,
+        //         });
+        //         let action = CodeAction {
+        //             title: title.to_string(),
+        //             kind: Some(CodeActionKind::QUICKFIX),
+        //             diagnostics: Some(vec![diag.clone()]),
+        //             edit,
+        //             command: None,
+        //             is_preferred: None,
+        //             disabled: None,
+        //             data: None,
+        //         };
+        //         Some(action)
+        //     })
+        //     .collect();
+        Ok(Some(actions))
+    }
+
     // async fn hover(&self, params: HoverParams) -> RpcResult<Option<Hover>> {
     //     let contents = HoverContents::Scalar(MarkedString::String("Hello, world!".to_string()));
-    //     Ok(Some(Hover {
+    //     Ok(Some(Hoverz {
     //         contents,
     //         range: None,
     //     }))

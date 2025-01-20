@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let config = Arc::new(codebook_config::CodebookConfig::load().unwrap());
+    let config = Arc::new(codebook_config::CodebookConfig::new_no_file());
     let processor = Codebook::new(config).unwrap();
 
     // println!("My path is {:?}", args);
