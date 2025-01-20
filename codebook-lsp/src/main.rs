@@ -1,3 +1,4 @@
+mod file_cache;
 mod lsp;
 use std::path::{Path, PathBuf};
 

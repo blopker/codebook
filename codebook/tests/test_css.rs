@@ -14,7 +14,6 @@ fn test_css_location() {
 "#;
     let expected = vec![SpellCheckResult::new(
         "testz".to_string(),
-        vec![],
         vec![TextRange {
             start_char: 9,
             end_char: 14,
@@ -22,7 +21,7 @@ fn test_css_location() {
             end_line: 4,
         }],
     )];
-    let processor = utils::get_processor(false);
+    let processor = utils::get_processor();
     let misspelled = processor.spell_check(sample_css, "css").to_vec();
     println!("Misspelled words: {misspelled:?}");
     assert_eq!(misspelled, expected);

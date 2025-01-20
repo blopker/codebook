@@ -5,7 +5,7 @@ mod utils;
 #[test]
 fn test_python_simple() {
     utils::init_logging();
-    let processor = utils::get_processor(true);
+    let processor = utils::get_processor();
     let sample_text = r#"
         def calculat_user_age(bithDate) -> int:
             # This is an examle_function that calculates age
@@ -35,7 +35,6 @@ multi_line_comment = '''
     let expected = vec![
         SpellCheckResult::new(
             "mment".to_string(),
-            vec!["moment", "comment", "Menkent"],
             vec![TextRange {
                 start_char: 46,
                 end_char: 51,
@@ -45,7 +44,6 @@ multi_line_comment = '''
         ),
         SpellCheckResult::new(
             "linet".to_string(),
-            vec![],
             vec![TextRange {
                 start_char: 12,
                 end_char: 17,
@@ -54,7 +52,7 @@ multi_line_comment = '''
             }],
         ),
     ];
-    let processor = utils::get_processor(true);
+    let processor = utils::get_processor();
     let misspelled = processor.spell_check(sample_python, "python").to_vec();
     println!("Misspelled words: {misspelled:?}");
     for e in &expected {
@@ -82,7 +80,6 @@ def constructor():
     let expected = vec![
         SpellCheckResult::new(
             "Spelin".to_string(),
-            vec![],
             vec![TextRange {
                 start_char: 9,
                 end_char: 15,
@@ -92,7 +89,6 @@ def constructor():
         ),
         SpellCheckResult::new(
             "nospel".to_string(),
-            vec![],
             vec![TextRange {
                 start_char: 8,
                 end_char: 14,
@@ -102,7 +98,6 @@ def constructor():
         ),
         SpellCheckResult::new(
             "hardz".to_string(),
-            vec![],
             vec![TextRange {
                 start_char: 28,
                 end_char: 33,
@@ -112,7 +107,6 @@ def constructor():
         ),
         SpellCheckResult::new(
             "hardg".to_string(),
-            vec![],
             vec![TextRange {
                 start_char: 45,
                 end_char: 50,
@@ -122,7 +116,7 @@ def constructor():
         ),
     ];
     let not_expected = vec!["zzzznomethod", "hardx", "hardd"];
-    let processor = utils::get_processor(false);
+    let processor = utils::get_processor();
     let misspelled = processor.spell_check(sample_python, "python").to_vec();
     println!("Misspelled words: {misspelled:?}");
     for e in &expected {

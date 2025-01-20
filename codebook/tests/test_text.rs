@@ -3,7 +3,7 @@ use codebook::dictionary::{SpellCheckResult, TextRange};
 mod utils;
 
 fn expect_spelling(text: &str, expected: &Vec<&str>) {
-    let processor = utils::get_processor(true);
+    let processor = utils::get_processor();
     let binding = processor.spell_check(text, "text").to_vec();
     let mut misspelled = binding
         .iter()
@@ -29,7 +29,6 @@ fn test_text_location() {
     let sample_text = r#"hello regular regu"#;
     let expected = vec![SpellCheckResult::new(
         "regu".to_string(),
-        vec!["reg", "reg u"],
         vec![TextRange {
             start_char: 14,
             end_char: 18,
@@ -37,7 +36,7 @@ fn test_text_location() {
             end_line: 0,
         }],
     )];
-    let processor = utils::get_processor(true);
+    let processor = utils::get_processor();
     let misspelled = processor.spell_check(sample_text, "text").to_vec();
     println!("Misspelled words: {misspelled:?}");
     assert_eq!(misspelled, expected);

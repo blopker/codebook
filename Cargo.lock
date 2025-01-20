@@ -264,6 +264,7 @@ dependencies = [
  "fs2",
  "lazy_static",
  "log",
+ "lru",
  "regex",
  "serde",
  "serde_json",

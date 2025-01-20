@@ -26,6 +26,7 @@ log = "0.4.22"
 codebook = { path = "../codebook" }
 codebook_config = { path = "../codebook-config" }
 clap = { version = "4.5.26", features = ["derive"] }
+lru = "0.12.5"
 
 
 [build-dependencies]

@@ -11,7 +11,6 @@ fn test_go_location() {
     let expected = vec![
         SpellCheckResult::new(
             "mispeled".to_string(),
-            vec!["misspelled", "dispelled", "misspell", "misled"],
             vec![TextRange {
                 start_char: 9,
                 end_char: 17,
@@ -21,7 +20,6 @@ fn test_go_location() {
         ),
         SpellCheckResult::new(
             "Funcion".to_string(),
-            vec!["Function"],
             vec![TextRange {
                 start_char: 17,
                 end_char: 24,
@@ -30,13 +28,12 @@ fn test_go_location() {
             }],
         ),
     ];
-    let processor = utils::get_processor(true);
+    let processor = utils::get_processor();
     let misspelled = processor.spell_check(sample_text, "go").to_vec();
     println!("Misspelled words: {misspelled:?}");
     for e in &expected {
         let miss = misspelled.iter().find(|r| r.word == e.word).unwrap();
         println!("Expecting: {e:?}");
-        assert_eq!(miss.suggestions, e.suggestions);
         assert_eq!(miss.locations, e.locations);
     }
 }

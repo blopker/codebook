@@ -14,7 +14,6 @@ fn test_example_files_word_locations() {
             "example.py",
             vec![SpellCheckResult::new(
                 "Pthon".to_string(),
-                vec!["Python", "Pt hon", "Pt-hon"],
                 vec![TextRange {
                     start_char: 10,
                     end_char: 15,
@@ -27,7 +26,6 @@ fn test_example_files_word_locations() {
             "example.ts",
             vec![SpellCheckResult::new(
                 "mistkes".to_string(),
-                vec!["mistakes", "mistake", "mistimes"],
                 vec![TextRange {
                     start_char: 19,
                     end_char: 26,
@@ -41,11 +39,6 @@ fn test_example_files_word_locations() {
             "example.txt",
             vec![SpellCheckResult {
                 word: "Splellin".to_string(),
-                suggestions: vec![
-                    "Spelling".to_string(),
-                    "Spline".to_string(),
-                    "Spineless".to_string(),
-                ],
                 locations: vec![TextRange {
                     start_char: 10,
                     end_char: 18,
@@ -59,7 +52,6 @@ fn test_example_files_word_locations() {
             vec![
                 SpellCheckResult {
                     word: "wolrd".to_string(),
-                    suggestions: vec!["world".to_string(), "word".to_string(), "wold".to_string()],
                     locations: vec![TextRange {
                         start_char: 26,
                         end_char: 31,
@@ -69,7 +61,6 @@ fn test_example_files_word_locations() {
                 },
                 SpellCheckResult {
                     word: "Wolrd".to_string(),
-                    suggestions: vec!["World".to_string(), "Word".to_string(), "Wold".to_string()],
                     locations: vec![TextRange {
                         start_char: 20,
                         end_char: 25,
@@ -79,7 +70,6 @@ fn test_example_files_word_locations() {
                 },
                 SpellCheckResult {
                     word: "regulr".to_string(),
-                    suggestions: vec!["regular".to_string(), "Regulus".to_string()],
                     locations: vec![TextRange {
                         start_char: 6,
                         end_char: 12,
@@ -94,7 +84,7 @@ fn test_example_files_word_locations() {
         let path = example_file_path(file.0);
         println!("Checking file: {path:?}");
         let text = std::fs::read_to_string(path).unwrap();
-        let processor = utils::get_processor(false);
+        let processor = utils::get_processor();
         let results = processor.spell_check(&text, "text");
         println!("Misspelled words: {results:?}");
         for expected in file.1 {
@@ -146,7 +136,7 @@ fn test_example_files() {
     for mut file in files {
         let path = example_file_path(file.0);
         println!("---------- Checking file: {path:?} ----------");
-        let processor = utils::get_processor(false);
+        let processor = utils::get_processor();
         let results = processor.spell_check_file(&path);
         let mut misspelled = results
             .iter()

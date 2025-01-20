@@ -12,7 +12,6 @@ fn test_toml_location() {
 "#;
     let expected = vec![SpellCheckResult::new(
         "testx".to_string(),
-        vec![],
         vec![TextRange {
             start_char: 16,
             end_char: 21,
@@ -21,7 +20,7 @@ fn test_toml_location() {
         }],
     )];
     let not_expected = ["testz"];
-    let processor = utils::get_processor(false);
+    let processor = utils::get_processor();
     let misspelled = processor.spell_check(sample_toml, "toml").to_vec();
     println!("Misspelled words: {misspelled:?}");
     assert_eq!(misspelled, expected);
