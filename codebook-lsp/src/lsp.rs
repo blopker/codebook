@@ -13,6 +13,8 @@ use log::info;
 
 use crate::file_cache::{TextDocumentCache, TextDocumentCacheItem};
 
+const SOURCE_NAME: &str = "Codebook";
+
 #[derive(Debug)]
 pub struct Backend {
     pub client: Client,
@@ -34,7 +36,7 @@ impl LanguageServer for Backend {
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
-                name: "Codebook Language Server".to_string(),
+                name: format!("{SOURCE_NAME} Language Server"),
                 version: Some(env!("CARGO_PKG_VERSION").to_string()),
             }),
         })
@@ -121,7 +123,7 @@ impl Backend {
             severity: Some(DiagnosticSeverity::INFORMATION),
             code: None,
             code_description: None,
-            source: Some("Codebook".to_string()),
+            source: Some(SOURCE_NAME.to_string()),
             message,
             related_information: None,
             tags: None,
@@ -173,7 +175,9 @@ impl Backend {
 
     /// Helper method to publish diagnostics for spell-checking.
     async fn publish_spellcheck_diagnostics(&self, uri: &Url, text: &str) {
-        let _ = self.config.reload();
+        if let Err(e) = self.config.reload() {
+            log::error!("Failed to reload config: {}", e);
+        }
         self.update_cache(uri, text);
         // Convert the file URI to a local file path (if needed).
         let uri = uri.clone();
