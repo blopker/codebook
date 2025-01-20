@@ -6,7 +6,7 @@ use codebook::dictionary::{SpellCheckResult, TextRange};
 use tower_lsp::jsonrpc::Result as RpcResult;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
-
+//Hoverz
 use codebook::Codebook;
 use codebook_config::CodebookConfig;
 use log::info;
@@ -31,9 +31,6 @@ impl LanguageServer for Backend {
                     TextDocumentSyncKind::FULL,
                 )),
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
-                // hover_provider: Some(HoverProviderCapability::Simple(true)),
-                // inlay_hint_provider: Some(OneOf::Left(true)),
-                // code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -92,15 +89,6 @@ impl LanguageServer for Backend {
         });
         Ok(Some(actions))
     }
-
-    // async fn hover(&self, params: HoverParams) -> RpcResult<Option<Hover>> {
-    //     let contents = HoverContents::Scalar(MarkedString::String("Hello, world!".to_string()));
-    //     Ok(Some(Hover {
-    //         contents,
-    //         range: None,
-    //     }))
-    // }
-    //
 }
 
 impl Backend {
