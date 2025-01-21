@@ -1,4 +1,5 @@
 pub mod dictionary;
+mod dictionary_repo;
 pub mod downloader;
 mod log;
 mod queries;

@@ -1,11 +1,22 @@
-# List of dictionaries to use
-dictionaries = ["en_US", "tech_terms"]
-
-# Custom allowed words
-words = ["codebook", "allowlist", "aff", "dic", "blopker", "spellbook"]
-
-# Words to always flag
-flag_words = ["todo", "fixme"]
-
-# Paths to ignore (glob patterns)
-ignore_paths = ["target/**/*", "**/*.json", ".git/**/*"]
+dictionaries = [
+    "en_us",
+    "tech_terms",
+]
+words = [
+    "aff",
+    "allowlist",
+    "blopker",
+    "codebook",
+    "declarator",
+    "dic",
+    "spellbook",
+]
+flag_words = [
+    "todo",
+    "fixme",
+]
+ignore_paths = [
+    "target/**/*",
+    "**/*.json",
+    ".git/**/*",
+]

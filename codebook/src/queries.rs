@@ -31,7 +31,7 @@ impl LanguageType {
 }
 
 // Use https://intmainreturn0.com/ts-visualizer/ to help with writing grammar queries
-pub static LANGUAGE_SETTINGS: [LanguageSetting; 8] = [
+pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     LanguageSetting {
         type_: LanguageType::Rust,
         name: "rust",

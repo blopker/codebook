@@ -1,4 +1,4 @@
-use crate::splitter;
+use crate::{dictionary_repo::get_codebook_dictionary, splitter};
 use codebook_config::CodebookConfig;
 use log::{debug, info};
 use lru::LruCache;
@@ -13,11 +13,6 @@ use std::{
 };
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
-
-static COMMON_DICTIONARY: &str = include_str!("../../word_lists/combined.gen.txt");
-fn get_common_dictionary() -> impl Iterator<Item = &'static str> {
-    COMMON_DICTIONARY.lines().filter(|l| !l.contains('#'))
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpellCheckResult {
@@ -58,7 +53,7 @@ impl CodeDictionary {
         let dict = spellbook::Dictionary::new(&aff, &dic)
             .map_err(|e| format!("Dictionary parse error: {}", e))?;
         let mut custom_dictionary: HashSet<String> = HashSet::new();
-        for word in get_common_dictionary() {
+        for word in get_codebook_dictionary() {
             custom_dictionary.insert(word.to_string());
         }
         Ok(CodeDictionary {

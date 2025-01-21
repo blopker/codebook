@@ -32,7 +32,7 @@ pub struct ConfigSettings {
 impl Default for ConfigSettings {
     fn default() -> Self {
         Self {
-            dictionaries: vec!["en".to_string()],
+            dictionaries: vec!["en_us".to_string()],
             words: Vec::new(),
             flag_words: Vec::new(),
             ignore_paths: Vec::new(),
