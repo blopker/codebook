@@ -104,7 +104,7 @@ fn test_example_files() {
             "example.md",
             vec!["Wolrd", "bvd", "regulr", "splellin", "wolrd"],
         ),
-        ("example.txt", vec!["Splellin", "bd"]),
+        ("example.txt", vec!["Splellin"]),
         ("example.rs", vec!["birt", "calclate", "curent", "jalopin"]),
         (
             "example.go",

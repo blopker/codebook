@@ -173,6 +173,7 @@ impl CodeDictionary {
     /// Return Vec of words and their start char and line
     /// Skips URLs
     fn get_words_from_text(&self, text: &str) -> Vec<(String, (u32, u32))> {
+        const MIN_WORD_LENGTH: usize = 3;
         let mut words = Vec::new();
         let mut current_word = String::new();
         let mut word_start_char: u32 = 0;
@@ -184,6 +185,10 @@ impl CodeDictionary {
                            word_start_char: u32,
                            current_line: u32| {
             if !current_word.is_empty() {
+                if current_word.len() < MIN_WORD_LENGTH {
+                    current_word.clear();
+                    return;
+                }
                 let split = splitter::split_camel_case(&current_word);
                 for split_word in split {
                     words.push((
@@ -349,15 +354,10 @@ mod dictionary_tests {
             ("calc", (23, 1)),
             ("wrld", (28, 1)),
             ("I'm", (12, 2)),
-            ("a", (16, 2)),
             ("contraction", (18, 2)),
             ("don't", (31, 2)),
             ("ignore", (37, 2)),
-            ("me", (44, 2)),
             ("this", (12, 3)),
-            ("is", (17, 3)),
-            ("a", (20, 3)),
-            ("rd", (23, 3)),
             ("line", (26, 3)),
         ];
         let words = dict.get_words_from_text(text);
@@ -397,11 +397,10 @@ mod dictionary_tests {
         let words = dict.get_words_from_text(text);
         println!("{:?}", words);
         assert_eq!(words[0].0, "I'm");
-        assert_eq!(words[1].0, "a");
-        assert_eq!(words[2].0, "contraction");
-        assert_eq!(words[3].0, "wouldn't");
-        assert_eq!(words[4].0, "you");
-        assert_eq!(words[5].0, "agree");
+        assert_eq!(words[1].0, "contraction");
+        assert_eq!(words[2].0, "wouldn't");
+        assert_eq!(words[3].0, "you");
+        assert_eq!(words[4].0, "agree");
     }
 
     #[test]
