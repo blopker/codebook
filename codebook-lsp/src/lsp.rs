@@ -10,7 +10,7 @@ use tower_lsp::{Client, LanguageServer};
 
 use codebook::Codebook;
 use codebook_config::CodebookConfig;
-use log::info;
+use log::{debug, info};
 
 use crate::file_cache::{TextDocumentCache, TextDocumentCacheItem};
 
@@ -153,10 +153,8 @@ impl LanguageServer for Backend {
 }
 
 impl Backend {
-    pub fn new(client: Client, cache_dir: &PathBuf, workspace_dir: &PathBuf) -> Self {
-        let mut config =
-            CodebookConfig::load_from_dir(workspace_dir).expect("Unable to make config.");
-        config.cache_dir = cache_dir.clone();
+    pub fn new(client: Client, workspace_dir: &PathBuf) -> Self {
+        let config = CodebookConfig::load_from_dir(workspace_dir).expect("Unable to make config.");
         let config_arc = Arc::new(config);
         let codebook = Codebook::new(Arc::clone(&config_arc)).expect("Unable to make codebook");
         Self {
@@ -259,12 +257,12 @@ impl Backend {
             })
             .collect();
 
-        info!("Diagnostics: {:?}", diagnostics);
+        debug!("Diagnostics: {:?}", diagnostics);
         // 3) Send the diagnostics to the client.
         self.client
             .publish_diagnostics(uri, diagnostics, None)
             .await;
-        info!("Published diagnostics for: {:?}", file_path);
+        debug!("Published diagnostics for: {:?}", file_path);
     }
 
     fn spell_check(

@@ -1,5 +1,5 @@
 [workspace]
-members = ["codebook", "codebook-config", "codebook-lsp", "codebook-zed"]
+members = ["codebook", "codebook-config", "codebook-lsp"]
 resolver = "2"
 
 [profile.test]

@@ -112,7 +112,7 @@ pub fn find_url_end(text: &str) -> Option<(usize, usize)> {
 
 #[cfg(test)]
 mod tests {
-    use log::info;
+    use log::debug;
 
     use super::*;
 
@@ -190,7 +190,7 @@ mod tests {
         assert!(find_url_end(text).is_none());
         let text = "://example.com/path/to/file.html)not a url";
         let (start, end) = find_url_end(text).unwrap();
-        info!("URL: {}", &text[start..end]);
+        debug!("URL: {}", &text[start..end]);
         assert_eq!(&text[start..end], "://example.com/path/to/file.html");
     }
 }

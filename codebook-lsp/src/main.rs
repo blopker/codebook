@@ -10,11 +10,8 @@ use tower_lsp::{LspService, Server};
 #[derive(Parser)]
 #[command(version, about, long_about = None, arg_required_else_help = true)]
 struct Cli {
-    /// Sets a custom config file
-    #[arg(short, long, value_name = "FOLDER")]
-    cache_dir: Option<PathBuf>,
-
-    /// Root of the workspace/project being checked
+    /// Root of the workspace/project being checked.
+    /// This may or may not have a codebook.toml file.
     #[arg(short, long, value_name = "FOLDER")]
     root: Option<PathBuf>,
 
@@ -34,11 +31,6 @@ async fn main() {
     env_logger::init();
     let cli = Cli::parse();
 
-    let cache_dir = match cli.cache_dir.as_deref() {
-        Some(path) => path,
-        None => Path::new(".cache/dictionaries/"),
-    };
-
     let root = match cli.root.as_deref() {
         Some(path) => path,
         None => Path::new("."),
@@ -46,15 +38,15 @@ async fn main() {
 
     match &cli.command {
         Some(Commands::Serve {}) => {
-            serve_lsp(&cache_dir.to_path_buf(), &root.to_path_buf()).await;
+            serve_lsp(&root.to_path_buf()).await;
         }
         None => {}
     }
 }
 
-async fn serve_lsp(cache_dir: &PathBuf, root: &PathBuf) {
-    info!("Starting SpellCheck Language Server...");
+async fn serve_lsp(root: &PathBuf) {
+    info!("Starting Codebook Language Server...");
     let (stdin, stdout) = (tokio::io::stdin(), tokio::io::stdout());
-    let (service, socket) = LspService::new(|client| Backend::new(client, cache_dir, root));
+    let (service, socket) = LspService::new(|client| Backend::new(client, root));
     Server::new(stdin, stdout, socket).serve(service).await;
 }

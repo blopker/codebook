@@ -87,10 +87,10 @@ impl CodeDictionary {
     }
 
     pub fn suggest(&self, word: &str) -> Vec<String> {
-        info!("Checking Cache: {:?}", word);
+        debug!("Checking Cache: {:?}", word);
         // First try to get from cache with write lock since get() needs to modify LRU order
         if let Some(suggestions) = self.suggestion_cache.write().unwrap().get_mut(word) {
-            info!("Cache hit for {:?}", word);
+            debug!("Cache hit for {:?}", word);
             return suggestions.clone();
         }
 
@@ -263,10 +263,10 @@ impl CodeDictionary {
                 let current_line = node_start.row as u32;
                 let current_column = node_start.column as u32;
                 let words = self.get_words_from_text(node_text);
-                info!("Found Capture:: {node_text:?}");
-                info!("Words:: {words:?}");
-                info!("Column: {current_column}");
-                info!("Line: {current_line}");
+                debug!("Found Capture:: {node_text:?}");
+                debug!("Words:: {words:?}");
+                debug!("Column: {current_column}");
+                debug!("Line: {current_line}");
                 for (word_text, (text_start_char, text_line)) in words {
                     info!("Checking: {:?}", word_text);
                     if !self.check(&word_text) {

@@ -95,11 +95,7 @@ impl CodebookConfig {
     }
 
     pub fn new_no_file() -> Self {
-        Self {
-            settings: Arc::new(RwLock::new(ConfigSettings::default())),
-            config_path: None,
-            cache_dir: env::temp_dir().join(CACHE_DIR),
-        }
+        Self::default()
     }
 
     pub fn reload(&self) -> Result<()> {
