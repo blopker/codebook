@@ -13,7 +13,9 @@ fn test_python_simple() {
             userAge
     "#;
     let expected = vec!["bith", "calculat", "examle"];
-    let binding = processor.spell_check(sample_text, "python").to_vec();
+    let binding = processor
+        .spell_check(sample_text, Some("python"), None)
+        .to_vec();
     let mut misspelled = binding
         .iter()
         .map(|r| r.word.as_str())
@@ -53,7 +55,9 @@ multi_line_comment = '''
         ),
     ];
     let processor = utils::get_processor();
-    let misspelled = processor.spell_check(sample_python, "python").to_vec();
+    let misspelled = processor
+        .spell_check(sample_python, Some("python"), None)
+        .to_vec();
     println!("Misspelled words: {misspelled:?}");
     for e in &expected {
         let miss = misspelled.iter().find(|r| r.word == e.word).unwrap();
@@ -117,7 +121,9 @@ def constructor():
     ];
     let not_expected = vec!["zzzznomethod", "hardx", "hardd"];
     let processor = utils::get_processor();
-    let misspelled = processor.spell_check(sample_python, "python").to_vec();
+    let misspelled = processor
+        .spell_check(sample_python, Some("python"), None)
+        .to_vec();
     println!("Misspelled words: {misspelled:?}");
     for e in &expected {
         let miss = misspelled.iter().find(|r| r.word == e.word).unwrap();

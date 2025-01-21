@@ -21,7 +21,9 @@ fn test_toml_location() {
     )];
     let not_expected = ["testz"];
     let processor = utils::get_processor();
-    let misspelled = processor.spell_check(sample_toml, "toml").to_vec();
+    let misspelled = processor
+        .spell_check(sample_toml, Some("toml"), None)
+        .to_vec();
     println!("Misspelled words: {misspelled:?}");
     assert_eq!(misspelled, expected);
     assert!(misspelled[0].locations.len() == 1);

@@ -4,7 +4,7 @@ mod utils;
 
 fn expect_spelling(text: &str, expected: &Vec<&str>) {
     let processor = utils::get_processor();
-    let binding = processor.spell_check(text, "text").to_vec();
+    let binding = processor.spell_check(text, Some("text"), None).to_vec();
     let mut misspelled = binding
         .iter()
         .map(|r| r.word.as_str())
@@ -37,7 +37,9 @@ fn test_text_location() {
         }],
     )];
     let processor = utils::get_processor();
-    let misspelled = processor.spell_check(sample_text, "text").to_vec();
+    let misspelled = processor
+        .spell_check(sample_text, Some("text"), None)
+        .to_vec();
     println!("Misspelled words: {misspelled:?}");
     assert_eq!(misspelled, expected);
     assert!(misspelled[0].locations.len() == 1);

@@ -21,7 +21,7 @@ pub struct Backend {
     pub client: Client,
     pub codebook: Codebook,
     pub config: Arc<CodebookConfig>,
-    document_cache: Arc<RwLock<TextDocumentCache>>,
+    pub document_cache: Arc<RwLock<TextDocumentCache>>,
 }
 
 enum CodebookCommand {
@@ -80,11 +80,13 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        self.publish_spellcheck_diagnostics(&params.text_document.uri, &params.text_document.text)
+        self.insert_cache(&params.text_document);
+        self.publish_spellcheck_diagnostics(&params.text_document.uri)
             .await;
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
+        self.delete_cache(&params.text_document.uri);
         // Clear diagnostics when a file is closed.
         self.client
             .publish_diagnostics(params.text_document.uri, vec![], None)
@@ -93,7 +95,8 @@ impl LanguageServer for Backend {
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
         if let Some(text) = params.text {
-            self.publish_spellcheck_diagnostics(&params.text_document.uri, &text)
+            self.update_cache(&params.text_document.uri, &text);
+            self.publish_spellcheck_diagnostics(&params.text_document.uri)
                 .await;
         }
     }
@@ -106,8 +109,19 @@ impl LanguageServer for Backend {
         };
 
         params.context.diagnostics.iter().for_each(|diag| {
-            let word = &doc.lines[diag.range.start.line as usize]
-                [diag.range.start.character as usize..diag.range.end.character as usize];
+            let line = doc
+                .text
+                .lines()
+                .nth(diag.range.start.line as usize)
+                .unwrap_or_default();
+            let start_char = diag.range.start.character as usize;
+            let end_char = diag.range.end.character as usize;
+            let word = if start_char < line.len() && end_char <= line.len() {
+                &line[start_char..end_char]
+            } else {
+                return;
+            };
+
             let suggestions = self.codebook.dictionary.suggest(word);
             suggestions.iter().for_each(|suggestion| {
                 actions.push(CodeActionOrCommand::CodeAction(self.make_suggestion(
@@ -215,6 +229,16 @@ impl Backend {
         }
     }
 
+    fn insert_cache(&self, doc: &TextDocumentItem) {
+        let mut cache = self.document_cache.write().unwrap();
+        cache.insert(doc);
+    }
+
+    fn delete_cache(&self, uri: &Url) {
+        let mut cache = self.document_cache.write().unwrap();
+        cache.remove(uri);
+    }
+
     fn get_cache(&self, uri: &Url) -> Option<TextDocumentCacheItem> {
         self.document_cache
             .write()
@@ -224,24 +248,28 @@ impl Backend {
     }
 
     fn update_cache(&self, uri: &Url, text: &str) {
-        self.document_cache.write().unwrap().insert(
-            uri.to_string(),
-            TextDocumentCacheItem::new(&uri.as_str(), 0, "no", &text),
-        );
+        let mut cache = self.document_cache.write().unwrap();
+        cache.update(uri, text);
     }
 
     /// Helper method to publish diagnostics for spell-checking.
-    async fn publish_spellcheck_diagnostics(&self, uri: &Url, text: &str) {
+    async fn publish_spellcheck_diagnostics(&self, uri: &Url) {
         if let Err(e) = self.config.reload() {
             log::error!("Failed to reload config: {}", e);
         }
-        self.update_cache(uri, text);
+        let doc = match self.get_cache(uri) {
+            Some(doc) => doc,
+            None => return,
+        };
         // Convert the file URI to a local file path (if needed).
-        let uri = uri.clone();
-        let file_path = uri.to_file_path().unwrap_or_default();
+        let file_path = doc.uri.to_file_path().unwrap_or_default();
         info!("Spell-checking file: {:?}", file_path);
         // 1) Perform spell-check (stubbed function below).
-        let spell_results = self.spell_check(file_path.to_str().unwrap_or_default(), text);
+        let spell_results = self.codebook.dictionary.spell_check(
+            &doc.text,
+            doc.language_id.as_deref(),
+            Some(file_path.to_str().unwrap_or_default()),
+        );
 
         // 2) Convert the results to LSP diagnostics.
         let diagnostics: Vec<Diagnostic> = spell_results
@@ -260,19 +288,8 @@ impl Backend {
         debug!("Diagnostics: {:?}", diagnostics);
         // 3) Send the diagnostics to the client.
         self.client
-            .publish_diagnostics(uri, diagnostics, None)
+            .publish_diagnostics(doc.uri, diagnostics, None)
             .await;
         debug!("Published diagnostics for: {:?}", file_path);
     }
-
-    fn spell_check(
-        &self,
-        file_name: &str,
-        file_contents: &str,
-    ) -> Vec<codebook::dictionary::SpellCheckResult> {
-        self.codebook
-            .dictionary
-            .spell_check_file_memory(file_name, file_contents)
-    }
 }
-//hungz

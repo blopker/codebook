@@ -107,31 +107,31 @@ impl CodeDictionary {
         suggestions
     }
 
-    pub fn spell_check(&self, text: &str, language: &str) -> Vec<SpellCheckResult> {
-        let lang_type = LanguageType::from_str(language);
-        return self.spell_check_enum(text, lang_type);
+    pub fn spell_check(
+        &self,
+        text: &str,
+        language_id: Option<&str>,
+        path: Option<&str>,
+    ) -> Vec<SpellCheckResult> {
+        // Check if we have a language_id first, fallback to path, fall back to text
+        let lang_type = match language_id {
+            Some(lang) => LanguageType::from_str(lang),
+            None => match path {
+                Some(path) => get_language_name_from_filename(path),
+                None => LanguageType::Text,
+            },
+        };
+        return self.spell_check_type(text, lang_type);
     }
 
     pub fn spell_check_file(&self, path: &str) -> Vec<SpellCheckResult> {
         let lang_type = get_language_name_from_filename(path);
         let file_text = std::fs::read_to_string(path).unwrap();
-        return self.spell_check_enum(&file_text, lang_type);
+        return self.spell_check_type(&file_text, lang_type);
     }
 
-    pub fn spell_check_file_memory(&self, path: &str, contents: &str) -> Vec<SpellCheckResult> {
-        let lang_type = get_language_name_from_filename(path);
-        return self.spell_check_enum(&contents, lang_type);
-    }
-
-    fn spell_check_enum(
-        &self,
-        text: &str,
-        language_type: Option<LanguageType>,
-    ) -> Vec<SpellCheckResult> {
-        let language = match language_type {
-            None => None,
-            Some(lang) => get_language_setting(lang),
-        };
+    fn spell_check_type(&self, text: &str, language_type: LanguageType) -> Vec<SpellCheckResult> {
+        let language = get_language_setting(language_type);
         match language {
             None => {
                 return self.spell_check_text(text);
@@ -330,7 +330,7 @@ mod dictionary_tests {
         let processor = get_dict();
 
         let text = "HelloWorld calc_wrld";
-        let misspelled = processor.spell_check_enum(text, None);
+        let misspelled = processor.spell_check_type(text, LanguageType::Text);
         println!("{:?}", misspelled);
         assert!(misspelled.iter().any(|r| r.word == "wrld"));
     }

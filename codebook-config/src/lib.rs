@@ -285,7 +285,7 @@ mod tests {
         let config_path = temp_dir.path().join("codebook.toml");
 
         // Create initial config
-        let mut config = CodebookConfig {
+        let config = CodebookConfig {
             config_path: Some(config_path.clone()),
             ..Default::default()
         };
@@ -437,7 +437,7 @@ mod tests {
         let config_path = temp_dir.path().join("codebook.toml");
 
         // Create initial config
-        let mut config = CodebookConfig {
+        let config = CodebookConfig {
             config_path: Some(config_path.clone()),
             ..Default::default()
         };

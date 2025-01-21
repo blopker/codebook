@@ -18,7 +18,9 @@ fn main() {
             }
         "#;
 
-        let misspelled = processor.dictionary.spell_check(sample_text, "rust");
+        let misspelled = processor
+            .dictionary
+            .spell_check(sample_text, Some("rust"), None);
         println!("Misspelled words: {:?}", misspelled);
         return;
     }

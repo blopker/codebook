@@ -29,7 +29,9 @@ fn test_go_location() {
         ),
     ];
     let processor = utils::get_processor();
-    let misspelled = processor.spell_check(sample_text, "go").to_vec();
+    let misspelled = processor
+        .spell_check(sample_text, Some("go"), None)
+        .to_vec();
     println!("Misspelled words: {misspelled:?}");
     for e in &expected {
         let miss = misspelled.iter().find(|r| r.word == e.word).unwrap();

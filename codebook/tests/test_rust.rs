@@ -14,7 +14,9 @@ fn test_rust_simple() {
         }
     "#;
     let expected = vec!["bith", "calculat", "examle"];
-    let binding = processor.spell_check(sample_text, "rust").to_vec();
+    let binding = processor
+        .spell_check(sample_text, Some("rust"), None)
+        .to_vec();
     let mut misspelled = binding
         .iter()
         .map(|r| r.word.as_str())
@@ -40,7 +42,9 @@ fn test_rust_comment_location() {
         }],
     )];
     let processor = utils::get_processor();
-    let misspelled = processor.spell_check(sample_rust, "rust").to_vec();
+    let misspelled = processor
+        .spell_check(sample_rust, Some("rust"), None)
+        .to_vec();
     println!("Misspelled words: {misspelled:?}");
     assert_eq!(misspelled, expected);
     assert!(misspelled[0].locations.len() == 1);
@@ -85,7 +89,9 @@ fn test_rust_struct() {
         ),
     ];
     let processor = utils::get_processor();
-    let misspelled = processor.spell_check(sample_rust, "rust").to_vec();
+    let misspelled = processor
+        .spell_check(sample_rust, Some("rust"), None)
+        .to_vec();
     println!("Misspelled words: {misspelled:?}");
     for expect in expected.iter() {
         println!("Expecting {}", expect.word);

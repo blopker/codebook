@@ -22,7 +22,9 @@ fn test_css_location() {
         }],
     )];
     let processor = utils::get_processor();
-    let misspelled = processor.spell_check(sample_css, "css").to_vec();
+    let misspelled = processor
+        .spell_check(sample_css, Some("css"), None)
+        .to_vec();
     println!("Misspelled words: {misspelled:?}");
     assert_eq!(misspelled, expected);
     assert!(misspelled[0].locations.len() == 1);

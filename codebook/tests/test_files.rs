@@ -85,7 +85,7 @@ fn test_example_files_word_locations() {
         println!("Checking file: {path:?}");
         let text = std::fs::read_to_string(path).unwrap();
         let processor = utils::get_processor();
-        let results = processor.spell_check(&text, "text");
+        let results = processor.spell_check(&text, Some("text"), None);
         println!("Misspelled words: {results:?}");
         for expected in file.1 {
             let found = results.iter().find(|r| r.word == expected.word).unwrap();

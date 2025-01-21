@@ -14,19 +14,15 @@ pub enum LanguageType {
 }
 
 impl LanguageType {
-    pub fn from_str(s: &str) -> Option<LanguageType> {
-        match s {
-            "rust" => Some(LanguageType::Rust),
-            "python" => Some(LanguageType::Python),
-            "javascript" => Some(LanguageType::Javascript),
-            "typescript" => Some(LanguageType::Typescript),
-            "html" => Some(LanguageType::Html),
-            "css" => Some(LanguageType::Css),
-            "go" => Some(LanguageType::Go),
-            "text" => Some(LanguageType::Text),
-            "toml" => Some(LanguageType::TOML),
-            _ => None,
+    pub fn from_str(s: &str) -> LanguageType {
+        for language in LANGUAGE_SETTINGS.iter() {
+            for id in language.ids.iter() {
+                if s == *id {
+                    return language.type_;
+                }
+            }
         }
+        LanguageType::Text
     }
 }
 
@@ -34,7 +30,7 @@ impl LanguageType {
 pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     LanguageSetting {
         type_: LanguageType::Rust,
-        name: "rust",
+        ids: &["rust"],
         query: r#"
                 (function_item
                     name: (identifier) @identifier)
@@ -54,7 +50,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::Python,
-        name: "python",
+        ids: &["python"],
         query: r#"
             (comment) @comment
             (string) @string
@@ -69,7 +65,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::Javascript,
-        name: "javascript",
+        ids: &["javascript", "javascriptreact"],
         query: r#"
             (comment) @comment
             (string_fragment) @string
@@ -84,11 +80,11 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
             (class_declaration
                 name: (identifier) @identifier)
                 "#,
-        extensions: &["js"],
+        extensions: &["js", "jsx"],
     },
     LanguageSetting {
         type_: LanguageType::Typescript,
-        name: "typescript",
+        ids: &["typescript", "typescriptreact"],
         query: r#"
             (comment) @comment
             (string_fragment) @string
@@ -101,11 +97,11 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
             (method_definition
                 name: (property_identifier) @identifier)
                 "#,
-        extensions: &["ts"],
+        extensions: &["ts", "tsx"],
     },
     LanguageSetting {
         type_: LanguageType::Html,
-        name: "html",
+        ids: &["html"],
         query: r#"
             (text) @string
             (comment) @comment
@@ -115,7 +111,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::Css,
-        name: "css",
+        ids: &["css"],
         query: r#"
             (class_name) @identifier
             (id_name) @identifier
@@ -128,7 +124,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::Go,
-        name: "go",
+        ids: &["go"],
         query: r#"
                 (comment) @comment
                 (argument_list (interpreted_string_literal) @string)
@@ -139,7 +135,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::TOML,
-        name: "toml",
+        ids: &["toml"],
         query: r#"
             (string) @string
             (comment) @comment
@@ -152,7 +148,8 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
 pub struct LanguageSetting {
     pub type_: LanguageType,
     pub query: &'static str,
-    pub name: &'static str,
+    /// ID from https://code.visualstudio.com/docs/languages/identifiers
+    pub ids: &'static [&'static str],
     pub extensions: &'static [&'static str],
 }
 
@@ -183,14 +180,14 @@ pub fn get_language_setting(language_type: LanguageType) -> Option<&'static Lang
     None
 }
 
-pub fn get_language_name_from_filename(filename: &str) -> Option<LanguageType> {
+pub fn get_language_name_from_filename(filename: &str) -> LanguageType {
     let extension = filename.split('.').last().unwrap();
     for setting in LANGUAGE_SETTINGS.iter() {
         for ext in setting.extensions.iter() {
             if ext == &extension {
-                return Some(setting.type_);
+                return setting.type_;
             }
         }
     }
-    None
+    LanguageType::Text
 }
