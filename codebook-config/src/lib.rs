@@ -129,7 +129,7 @@ impl CodebookConfig {
     }
 
     /// Add a word to the allowlist and save the configuration
-    pub fn add_word(&mut self, word: &str) -> Result<()> {
+    pub fn add_word(&self, word: &str) -> Result<()> {
         {
             let word = word.to_lowercase();
             let settings = &mut self.settings.write().unwrap();

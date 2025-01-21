@@ -12,7 +12,6 @@ pub fn get_processor() -> CodeDictionary {
     dict
 }
 
-#[cfg(test)]
 pub fn init_logging() {
-    let _ = env_logger::builder().is_test(true).try_init();
+    env_logger::builder().is_test(true).try_init().unwrap();
 }

@@ -3,10 +3,11 @@ use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
 use codebook::dictionary::{SpellCheckResult, TextRange};
+use serde_json::Value;
 use tower_lsp::jsonrpc::Result as RpcResult;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
-//Hoverz
+
 use codebook::Codebook;
 use codebook_config::CodebookConfig;
 use log::info;
@@ -23,6 +24,29 @@ pub struct Backend {
     document_cache: Arc<RwLock<TextDocumentCache>>,
 }
 
+enum CodebookCommand {
+    AddWord,
+    Unknown,
+}
+
+impl From<&str> for CodebookCommand {
+    fn from(command: &str) -> Self {
+        match command {
+            "codebook.addWord" => CodebookCommand::AddWord,
+            _ => CodebookCommand::Unknown,
+        }
+    }
+}
+
+impl From<CodebookCommand> for String {
+    fn from(command: CodebookCommand) -> Self {
+        match command {
+            CodebookCommand::AddWord => "codebook.addWord".to_string(),
+            CodebookCommand::Unknown => "codebook.unknown".to_string(),
+        }
+    }
+}
+
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
     async fn initialize(&self, _: InitializeParams) -> RpcResult<InitializeResult> {
@@ -32,6 +56,10 @@ impl LanguageServer for Backend {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
                     TextDocumentSyncKind::FULL,
                 )),
+                execute_command_provider: Some(ExecuteCommandOptions {
+                    commands: vec![CodebookCommand::AddWord.into()],
+                    work_done_progress_options: Default::default(),
+                }),
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
                 ..ServerCapabilities::default()
             },
@@ -88,8 +116,39 @@ impl LanguageServer for Backend {
                     &params.text_document.uri,
                 )));
             });
+            actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                title: format!("Add '{}' to dictionary", word),
+                kind: Some(CodeActionKind::QUICKFIX),
+                diagnostics: None,
+                edit: None,
+                command: Some(Command {
+                    title: format!("Add '{}' to dictionary", word),
+                    command: CodebookCommand::AddWord.into(),
+                    arguments: Some(vec![word.to_string().into()]),
+                }),
+                is_preferred: None,
+                disabled: None,
+                data: None,
+            }));
         });
+
         Ok(Some(actions))
+    }
+
+    async fn execute_command(&self, params: ExecuteCommandParams) -> RpcResult<Option<Value>> {
+        match CodebookCommand::from(params.command.as_str()) {
+            CodebookCommand::AddWord => {
+                for args in params.arguments {
+                    if let Some(word) = args.as_str() {
+                        if let Err(e) = self.config.add_word(word) {
+                            log::error!("Failed to add word to dictionary: {}", e);
+                        }
+                    }
+                }
+                Ok(None)
+            }
+            CodebookCommand::Unknown => Ok(None),
+        }
     }
 }
 
@@ -218,3 +277,4 @@ impl Backend {
             .spell_check_file_memory(file_name, file_contents)
     }
 }
+//hungz

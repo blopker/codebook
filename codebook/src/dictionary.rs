@@ -142,9 +142,6 @@ impl CodeDictionary {
                 return self.spell_check_text(text);
             }
             Some(lang) => {
-                // if let Some(dictionary) = lang.language_dictionary {
-                //     self.add_to_dictionary(dictionary);
-                // }
                 return self.spell_check_code(text, lang);
             }
         }
@@ -311,7 +308,7 @@ mod dictionary_tests {
     use super::*;
 
     fn get_dict() -> CodeDictionary {
-        let mut config = CodebookConfig::new_no_file();
+        let config = CodebookConfig::new_no_file();
         config.add_word("badword").unwrap();
         let dict = CodeDictionary::new(
             Arc::new(config),
