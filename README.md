@@ -10,13 +10,19 @@
   Feature</a> </p>
 </div>
 
+## Usage
+
+Codebook is currently only available for the Zed editor. To install, go to the Extension tab in Zed and look for "Codebook".
+
+To keep visual noise low, Codebook only checks for spelling on save.
+
 ## About
 
 Codebook is a spellchecker for code. It binds together the venerable Tree Sitter and the fast spell checker [Spellbook](https://github.com/helix-editor/spellbook). Included is a Language Server for use in any editor. Everything is done in Rust to keep response times snappy and memory usage _low_.
 
 ## Status
 
-Codebook is being developed and not yet ready for public (or private, really) use. Hit the Star button to follow for updates though. Currently only US English is supported.
+Codebook is being developed, but the Zed extension is now live! Currently only US English is supported.
 
 ### Supported Languages
 
@@ -35,6 +41,27 @@ Codebook is being developed and not yet ready for public (or private, really) us
 
 ✅ = Good to go
 ⚠️ = Supported, but needs more testing
+
+## Configuration File
+
+Codebook has an optional configuration file you can put in the root of your project. Either `codebook.toml` or `.codebook.toml` will work.
+
+Here are the options:
+
+```toml
+# Currently unused. Will add more dictionaries soon.
+# Default: ["en_us"]
+dictionaries = ["en_us"]
+# List of words to ignore. Case-insensitive. Codebook will add words here when you select "Add to dictionary".
+# Default: []
+words = ["codebook"]
+# List of words to always flag as incorrect.
+# Default: []
+flag_words = ["todo", "fixme"]
+# List of path globs to ignore when spell checking.
+# Default: []
+ignore_paths = ["target/**/*", "**/*.json", ".git/**/*"]
+```
 
 ## Goals
 
@@ -69,18 +96,14 @@ Codebook comes with a dictionary manager, which will automatically download and 
 ## Roadmap
 
 - [ ] Support more languages than US English
-- [ ] Support custom project dictionaries
+- [X] Support custom project dictionaries
 - [ ] Support custom global dictionaries
 - [ ] Support per file extension dictionaries
-- [ ] Add code actions to correct spelling
+- [X] Add code actions to correct spelling
 
-## Running
+## Running Tests
 
-Currently there are only tests.
-
-Run them with `make test`.
-
-![screenshot](assets/screenshot.webp)
+Run test with `make test` after cloning.
 
 ## Acknowledgments
 - Harper: https://writewithharper.com/
