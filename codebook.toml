@@ -1,7 +1,4 @@
-dictionaries = [
-    "en_us",
-    "tech_terms",
-]
+dictionaries = ["en_us"]
 words = [
     "aff",
     "allowlist",
@@ -10,13 +7,7 @@ words = [
     "declarator",
     "dic",
     "spellbook",
+    "musl",
 ]
-flag_words = [
-    "todo",
-    "fixme",
-]
-ignore_paths = [
-    "target/**/*",
-    "**/*.json",
-    ".git/**/*",
-]
+flag_words = ["todo", "fixme"]
+ignore_paths = ["target/**/*", "**/*.json", ".git/**/*"]
