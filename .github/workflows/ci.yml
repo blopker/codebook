@@ -48,19 +48,19 @@ jobs:
             bin: codebook-lsp
             name: codebook-lsp-aarch64-apple-darwin.tar.gz
             command: build
-          - release_for: Linux-x86_64-GNU
+          - release_for: Linux-x86_64-Musl
             os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
+            target: x86_64-unknown-linux-musl
             project: codebook-lsp
             bin: codebook-lsp
-            name: codebook-lsp-x86_64-unknown-linux-gnu.tar.gz
+            name: codebook-lsp-x86_64-unknown-linux-musl.tar.gz
             command: build
-          - release_for: Linux-aarch64-GNU
+          - release_for: Linux-aarch64-Musl
             os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
+            target: aarch64-unknown-linux-musl
             project: codebook-lsp
             bin: codebook-lsp
-            name: codebook-lsp-aarch64-unknown-linux-gnu.tar.gz
+            name: codebook-lsp-aarch64-unknown-linux-musl.tar.gz
             command: build
 
     runs-on: ${{ matrix.platform.os }}
