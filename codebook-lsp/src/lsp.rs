@@ -81,8 +81,7 @@ impl LanguageServer for Backend {
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         self.insert_cache(&params.text_document);
-        self.publish_spellcheck_diagnostics(&params.text_document.uri)
-            .await;
+        self.spell_check(&params.text_document.uri).await;
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
@@ -96,8 +95,7 @@ impl LanguageServer for Backend {
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
         if let Some(text) = params.text {
             self.update_cache(&params.text_document.uri, &text);
-            self.publish_spellcheck_diagnostics(&params.text_document.uri)
-                .await;
+            self.spell_check(&params.text_document.uri).await;
         }
     }
 
@@ -154,8 +152,13 @@ impl LanguageServer for Backend {
             CodebookCommand::AddWord => {
                 for args in params.arguments {
                     if let Some(word) = args.as_str() {
-                        if let Err(e) = self.config.add_word(word) {
-                            log::error!("Failed to add word to dictionary: {}", e);
+                        match self.config.add_word(word) {
+                            Ok(_) => {
+                                self.recheck_all().await;
+                            }
+                            Err(e) => {
+                                log::error!("Failed to add word: {}", e);
+                            }
                         }
                     }
                 }
@@ -252,11 +255,35 @@ impl Backend {
         cache.update(uri, text);
     }
 
+    async fn recheck_all(&self) {
+        let urls = {
+            let cache = self.document_cache.read().unwrap();
+            cache.iter().map(|doc| doc.uri.clone()).collect::<Vec<_>>()
+        };
+        debug!("Rechecking documents: {:?}", urls);
+        for url in urls {
+            self.publish_spellcheck_diagnostics(&url).await;
+        }
+    }
+
+    async fn spell_check(&self, uri: &Url) {
+        let did_reload = match self.config.reload() {
+            Ok(did_reload) => did_reload,
+            Err(e) => {
+                log::error!("Failed to reload config: {}", e);
+                false
+            }
+        };
+
+        if did_reload {
+            self.recheck_all().await;
+        } else {
+            self.publish_spellcheck_diagnostics(uri).await;
+        }
+    }
+
     /// Helper method to publish diagnostics for spell-checking.
     async fn publish_spellcheck_diagnostics(&self, uri: &Url) {
-        if let Err(e) = self.config.reload() {
-            log::error!("Failed to reload config: {}", e);
-        }
         let doc = match self.get_cache(uri) {
             Some(doc) => doc,
             None => return,

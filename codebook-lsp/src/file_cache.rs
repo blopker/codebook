@@ -82,4 +82,8 @@ impl TextDocumentCache {
     pub fn remove(&mut self, uri: &Url) {
         self.documents.pop(uri.as_str());
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = &TextDocumentCacheItem> {
+        self.documents.iter().map(|(_, item)| item)
+    }
 }

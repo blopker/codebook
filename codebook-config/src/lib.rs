@@ -1,5 +1,6 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use glob::Pattern;
+use log::debug;
 use log::info;
 use serde::{Deserialize, Serialize};
 use std::env;
@@ -98,11 +99,14 @@ impl CodebookConfig {
         Self::default()
     }
 
-    pub fn reload(&self) -> Result<()> {
-        let config_path = self
-            .config_path
-            .as_ref()
-            .ok_or_else(|| anyhow!("config_path was never set, can't reload config."))?;
+    pub fn reload(&self) -> Result<bool> {
+        let config_path = match self.config_path.as_ref() {
+            Some(c) => c,
+            None => {
+                debug!("config_path was never set, can't reload config.");
+                return Ok(false);
+            }
+        };
 
         // get file contents or reset config to default, with the config_path set
         let new_settings = match fs::read_to_string(config_path) {
@@ -115,8 +119,12 @@ impl CodebookConfig {
             }
         }?;
         let mut settings = self.settings.write().unwrap();
-        *settings = new_settings;
-        Ok(())
+        if new_settings != *settings {
+            info!("Reloading config from file: {}", config_path.display());
+            *settings = new_settings;
+            return Ok(true);
+        }
+        Ok(false)
     }
 
     /// Load configuration starting from a specific directory

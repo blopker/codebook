@@ -9,5 +9,12 @@ words = [
     "spellbook",
     "musl",
 ]
-flag_words = ["todo", "fixme"]
-ignore_paths = ["target/**/*", "**/*.json", ".git/**/*"]
+flag_words = [
+    "todo",
+    "fixme",
+]
+ignore_paths = [
+    "target/**/*",
+    "**/*.json",
+    ".git/**/*",
+]
