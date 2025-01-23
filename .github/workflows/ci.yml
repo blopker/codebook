@@ -125,3 +125,6 @@ jobs:
           prerelease: true
           generate_release_notes: true
           draft: false
+          append_body: true
+          body: |
+            See [changelog](https://github.com/blopker/codebook/blob/main/CHANGELOG.md) for details.
