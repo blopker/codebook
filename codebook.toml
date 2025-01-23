@@ -6,8 +6,8 @@ words = [
     "codebook",
     "declarator",
     "dic",
-    "spellbook",
     "musl",
+    "spellbook",
 ]
 flag_words = [
     "todo",
