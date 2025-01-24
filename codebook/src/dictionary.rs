@@ -413,5 +413,8 @@ mod dictionary_tests {
         let suggestions = dict.suggest("wrld");
         println!("{:?}", suggestions);
         assert!(suggestions.contains(&"world".to_string()));
+        let suggestions = dict.suggest("alice");
+        println!("{:?}", suggestions);
+        assert!(suggestions.contains(&"Alice".to_string()));
     }
 }
