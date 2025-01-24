@@ -302,7 +302,7 @@ mod tests {
         config.save()?;
         // Add a word
         config.add_word("testword")?;
-
+        config.save()?;
         // Reload config and verify
         let loaded_config = CodebookConfig::load_from_file(&config_path)?;
         assert!(loaded_config.is_allowed_word("testword"));
@@ -454,6 +454,7 @@ mod tests {
         config.save()?;
         // Add a word with mixed case
         config.add_word("TestWord")?;
+        config.save()?;
 
         // Reload config and verify with different cases
         let loaded_config = CodebookConfig::load_from_file(&config_path)?;
