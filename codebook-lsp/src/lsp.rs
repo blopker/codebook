@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use codebook::dictionary::{SpellCheckResult, TextRange};
 use serde_json::Value;
@@ -12,7 +12,7 @@ use codebook::Codebook;
 use codebook_config::CodebookConfig;
 use log::{debug, info};
 
-use crate::file_cache::{TextDocumentCache, TextDocumentCacheItem};
+use crate::file_cache::TextDocumentCache;
 
 const SOURCE_NAME: &str = "Codebook";
 
@@ -21,7 +21,7 @@ pub struct Backend {
     pub client: Client,
     pub codebook: Codebook,
     pub config: Arc<CodebookConfig>,
-    pub document_cache: Arc<RwLock<TextDocumentCache>>,
+    pub document_cache: TextDocumentCache,
 }
 
 enum CodebookCommand {
@@ -80,12 +80,12 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        self.insert_cache(&params.text_document);
+        self.document_cache.insert(&params.text_document);
         self.spell_check(&params.text_document.uri).await;
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
-        self.delete_cache(&params.text_document.uri);
+        self.document_cache.remove(&params.text_document.uri);
         // Clear diagnostics when a file is closed.
         self.client
             .publish_diagnostics(params.text_document.uri, vec![], None)
@@ -94,14 +94,17 @@ impl LanguageServer for Backend {
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
         if let Some(text) = params.text {
-            self.update_cache(&params.text_document.uri, &text);
+            self.document_cache.update(&params.text_document.uri, &text);
             self.spell_check(&params.text_document.uri).await;
         }
     }
 
     async fn code_action(&self, params: CodeActionParams) -> RpcResult<Option<CodeActionResponse>> {
         let mut actions: Vec<CodeActionOrCommand> = vec![];
-        let doc = match self.get_cache(&params.text_document.uri) {
+        let doc = match self
+            .document_cache
+            .get(&params.text_document.uri.to_string())
+        {
             Some(doc) => doc,
             None => return Ok(None),
         };
@@ -150,17 +153,14 @@ impl LanguageServer for Backend {
     async fn execute_command(&self, params: ExecuteCommandParams) -> RpcResult<Option<Value>> {
         match CodebookCommand::from(params.command.as_str()) {
             CodebookCommand::AddWord => {
-                for args in params.arguments {
-                    if let Some(word) = args.as_str() {
-                        match self.config.add_word(word) {
-                            Ok(_) => {
-                                self.recheck_all().await;
-                            }
-                            Err(e) => {
-                                log::error!("Failed to add word: {}", e);
-                            }
-                        }
-                    }
+                let words = params
+                    .arguments
+                    .iter()
+                    .filter_map(|arg| arg.as_str().map(|s| s.to_string()));
+                let updated = self.add_words(words);
+                if updated {
+                    let _ = self.config.save();
+                    self.recheck_all().await;
                 }
                 Ok(None)
             }
@@ -178,7 +178,7 @@ impl Backend {
             client,
             codebook,
             config: Arc::clone(&config_arc),
-            document_cache: Arc::new(RwLock::new(TextDocumentCache::new())),
+            document_cache: TextDocumentCache::new(),
         }
     }
     fn make_diagnostic(&self, result: &SpellCheckResult, range: &TextRange) -> Diagnostic {
@@ -203,6 +203,24 @@ impl Backend {
             tags: None,
             data: None,
         }
+    }
+
+    fn add_words(&self, words: impl Iterator<Item = String>) -> bool {
+        let mut should_save = false;
+        for word in words {
+            match self.config.add_word(&word) {
+                Ok(true) => {
+                    should_save = true;
+                }
+                Ok(false) => {
+                    log::info!("Word '{}' already exists in dictionary.", word);
+                }
+                Err(e) => {
+                    log::error!("Failed to add word: {}", e);
+                }
+            }
+        }
+        should_save
     }
 
     fn make_suggestion(&self, suggestion: &str, range: &Range, uri: &Url) -> CodeAction {
@@ -232,34 +250,8 @@ impl Backend {
         }
     }
 
-    fn insert_cache(&self, doc: &TextDocumentItem) {
-        let mut cache = self.document_cache.write().unwrap();
-        cache.insert(doc);
-    }
-
-    fn delete_cache(&self, uri: &Url) {
-        let mut cache = self.document_cache.write().unwrap();
-        cache.remove(uri);
-    }
-
-    fn get_cache(&self, uri: &Url) -> Option<TextDocumentCacheItem> {
-        self.document_cache
-            .write()
-            .unwrap()
-            .get(&uri.to_string())
-            .cloned()
-    }
-
-    fn update_cache(&self, uri: &Url, text: &str) {
-        let mut cache = self.document_cache.write().unwrap();
-        cache.update(uri, text);
-    }
-
     async fn recheck_all(&self) {
-        let urls = {
-            let cache = self.document_cache.read().unwrap();
-            cache.iter().map(|doc| doc.uri.clone()).collect::<Vec<_>>()
-        };
+        let urls = self.document_cache.cached_urls();
         debug!("Rechecking documents: {:?}", urls);
         for url in urls {
             self.publish_spellcheck_diagnostics(&url).await;
@@ -275,7 +267,18 @@ impl Backend {
             }
         };
 
-        if did_reload {
+        let did_config_change = uri
+            .to_file_path()
+            .map(|path| {
+                self.config
+                    .config_path
+                    .as_ref()
+                    .map(|config_path| path == *config_path)
+                    .unwrap_or(false)
+            })
+            .unwrap_or(false);
+
+        if did_reload || did_config_change {
             self.recheck_all().await;
         } else {
             self.publish_spellcheck_diagnostics(uri).await;
@@ -284,7 +287,7 @@ impl Backend {
 
     /// Helper method to publish diagnostics for spell-checking.
     async fn publish_spellcheck_diagnostics(&self, uri: &Url) {
-        let doc = match self.get_cache(uri) {
+        let doc = match self.document_cache.get(&uri.to_string()) {
             Some(doc) => doc,
             None => return,
         };

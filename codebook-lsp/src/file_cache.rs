@@ -1,4 +1,7 @@
-use std::num::NonZero;
+use std::{
+    num::NonZero,
+    sync::{Arc, RwLock},
+};
 
 use lru::LruCache;
 use tower_lsp::lsp_types::{TextDocumentItem, Url};
@@ -35,33 +38,37 @@ impl TextDocumentCacheItem {
 
 #[derive(Debug)]
 pub struct TextDocumentCache {
-    documents: LruCache<String, TextDocumentCacheItem>,
+    documents: Arc<RwLock<LruCache<String, TextDocumentCacheItem>>>,
 }
 
 impl TextDocumentCache {
     pub fn new() -> Self {
         Self {
-            documents: LruCache::new(NonZero::new(1000).unwrap()),
+            documents: Arc::new(RwLock::new(LruCache::new(NonZero::new(1000).unwrap()))),
         }
     }
 
-    pub fn get(&mut self, uri: &str) -> Option<&TextDocumentCacheItem> {
-        self.documents.get(uri)
+    pub fn get(&self, uri: &str) -> Option<TextDocumentCacheItem> {
+        self.documents.write().unwrap().get(uri).cloned()
     }
 
-    pub fn insert(&mut self, document: &TextDocumentItem) {
+    pub fn insert(&self, document: &TextDocumentItem) {
         let document = TextDocumentCacheItem::new(
             &document.uri,
             Some(document.version),
             Some(&document.language_id),
             Some(&document.text),
         );
-        self.documents.put(document.uri.to_string(), document);
+        self.documents
+            .write()
+            .unwrap()
+            .put(document.uri.to_string(), document);
     }
 
-    pub fn update(&mut self, uri: &Url, text: &str) {
+    pub fn update(&self, uri: &Url, text: &str) {
         let key = uri.to_string();
-        let item = self.documents.get(&key);
+        let mut cache = self.documents.write().unwrap();
+        let item = cache.get(&key);
         match item {
             Some(item) => {
                 let new_item = TextDocumentCacheItem::new(
@@ -70,20 +77,25 @@ impl TextDocumentCache {
                     item.language_id.as_deref(),
                     Some(text),
                 );
-                self.documents.put(key, new_item);
+                cache.put(key, new_item);
             }
             None => {
                 let item = TextDocumentCacheItem::new(uri, None, None, Some(text));
-                self.documents.put(key, item);
+                cache.put(key, item);
             }
         }
     }
 
-    pub fn remove(&mut self, uri: &Url) {
-        self.documents.pop(uri.as_str());
+    pub fn remove(&self, uri: &Url) {
+        self.documents.write().unwrap().pop(uri.as_str());
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &TextDocumentCacheItem> {
-        self.documents.iter().map(|(_, item)| item)
+    pub fn cached_urls(&self) -> Vec<Url> {
+        self.documents
+            .read()
+            .unwrap()
+            .iter()
+            .map(|(_, v)| v.uri.clone())
+            .collect()
     }
 }

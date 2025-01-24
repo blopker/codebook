@@ -33,7 +33,7 @@ pub struct ConfigSettings {
 impl Default for ConfigSettings {
     fn default() -> Self {
         Self {
-            dictionaries: vec!["en_us".to_string()],
+            dictionaries: vec![],
             words: Vec::new(),
             flag_words: Vec::new(),
             ignore_paths: Vec::new(),
@@ -133,13 +133,13 @@ impl CodebookConfig {
     }
 
     /// Add a word to the allowlist and save the configuration
-    pub fn add_word(&self, word: &str) -> Result<()> {
+    pub fn add_word(&self, word: &str) -> Result<bool> {
         {
             let word = word.to_lowercase();
             let settings = &mut self.settings.write().unwrap();
             // Check if word already exists
             if settings.words.contains(&word.to_string()) {
-                return Ok(());
+                return Ok(false);
             }
 
             // Add the word
@@ -147,9 +147,7 @@ impl CodebookConfig {
             // Sort for consistency
             settings.words.sort();
         }
-        // Save the changes
-        self.save()?;
-        Ok(())
+        Ok(true)
     }
 
     /// Save the configuration to its file
@@ -159,14 +157,18 @@ impl CodebookConfig {
             None => return Ok(()),
         };
 
-        let content = toml::to_string_pretty(&*self.settings.read().unwrap())
-            .context("Failed to serialize config")?;
+        let content = self.as_toml()?;
 
         fs::write(config_path, content).with_context(|| {
             format!("Failed to write config to file: {}", config_path.display())
         })?;
 
         Ok(())
+    }
+
+    pub fn as_toml(&self) -> Result<String> {
+        toml::to_string_pretty(&*self.settings.read().unwrap())
+            .context("Failed to serialize config")
     }
 
     /// Create a new configuration file if one doesn't exist
