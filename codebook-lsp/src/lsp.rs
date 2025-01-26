@@ -291,10 +291,10 @@ impl Backend {
             Some(doc) => doc,
             None => return,
         };
-        // Convert the file URI to a local file path (if needed).
+        // Convert the file URI to a local file path.
         let file_path = doc.uri.to_file_path().unwrap_or_default();
         info!("Spell-checking file: {:?}", file_path);
-        // 1) Perform spell-check (stubbed function below).
+        // 1) Perform spell-check.
         let spell_results = self.codebook.dictionary.spell_check(
             &doc.text,
             doc.language_id.as_deref(),

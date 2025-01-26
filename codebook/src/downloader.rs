@@ -303,37 +303,6 @@ impl DictionaryDownloader {
 }
 
 // =====================
-// Example usage (comment out if you don't want a main):
-// =====================
-// fn main() -> Result<(), Box<dyn std::error::Error>> {
-//     let downloader = DictionaryDownloader::new(
-//         "https://raw.githubusercontent.com/blopker/dictionaries",
-//         "./dictionary_cache",
-//     );
-//
-//     // 1) Using the `get` method
-//     let info = downloader.get("en")?;
-//     println!(
-//         "[get] EN dictionary => dic: {}, aff: {}, stale: {}s",
-//         info.dic_local_path, info.aff_local_path, info.stale_seconds
-//     );
-//
-//     // 2) Using the download methods
-//     let results = downloader.download_dictionaries(vec!["de", "fr"]);
-//     for res in results {
-//         match res {
-//             Ok(info) => {
-//                 for info in info {
-//                     println!("Downloaded => {:?}", info);
-//                 }
-//             },
-//             Err(e) => eprintln!("Error: {}", e),
-//         }
-//     }
-//     Ok(())
-// }
-
-// =====================
 // Unit Tests
 // =====================
 #[cfg(test)]
