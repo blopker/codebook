@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use codebook::dictionary::{SpellCheckResult, TextRange};
+use codebook::queries::LanguageType;
 use serde_json::Value;
 use tower_lsp::jsonrpc::Result as RpcResult;
 use tower_lsp::lsp_types::*;
@@ -295,9 +296,13 @@ impl Backend {
         let file_path = doc.uri.to_file_path().unwrap_or_default();
         info!("Spell-checking file: {:?}", file_path);
         // 1) Perform spell-check.
+        let lang_type = match doc.language_id.as_deref() {
+            Some(lang) => Some(LanguageType::from_str(lang)),
+            _ => None,
+        };
         let spell_results = self.codebook.dictionary.spell_check(
             &doc.text,
-            doc.language_id.as_deref(),
+            lang_type,
             Some(file_path.to_str().unwrap_or_default()),
         );
 

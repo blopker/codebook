@@ -2,7 +2,7 @@ pub mod dictionary;
 mod dictionary_repo;
 pub mod downloader;
 mod log;
-mod queries;
+pub mod queries;
 mod splitter;
 
 use std::sync::Arc;

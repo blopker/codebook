@@ -1,3 +1,4 @@
+use codebook::queries::LanguageType;
 use codebook::Codebook;
 use std::env;
 use std::path::Path;
@@ -18,9 +19,10 @@ fn main() {
             }
         "#;
 
-        let misspelled = processor
-            .dictionary
-            .spell_check(sample_text, Some("rust"), None);
+        let misspelled =
+            processor
+                .dictionary
+                .spell_check(sample_text, Some(LanguageType::Rust), None);
         println!("Misspelled words: {:?}", misspelled);
         return;
     }

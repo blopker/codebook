@@ -1,4 +1,7 @@
-use codebook::dictionary::{SpellCheckResult, TextRange};
+use codebook::{
+    dictionary::{SpellCheckResult, TextRange},
+    queries::LanguageType,
+};
 
 mod utils;
 
@@ -15,7 +18,7 @@ fn test_rust_simple() {
     "#;
     let expected = vec!["bith", "calculat", "examle"];
     let binding = processor
-        .spell_check(sample_text, Some("rust"), None)
+        .spell_check(sample_text, Some(LanguageType::Rust), None)
         .to_vec();
     let mut misspelled = binding
         .iter()
@@ -43,7 +46,7 @@ fn test_rust_comment_location() {
     )];
     let processor = utils::get_processor();
     let misspelled = processor
-        .spell_check(sample_rust, Some("rust"), None)
+        .spell_check(sample_rust, Some(LanguageType::Rust), None)
         .to_vec();
     println!("Misspelled words: {misspelled:?}");
     assert_eq!(misspelled, expected);
@@ -90,7 +93,7 @@ fn test_rust_struct() {
     ];
     let processor = utils::get_processor();
     let misspelled = processor
-        .spell_check(sample_rust, Some("rust"), None)
+        .spell_check(sample_rust, Some(LanguageType::Rust), None)
         .to_vec();
     println!("Misspelled words: {misspelled:?}");
     for expect in expected.iter() {

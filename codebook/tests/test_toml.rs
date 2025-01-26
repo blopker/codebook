@@ -1,4 +1,7 @@
-use codebook::dictionary::{SpellCheckResult, TextRange};
+use codebook::{
+    dictionary::{SpellCheckResult, TextRange},
+    queries::LanguageType,
+};
 
 mod utils;
 
@@ -22,7 +25,7 @@ fn test_toml_location() {
     let not_expected = ["testz"];
     let processor = utils::get_processor();
     let misspelled = processor
-        .spell_check(sample_toml, Some("toml"), None)
+        .spell_check(sample_toml, Some(LanguageType::TOML), None)
         .to_vec();
     println!("Misspelled words: {misspelled:?}");
     assert_eq!(misspelled, expected);

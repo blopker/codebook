@@ -1,4 +1,7 @@
-use codebook::dictionary::{SpellCheckResult, TextRange};
+use codebook::{
+    dictionary::{SpellCheckResult, TextRange},
+    queries::LanguageType,
+};
 
 mod utils;
 
@@ -14,7 +17,7 @@ fn test_python_simple() {
     "#;
     let expected = vec!["bith", "calculat", "examle"];
     let binding = processor
-        .spell_check(sample_text, Some("python"), None)
+        .spell_check(sample_text, Some(LanguageType::Python), None)
         .to_vec();
     let mut misspelled = binding
         .iter()
@@ -56,7 +59,7 @@ multi_line_comment = '''
     ];
     let processor = utils::get_processor();
     let misspelled = processor
-        .spell_check(sample_python, Some("python"), None)
+        .spell_check(sample_python, Some(LanguageType::Python), None)
         .to_vec();
     println!("Misspelled words: {misspelled:?}");
     for e in &expected {
@@ -122,7 +125,7 @@ def constructor():
     let not_expected = vec!["zzzznomethod", "hardx", "hardd"];
     let processor = utils::get_processor();
     let misspelled = processor
-        .spell_check(sample_python, Some("python"), None)
+        .spell_check(sample_python, Some(LanguageType::Python), None)
         .to_vec();
     println!("Misspelled words: {misspelled:?}");
     for e in &expected {

@@ -110,12 +110,12 @@ impl CodeDictionary {
     pub fn spell_check(
         &self,
         text: &str,
-        language_id: Option<&str>,
+        language_id: Option<LanguageType>,
         path: Option<&str>,
     ) -> Vec<SpellCheckResult> {
         // Check if we have a language_id first, fallback to path, fall back to text
         let lang_type = match language_id {
-            Some(lang) => LanguageType::from_str(lang),
+            Some(lang) => lang,
             None => match path {
                 Some(path) => get_language_name_from_filename(path),
                 None => LanguageType::Text,

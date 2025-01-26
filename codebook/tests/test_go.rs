@@ -1,4 +1,7 @@
-use codebook::dictionary::{SpellCheckResult, TextRange};
+use codebook::{
+    dictionary::{SpellCheckResult, TextRange},
+    queries::LanguageType,
+};
 
 mod utils;
 
@@ -30,7 +33,7 @@ fn test_go_location() {
     ];
     let processor = utils::get_processor();
     let misspelled = processor
-        .spell_check(sample_text, Some("go"), None)
+        .spell_check(sample_text, Some(LanguageType::Text), None)
         .to_vec();
     println!("Misspelled words: {misspelled:?}");
     for e in &expected {

@@ -1,4 +1,7 @@
-use codebook::dictionary::{SpellCheckResult, TextRange};
+use codebook::{
+    dictionary::{SpellCheckResult, TextRange},
+    queries::LanguageType,
+};
 
 mod utils;
 
@@ -23,7 +26,7 @@ fn test_css_location() {
     )];
     let processor = utils::get_processor();
     let misspelled = processor
-        .spell_check(sample_css, Some("css"), None)
+        .spell_check(sample_css, Some(LanguageType::Css), None)
         .to_vec();
     println!("Misspelled words: {misspelled:?}");
     assert_eq!(misspelled, expected);
