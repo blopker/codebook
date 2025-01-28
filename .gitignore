@@ -2,5 +2,6 @@ target
 examples/big.html
 .cache
 *.wasm
+profile.json
 
 node_modules
