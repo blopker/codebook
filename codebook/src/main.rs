@@ -19,10 +19,7 @@ fn main() {
             }
         "#;
 
-        let misspelled =
-            processor
-                .dictionary
-                .spell_check(sample_text, Some(LanguageType::Rust), None);
+        let misspelled = processor.spell_check(sample_text, Some(LanguageType::Rust), None);
         println!("Misspelled words: {:?}", misspelled);
         return;
     }
@@ -32,9 +29,7 @@ fn main() {
         eprintln!("Can't find file {path:?}");
         return;
     }
-    let results = processor
-        .dictionary
-        .spell_check_file(path.to_str().unwrap());
+    let results = processor.spell_check_file(path.to_str().unwrap());
     println!("Misspelled words: {:?}", results);
     println!("Done");
 }

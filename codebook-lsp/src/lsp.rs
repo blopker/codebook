@@ -124,7 +124,7 @@ impl LanguageServer for Backend {
                 return;
             };
 
-            let suggestions = self.codebook.dictionary.suggest(word);
+            let suggestions = self.codebook.get_suggestions(word);
             suggestions.iter().for_each(|suggestion| {
                 actions.push(CodeActionOrCommand::CodeAction(self.make_suggestion(
                     suggestion,
@@ -183,7 +183,7 @@ impl Backend {
         }
     }
     fn make_diagnostic(&self, result: &SpellCheckResult, range: &TextRange) -> Diagnostic {
-        let message = format!("Possible spelling issue: '{}'.", result.word);
+        let message = format!("Possible spelling issue '{}'.", result.word);
         Diagnostic {
             range: Range {
                 start: Position {
@@ -300,7 +300,7 @@ impl Backend {
             Some(lang) => Some(LanguageType::from_str(lang)),
             _ => None,
         };
-        let spell_results = self.codebook.dictionary.spell_check(
+        let spell_results = self.codebook.spell_check(
             &doc.text,
             lang_type,
             Some(file_path.to_str().unwrap_or_default()),
