@@ -6,10 +6,10 @@ test:
 	cargo test -- --test-threads=20
 
 build: generate_word_list
-	cd codebook-lsp && cargo build
+	cd crates/codebook-lsp && cargo build
 
 build-release: generate_word_list
-	cd codebook-lsp && cargo build --release
+	cd crates/codebook-lsp && cargo build --release
 
 integration_test: build
 	cd integration_tests && bun test

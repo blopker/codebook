@@ -235,7 +235,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
- "spellbook 0.2.0 (git+https://github.com/helix-editor/spellbook.git#b6c31ea)",
+ "spellbook 0.2.0 (git+https://github.com/helix-editor/spellbook.git?rev=b6c31ea)",
  "streaming-iterator",
  "tempfile",
  "tokio",
@@ -1113,7 +1113,7 @@ dependencies = [
 [[package]]
 name = "spellbook"
 version = "0.2.0"
-source = "git+https://github.com/helix-editor/spellbook.git#b6c31ea#b6c31ea767443437e44ddd3786318202d8a157ec"
+source = "git+https://github.com/helix-editor/spellbook.git?rev=b6c31ea#b6c31ea767443437e44ddd3786318202d8a157ec"
 dependencies = [
  "ahash",
  "hashbrown 0.15.2",

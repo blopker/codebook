@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 lazy_static = "1.5.0"
 regex = "1.11.1"
-spellbook = { git = "https://github.com/helix-editor/spellbook.git#b6c31ea" }
+spellbook = { git = "https://github.com/helix-editor/spellbook.git", rev = "b6c31ea" }
 tree-sitter = "<0.25.0"
 tree-sitter-css = "<0.25.0"
 tree-sitter-rust = "<0.25.0"
