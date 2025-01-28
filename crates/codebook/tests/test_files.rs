@@ -6,7 +6,8 @@ use codebook::{
 mod utils;
 
 fn example_file_path(file: &str) -> String {
-    format!("../examples/{}", file)
+    // get root of the project through CARGO_MANIFEST_DIR
+    format!("../../examples/{}", file)
 }
 
 #[test]

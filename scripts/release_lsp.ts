@@ -29,7 +29,7 @@ try {
   }
 }
 
-const lspPath = path.join(__dirname, "..", "codebook-lsp");
+const lspPath = path.join(__dirname, "..", "crates", "codebook-lsp");
 const cargoPath = path.join(lspPath, "Cargo.toml");
 const cargo = fs.readFileSync(cargoPath, "utf-8");
 const version = cargo.match(/version = "(.*)"/)?.[1] ?? "None";

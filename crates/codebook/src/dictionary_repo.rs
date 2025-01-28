@@ -1,6 +1,6 @@
 use std::sync::LazyLock;
 
-static CODEBOOK_DICTIONARY: &str = include_str!("../../word_lists/combined.gen.txt");
+static CODEBOOK_DICTIONARY: &str = include_str!("../../../word_lists/combined.gen.txt");
 
 #[derive(Clone, Debug)]
 struct HunspellDictionaryLocation {
