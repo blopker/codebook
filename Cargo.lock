@@ -235,7 +235,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
- "spellbook",
+ "spellbook 0.2.0 (git+https://github.com/helix-editor/spellbook.git#b6c31ea)",
  "streaming-iterator",
  "tempfile",
  "tokio",
@@ -268,7 +268,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
- "spellbook",
+ "spellbook 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "streaming-iterator",
  "tempfile",
  "tokio",
@@ -1105,6 +1105,15 @@ name = "spellbook"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "880af4c079784bfbc72d39cd8754bcd092937fbb07ee70a39d8e7f423ca7beaf"
+dependencies = [
+ "ahash",
+ "hashbrown 0.15.2",
+]
+
+[[package]]
+name = "spellbook"
+version = "0.2.0"
+source = "git+https://github.com/helix-editor/spellbook.git#b6c31ea#b6c31ea767443437e44ddd3786318202d8a157ec"
 dependencies = [
  "ahash",
  "hashbrown 0.15.2",

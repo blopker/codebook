@@ -7,8 +7,10 @@ import (
 func main() {
 	// I'm bad at speling alice
 	fmt.Println("Hello, Wolrd!")
-	var alice = "Alice"
-	fmt.Println("Hello, " + alice)
+	var alicz = "Alicz"
+	fmt.Println("Hello, " + alicz)
+	var rsvp = "RSVP"
+	fmt.Println("Hello, " + rsvp)
 }
 
 func mispeledFuncion() string {

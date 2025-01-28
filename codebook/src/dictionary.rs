@@ -34,6 +34,13 @@ pub struct TextRange {
     pub end_line: u32,
 }
 
+enum WordCase {
+    AllCaps,
+    AllLower,
+    TitleCase,
+    Unknown,
+}
+
 #[derive(Debug)]
 pub struct CodeDictionary {
     custom_dictionary: Arc<RwLock<HashSet<String>>>,
@@ -74,7 +81,26 @@ impl CodeDictionary {
         if self.config.is_allowed_word(&lower_word) {
             return true;
         }
-        self.dictionary.check(word)
+        if self.dictionary.check(word) {
+            return true;
+        }
+        if self
+            .dictionary
+            .checker()
+            .check_lower_as_title(true)
+            .check(word)
+        {
+            return true;
+        }
+        if self
+            .dictionary
+            .checker()
+            .check_lower_as_upper(true)
+            .check(word)
+        {
+            return true;
+        }
+        false
     }
 
     pub fn add_to_dictionary(&self, strings: &str) {
@@ -99,12 +125,43 @@ impl CodeDictionary {
         self.dictionary.suggest(word, &mut suggestions);
         suggestions.truncate(5);
         if !suggestions.is_empty() {
+            let word_case = self.get_word_case(&word);
+            // mutate suggestions in place to match case
+
+            for suggestion in &mut suggestions {
+                match word_case {
+                    WordCase::AllCaps => {
+                        suggestion.make_ascii_uppercase();
+                    }
+                    WordCase::AllLower => {
+                        suggestion.make_ascii_lowercase();
+                    }
+                    WordCase::TitleCase => {
+                        // Leave it alone if it's a title case
+                    }
+                    WordCase::Unknown => {}
+                }
+            }
+
             self.suggestion_cache
                 .write()
                 .unwrap()
                 .put(word.to_string(), suggestions.clone());
         }
         suggestions
+    }
+
+    fn get_word_case(&self, word: &str) -> WordCase {
+        if word.chars().all(char::is_uppercase) {
+            return WordCase::AllCaps;
+        }
+        if word.chars().all(char::is_lowercase) {
+            return WordCase::AllLower;
+        }
+        if word.chars().next().unwrap().is_uppercase() {
+            return WordCase::TitleCase;
+        }
+        WordCase::Unknown
     }
 
     pub fn spell_check(
@@ -328,7 +385,6 @@ mod dictionary_tests {
     #[test]
     fn test_spell_checking() {
         let processor = get_dict();
-
         let text = "HelloWorld calc_wrld";
         let misspelled = processor.spell_check_type(text, LanguageType::Text);
         println!("{:?}", misspelled);
@@ -413,8 +469,15 @@ mod dictionary_tests {
         let suggestions = dict.suggest("wrld");
         println!("{:?}", suggestions);
         assert!(suggestions.contains(&"world".to_string()));
+    }
+
+    #[test]
+    fn test_ignore_case() {
+        let dict = get_dict();
+        let check = dict.check("alice");
+        assert!(check);
         let suggestions = dict.suggest("alice");
         println!("{:?}", suggestions);
-        assert!(suggestions.contains(&"Alice".to_string()));
+        assert!(suggestions.contains(&"alice".to_string()));
     }
 }
