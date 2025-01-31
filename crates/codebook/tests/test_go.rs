@@ -1,5 +1,5 @@
 use codebook::{
-    dictionary::{SpellCheckResult, TextRange},
+    parser::{TextRange, WordLocation},
     queries::LanguageType,
 };
 
@@ -17,40 +17,36 @@ fn test_go_location() {
         return alicz
     }"#;
     let expected = vec![
-        SpellCheckResult::new(
+        WordLocation::new(
             "mispeled".to_string(),
             vec![TextRange {
                 start_char: 9,
                 end_char: 17,
-                start_line: 4,
-                end_line: 4,
+                line: 4,
             }],
         ),
-        SpellCheckResult::new(
+        WordLocation::new(
             "Funcion".to_string(),
             vec![TextRange {
                 start_char: 17,
                 end_char: 24,
-                start_line: 4,
-                end_line: 4,
+                line: 4,
             }],
         ),
-        SpellCheckResult::new(
+        WordLocation::new(
             "Alizzz".to_string(),
             vec![TextRange {
                 start_char: 21,
                 end_char: 27,
-                start_line: 5,
-                end_line: 5,
+                line: 5,
             }],
         ),
-        SpellCheckResult::new(
+        WordLocation::new(
             "alicz".to_string(),
             vec![TextRange {
                 start_char: 12,
                 end_char: 17,
-                start_line: 5,
-                end_line: 5,
+                line: 5,
             }],
         ),
     ];

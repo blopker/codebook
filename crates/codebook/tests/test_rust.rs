@@ -1,8 +1,7 @@
 use codebook::{
-    dictionary::{SpellCheckResult, TextRange},
+    parser::{TextRange, WordLocation},
     queries::LanguageType,
 };
-
 mod utils;
 
 #[test]
@@ -35,13 +34,12 @@ fn test_rust_comment_location() {
     let sample_rust = r#"
         // Comment with a typo: mment
         "#;
-    let expected = vec![SpellCheckResult::new(
+    let expected = vec![WordLocation::new(
         "mment".to_string(),
         vec![TextRange {
             start_char: 32,
             end_char: 37,
-            start_line: 1,
-            end_line: 1,
+            line: 1,
         }],
     )];
     let processor = utils::get_processor();
@@ -63,31 +61,28 @@ fn test_rust_struct() {
         }
         "#;
     let expected = vec![
-        SpellCheckResult::new(
+        WordLocation::new(
             "Speler".to_string(),
             vec![TextRange {
                 start_char: 22,
                 end_char: 28,
-                start_line: 1,
-                end_line: 1,
+                line: 1,
             }],
         ),
-        SpellCheckResult::new(
+        WordLocation::new(
             "dwnloader".to_string(),
             vec![TextRange {
                 start_char: 35,
                 end_char: 44,
-                start_line: 2,
-                end_line: 2,
+                line: 2,
             }],
         ),
-        SpellCheckResult::new(
+        WordLocation::new(
             "dataz".to_string(),
             vec![TextRange {
                 start_char: 16,
                 end_char: 21,
-                start_line: 3,
-                end_line: 3,
+                line: 3,
             }],
         ),
     ];

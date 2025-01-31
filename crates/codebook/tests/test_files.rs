@@ -1,5 +1,5 @@
 use codebook::{
-    dictionary::{SpellCheckResult, TextRange},
+    parser::{TextRange, WordLocation},
     queries::LanguageType,
 };
 
@@ -13,72 +13,66 @@ fn example_file_path(file: &str) -> String {
 #[test]
 fn test_example_files_word_locations() {
     utils::init_logging();
-    let files: Vec<(&str, Vec<SpellCheckResult>)> = vec![
+    let files: Vec<(&str, Vec<WordLocation>)> = vec![
         (
             "example.py",
-            vec![SpellCheckResult::new(
+            vec![WordLocation::new(
                 "Pthon".to_string(),
                 vec![TextRange {
                     start_char: 10,
                     end_char: 15,
-                    start_line: 0,
-                    end_line: 0,
+                    line: 0,
                 }],
             )],
         ),
         (
             "example.ts",
-            vec![SpellCheckResult::new(
+            vec![WordLocation::new(
                 "mistkes".to_string(),
                 vec![TextRange {
                     start_char: 19,
                     end_char: 26,
-                    start_line: 12,
-                    end_line: 12,
+                    line: 12,
                 }],
             )],
         ),
         // ("example.md", vec!["bvd", "splellin", "wolrd"]),
         (
             "example.txt",
-            vec![SpellCheckResult {
+            vec![WordLocation {
                 word: "Splellin".to_string(),
                 locations: vec![TextRange {
                     start_char: 10,
                     end_char: 18,
-                    start_line: 0,
-                    end_line: 0,
+                    line: 0,
                 }],
             }],
         ),
         (
             "example.md",
             vec![
-                SpellCheckResult {
+                WordLocation {
                     word: "wolrd".to_string(),
                     locations: vec![TextRange {
                         start_char: 26,
                         end_char: 31,
-                        start_line: 0,
-                        end_line: 0,
+                        line: 0,
                     }],
                 },
-                SpellCheckResult {
+                WordLocation {
                     word: "Wolrd".to_string(),
                     locations: vec![TextRange {
                         start_char: 20,
                         end_char: 25,
-                        start_line: 0,
-                        end_line: 0,
+                        line: 0,
                     }],
                 },
-                SpellCheckResult {
+                WordLocation {
                     word: "regulr".to_string(),
                     locations: vec![TextRange {
                         start_char: 6,
                         end_char: 12,
-                        start_line: 1,
-                        end_line: 1,
+                        line: 1,
                     }],
                 },
             ],

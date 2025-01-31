@@ -1,5 +1,5 @@
 use codebook::{
-    dictionary::{SpellCheckResult, TextRange},
+    parser::{TextRange, WordLocation},
     queries::LanguageType,
 };
 
@@ -13,13 +13,12 @@ fn test_toml_location() {
         toml = "0.5.8"
         testz = "0.1.0"
 "#;
-    let expected = vec![SpellCheckResult::new(
+    let expected = vec![WordLocation::new(
         "testx".to_string(),
         vec![TextRange {
             start_char: 16,
             end_char: 21,
-            start_line: 1,
-            end_line: 1,
+            line: 1,
         }],
     )];
     let not_expected = ["testz"];

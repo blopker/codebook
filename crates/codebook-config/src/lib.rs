@@ -73,7 +73,7 @@ impl<'de> Deserialize<'de> for ConfigSettings {
 
 #[derive(Debug, Clone)]
 pub struct CodebookConfig {
-    pub settings: Arc<RwLock<ConfigSettings>>,
+    settings: Arc<RwLock<ConfigSettings>>,
     pub config_path: Option<PathBuf>,
     pub cache_dir: PathBuf,
 }
@@ -93,6 +93,10 @@ impl CodebookConfig {
     pub fn load() -> Result<Self> {
         let current_dir = env::current_dir().context("Failed to get current directory")?;
         Self::find_and_load_config(&current_dir)
+    }
+
+    pub fn get_settings(&self) -> ConfigSettings {
+        self.settings.read().unwrap().clone()
     }
 
     pub fn new_no_file() -> Self {

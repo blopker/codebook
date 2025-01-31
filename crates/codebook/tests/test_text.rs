@@ -1,5 +1,5 @@
 use codebook::{
-    dictionary::{SpellCheckResult, TextRange},
+    parser::{TextRange, WordLocation},
     queries::LanguageType,
 };
 
@@ -32,13 +32,12 @@ fn test_text_simple() {
 #[test]
 fn test_text_location() {
     let sample_text = r#"hello regular regu"#;
-    let expected = vec![SpellCheckResult::new(
+    let expected = vec![WordLocation::new(
         "regu".to_string(),
         vec![TextRange {
             start_char: 14,
             end_char: 18,
-            start_line: 0,
-            end_line: 0,
+            line: 0,
         }],
     )];
     let processor = utils::get_processor();

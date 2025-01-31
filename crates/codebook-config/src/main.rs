@@ -7,7 +7,7 @@ fn main() -> anyhow::Result<()> {
     // Use the configuration
     println!(
         "Loaded dictionaries: {:?}",
-        config.settings.read().unwrap().dictionaries
+        config.get_settings().dictionaries
     );
 
     // Check if a path should be ignored

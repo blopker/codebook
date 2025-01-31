@@ -2,6 +2,7 @@ pub mod dictionary;
 mod dictionary_repo;
 pub mod downloader;
 mod log;
+pub mod parser;
 pub mod queries;
 mod splitter;
 
@@ -13,10 +14,11 @@ use std::{
 use codebook_config::CodebookConfig;
 use dictionary::CodeDictionary;
 use downloader::DictionaryDownloader;
+use parser::WordLocation;
 
 #[derive(Debug)]
 pub struct Codebook {
-    // downloader: DictionaryDownloader,
+    downloader: DictionaryDownloader,
     dictionary_cache: Arc<RwLock<HashMap<String, CodeDictionary>>>,
     config: Arc<CodebookConfig>,
 }
@@ -34,7 +36,7 @@ impl Codebook {
         )?;
         dictionary_cache.insert("en".to_string(), dictionary);
         Ok(Self {
-            // downloader,
+            downloader,
             dictionary_cache: Arc::new(RwLock::new(dictionary_cache)),
             config,
         })
@@ -45,22 +47,68 @@ impl Codebook {
         text: &str,
         language: Option<queries::LanguageType>,
         file_path: Option<&str>,
-    ) -> Vec<dictionary::SpellCheckResult> {
-        self.dictionary_cache
-            .read()
-            .unwrap()
-            .get("en")
-            .unwrap()
-            .spell_check(text, language, file_path)
+    ) -> Vec<parser::WordLocation> {
+        // get needed dictionary names
+        // get needed dictionaries
+        // call spell check on each dictionary
+        let language = self.resolve_language(language, file_path);
+        // let dictionary_ids = self.config.get_settings().dictionaries;
+        let dictionary_ids = vec!["en"];
+        let dictionaries = self.get_dictionaries(&dictionary_ids, language);
+        parser::find_locations(text, language, |word| {
+            for dictionary in &dictionaries {
+                if !dictionary.check(word) {
+                    return false;
+                }
+            }
+            true
+        })
     }
 
-    pub fn spell_check_file(&self, file_path: &str) -> Vec<dictionary::SpellCheckResult> {
-        self.dictionary_cache
-            .read()
-            .unwrap()
-            .get("en")
-            .unwrap()
-            .spell_check_file(file_path)
+    fn resolve_language(
+        &self,
+        language_type: Option<queries::LanguageType>,
+        path: Option<&str>,
+    ) -> queries::LanguageType {
+        // Check if we have a language_id first, fallback to path, fall back to text
+        match language_type {
+            Some(lang) => lang,
+            None => match path {
+                Some(path) => queries::get_language_name_from_filename(path),
+                None => queries::LanguageType::Text,
+            },
+        }
+    }
+
+    fn get_dictionaries(
+        &self,
+        dictionary_ids: &[&str],
+        language: queries::LanguageType,
+    ) -> Vec<CodeDictionary> {
+        let mut dictionaries = Vec::with_capacity(dictionary_ids.len());
+        for dictionary_id in dictionary_ids {
+            let dict = self.downloader.get(dictionary_id);
+            if dict.is_ok() {
+                let a = dict.unwrap();
+                let d = CodeDictionary::new(
+                    Arc::clone(&self.config),
+                    &a.aff_local_path,
+                    &a.dic_local_path,
+                );
+                if d.is_ok() {
+                    dictionaries.push(d.unwrap());
+                }
+            }
+        }
+        println!("dic_ids: {:?}", dictionary_ids);
+        println!("dic: {:?}", dictionaries);
+        dictionaries
+    }
+
+    pub fn spell_check_file(&self, path: &str) -> Vec<WordLocation> {
+        let lang_type = queries::get_language_name_from_filename(path);
+        let file_text = std::fs::read_to_string(path).unwrap();
+        return self.spell_check(&file_text, Some(lang_type), None);
     }
 
     pub fn get_suggestions(&self, word: &str) -> Vec<String> {

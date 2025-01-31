@@ -306,7 +306,7 @@ impl DictionaryDownloader {
 // Unit Tests
 // =====================
 #[cfg(test)]
-mod tests {
+mod integration_tests {
     use super::*;
     use tempfile::TempDir;
 

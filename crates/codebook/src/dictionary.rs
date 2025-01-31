@@ -1,38 +1,13 @@
-use crate::{dictionary_repo::get_codebook_dictionary, splitter};
+use crate::dictionary_repo::get_codebook_dictionary;
 use codebook_config::CodebookConfig;
-use log::{debug, info};
+use log::debug;
 use lru::LruCache;
 
-use crate::queries::{
-    get_language_name_from_filename, get_language_setting, LanguageSetting, LanguageType,
-};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     num::NonZeroUsize,
     sync::{Arc, RwLock},
 };
-use streaming_iterator::StreamingIterator;
-use tree_sitter::{Parser, Query, QueryCursor};
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct SpellCheckResult {
-    pub word: String,
-    pub locations: Vec<TextRange>,
-}
-
-impl SpellCheckResult {
-    pub fn new(word: String, locations: Vec<TextRange>) -> Self {
-        SpellCheckResult { word, locations }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Ord, Eq, PartialOrd)]
-pub struct TextRange {
-    pub start_char: u32,
-    pub end_char: u32,
-    pub start_line: u32,
-    pub end_line: u32,
-}
 
 enum WordCase {
     AllCaps,
@@ -103,15 +78,6 @@ impl CodeDictionary {
         false
     }
 
-    pub fn add_to_dictionary(&self, strings: &str) {
-        for line in strings.lines() {
-            self.custom_dictionary
-                .write()
-                .unwrap()
-                .insert(line.to_string());
-        }
-    }
-
     pub fn suggest(&self, word: &str) -> Vec<String> {
         debug!("Checking Cache: {:?}", word);
         // First try to get from cache with write lock since get() needs to modify LRU order
@@ -163,201 +129,6 @@ impl CodeDictionary {
         }
         WordCase::Unknown
     }
-
-    pub fn spell_check(
-        &self,
-        text: &str,
-        language_id: Option<LanguageType>,
-        path: Option<&str>,
-    ) -> Vec<SpellCheckResult> {
-        // Check if we have a language_id first, fallback to path, fall back to text
-        let lang_type = match language_id {
-            Some(lang) => lang,
-            None => match path {
-                Some(path) => get_language_name_from_filename(path),
-                None => LanguageType::Text,
-            },
-        };
-        return self.spell_check_type(text, lang_type);
-    }
-
-    pub fn spell_check_file(&self, path: &str) -> Vec<SpellCheckResult> {
-        let lang_type = get_language_name_from_filename(path);
-        let file_text = std::fs::read_to_string(path).unwrap();
-        return self.spell_check_type(&file_text, lang_type);
-    }
-
-    fn spell_check_type(&self, text: &str, language_type: LanguageType) -> Vec<SpellCheckResult> {
-        let language = get_language_setting(language_type);
-        match language {
-            None => {
-                return self.spell_check_text(text);
-            }
-            Some(lang) => {
-                return self.spell_check_code(text, lang);
-            }
-        }
-    }
-
-    fn spell_check_text(&self, text: &str) -> Vec<SpellCheckResult> {
-        let mut results: Vec<SpellCheckResult> = Vec::new();
-        let words = self.get_words_from_text(text);
-
-        // Check the last word if text doesn't end with punctuation
-        for (current_word, (word_start_char, current_line)) in words {
-            if !self.check(&current_word) {
-                let locations = vec![TextRange {
-                    start_char: word_start_char,
-                    end_char: word_start_char + current_word.chars().count() as u32,
-                    start_line: current_line,
-                    end_line: current_line,
-                }];
-                results.push(SpellCheckResult {
-                    word: current_word.clone(),
-                    locations,
-                });
-            }
-        }
-
-        results
-    }
-
-    /// Return Vec of words and their start char and line
-    /// Skips URLs
-    fn get_words_from_text(&self, text: &str) -> Vec<(String, (u32, u32))> {
-        const MIN_WORD_LENGTH: usize = 3;
-        let mut words = Vec::new();
-        let mut current_word = String::new();
-        let mut word_start_char: u32 = 0;
-        let mut current_char: u32 = 0;
-        let mut current_line: u32 = 0;
-
-        let add_word_fn = |current_word: &mut String,
-                           words: &mut Vec<(String, (u32, u32))>,
-                           word_start_char: u32,
-                           current_line: u32| {
-            if !current_word.is_empty() {
-                if current_word.len() < MIN_WORD_LENGTH {
-                    current_word.clear();
-                    return;
-                }
-                let split = splitter::split_camel_case(&current_word);
-                for split_word in split {
-                    words.push((
-                        split_word.word.clone(),
-                        (word_start_char + split_word.start_char, current_line),
-                    ));
-                }
-                current_word.clear();
-            }
-        };
-
-        for line in text.lines() {
-            let mut chars_to_skip = 0;
-            for (i, c) in line.chars().enumerate() {
-                if chars_to_skip > 0 {
-                    chars_to_skip -= 1;
-                    continue;
-                }
-                if c == ':' {
-                    if let Some((url_start, url_end)) = splitter::find_url_end(&line[i..]) {
-                        // Toss the current word and skip the URL
-                        current_word.clear();
-                        debug!(
-                            "Found url: {}, skipping: {}",
-                            &line[url_start + i..url_end + i],
-                            url_end
-                        );
-                        chars_to_skip = url_end;
-                        current_char += url_end as u32 + 1;
-                        continue;
-                    }
-                }
-                let is_contraction = c == '\''
-                    && i > 0
-                    && i < line.len() - 1
-                    && line.chars().nth(i - 1).unwrap().is_alphabetic()
-                    && line.chars().nth(i + 1).unwrap().is_alphabetic();
-                if c.is_alphabetic() || is_contraction {
-                    if current_word.is_empty() {
-                        word_start_char = current_char;
-                    }
-                    current_word.push(c);
-                } else {
-                    add_word_fn(&mut current_word, &mut words, word_start_char, current_line);
-                }
-                current_char += 1;
-            }
-            add_word_fn(&mut current_word, &mut words, word_start_char, current_line);
-            current_line += 1;
-            current_char = 0;
-        }
-        words
-    }
-
-    fn spell_check_code(
-        &self,
-        text: &str,
-        language_setting: &LanguageSetting,
-    ) -> Vec<SpellCheckResult> {
-        let mut parser = Parser::new();
-        let language = language_setting.language().unwrap();
-        parser.set_language(&language).unwrap();
-
-        let tree = parser.parse(text, None).unwrap();
-        let root_node = tree.root_node();
-
-        let query = Query::new(&language, language_setting.query).unwrap();
-        let mut cursor = QueryCursor::new();
-        let mut word_locations: HashMap<String, Vec<TextRange>> = HashMap::new();
-        let mut matches_query = cursor.matches(&query, root_node, text.as_bytes());
-
-        while let Some(match_) = matches_query.next() {
-            for capture in match_.captures {
-                let node = capture.node;
-                let node_text = node.utf8_text(text.as_bytes()).unwrap();
-                let node_start = node.start_position();
-                let current_line = node_start.row as u32;
-                let current_column = node_start.column as u32;
-                let words = self.get_words_from_text(node_text);
-                debug!("Found Capture:: {node_text:?}");
-                debug!("Words:: {words:?}");
-                debug!("Column: {current_column}");
-                debug!("Line: {current_line}");
-                for (word_text, (text_start_char, text_line)) in words {
-                    info!("Checking: {:?}", word_text);
-                    if !self.check(&word_text) {
-                        let offset = if text_line == 0 { current_column } else { 0 };
-                        let base_start_char = text_start_char + offset;
-                        let location = TextRange {
-                            start_char: base_start_char,
-                            end_char: base_start_char + word_text.chars().count() as u32,
-                            start_line: text_line + current_line,
-                            end_line: text_line + current_line,
-                        };
-                        if let Some(existing_result) = word_locations.get_mut(&word_text) {
-                            #[cfg(debug_assertions)]
-                            if existing_result.contains(&location) {
-                                panic!("Two of the same locations found. Make a better query.")
-                            }
-                            existing_result.push(location);
-                        } else {
-                            word_locations.insert(word_text.clone(), vec![location]);
-                        }
-                    }
-                }
-            }
-        }
-
-        word_locations
-            .keys()
-            .into_iter()
-            .map(|word| SpellCheckResult {
-                word: word.clone(),
-                locations: word_locations.get(word).cloned().unwrap_or_default(),
-            })
-            .collect()
-    }
 }
 
 #[cfg(test)]
@@ -380,87 +151,6 @@ mod dictionary_tests {
     fn test_spell_checking_custom_word() {
         let processor = get_dict();
         assert!(processor.check("badword"));
-    }
-
-    #[test]
-    fn test_spell_checking() {
-        let processor = get_dict();
-        let text = "HelloWorld calc_wrld";
-        let misspelled = processor.spell_check_type(text, LanguageType::Text);
-        println!("{:?}", misspelled);
-        assert!(misspelled.iter().any(|r| r.word == "wrld"));
-    }
-
-    #[test]
-    fn test_get_words_from_text() {
-        let dict = get_dict();
-        let text = r#"
-            HelloWorld calc_wrld
-            I'm a contraction, don't ignore me
-            this is a 3rd line.
-            "#;
-        let expected = vec![
-            ("Hello", (12, 1)),
-            ("World", (17, 1)),
-            ("calc", (23, 1)),
-            ("wrld", (28, 1)),
-            ("I'm", (12, 2)),
-            ("contraction", (18, 2)),
-            ("don't", (31, 2)),
-            ("ignore", (37, 2)),
-            ("this", (12, 3)),
-            ("line", (26, 3)),
-        ];
-        let words = dict.get_words_from_text(text);
-        println!("{:?}", words);
-        for (i, w) in expected.into_iter().enumerate() {
-            assert_eq!(words[i], (w.0.to_string(), w.1));
-        }
-    }
-
-    #[test]
-    fn test_is_url() {
-        crate::log::init_test_logging();
-        let dict = get_dict();
-        let text = "https://www.google.com";
-        let words = dict.get_words_from_text(text);
-        println!("{:?}", words);
-        assert_eq!(words.len(), 0);
-    }
-
-    #[test]
-    fn test_is_url_in_context() {
-        crate::log::init_test_logging();
-        let dict = get_dict();
-        let text = "Usez: https://intmainreturn0.com/ts-visualizer/ badwrd";
-        let words = dict.get_words_from_text(text);
-        println!("{:?}", words);
-        assert_eq!(words.len(), 2);
-        assert_eq!(words[0].0, "Usez");
-        assert_eq!(words[1].0, "badwrd");
-        assert_eq!(words[1].1, (48, 0));
-    }
-
-    #[test]
-    fn test_contraction() {
-        let dict = get_dict();
-        let text = "I'm a contraction, wouldn't you agree?";
-        let words = dict.get_words_from_text(text);
-        println!("{:?}", words);
-        assert_eq!(words[0].0, "I'm");
-        assert_eq!(words[1].0, "contraction");
-        assert_eq!(words[2].0, "wouldn't");
-        assert_eq!(words[3].0, "you");
-        assert_eq!(words[4].0, "agree");
-    }
-
-    #[test]
-    fn test_contraction_text() {
-        let dict = get_dict();
-        let text = "I'm a contraction, wouldn't you agre?";
-        let words = dict.spell_check_text(text);
-        println!("{:?}", words);
-        assert_eq!(words[0].word, "agre");
     }
 
     #[test]

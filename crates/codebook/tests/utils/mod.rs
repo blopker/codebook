@@ -1,14 +1,10 @@
 use std::sync::Arc;
 
-use codebook::dictionary::CodeDictionary;
-static EXTRA_WORDS: &'static [&'static str] = &["http", "https", "www", "viewport", "UTF"];
+use codebook::Codebook;
 
-pub fn get_processor() -> CodeDictionary {
+pub fn get_processor() -> Codebook {
     let config = Arc::new(codebook_config::CodebookConfig::default());
-    let dict = CodeDictionary::new(config, "./tests/en_index.aff", "./tests/en_index.dic").unwrap();
-    for word in EXTRA_WORDS {
-        dict.add_to_dictionary(word);
-    }
+    let dict = Codebook::new(config).unwrap();
     dict
 }
 

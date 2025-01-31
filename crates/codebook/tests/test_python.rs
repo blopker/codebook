@@ -1,5 +1,5 @@
 use codebook::{
-    dictionary::{SpellCheckResult, TextRange},
+    parser::{TextRange, WordLocation},
     queries::LanguageType,
 };
 
@@ -38,22 +38,20 @@ multi_line_comment = '''
 '''
         "#;
     let expected = vec![
-        SpellCheckResult::new(
+        WordLocation::new(
             "mment".to_string(),
             vec![TextRange {
                 start_char: 46,
                 end_char: 51,
-                start_line: 2,
-                end_line: 2,
+                line: 2,
             }],
         ),
-        SpellCheckResult::new(
+        WordLocation::new(
             "linet".to_string(),
             vec![TextRange {
                 start_char: 12,
                 end_char: 17,
-                start_line: 3,
-                end_line: 3,
+                line: 3,
             }],
         ),
     ];
@@ -85,40 +83,36 @@ def constructor():
 '''
         "#;
     let expected = vec![
-        SpellCheckResult::new(
+        WordLocation::new(
             "Spelin".to_string(),
             vec![TextRange {
                 start_char: 9,
                 end_char: 15,
-                start_line: 1,
-                end_line: 1,
+                line: 1,
             }],
         ),
-        SpellCheckResult::new(
+        WordLocation::new(
             "nospel".to_string(),
             vec![TextRange {
                 start_char: 8,
                 end_char: 14,
-                start_line: 2,
-                end_line: 2,
+                line: 2,
             }],
         ),
-        SpellCheckResult::new(
+        WordLocation::new(
             "hardz".to_string(),
             vec![TextRange {
                 start_char: 28,
                 end_char: 33,
-                start_line: 5,
-                end_line: 5,
+                line: 5,
             }],
         ),
-        SpellCheckResult::new(
+        WordLocation::new(
             "hardg".to_string(),
             vec![TextRange {
                 start_char: 45,
                 end_char: 50,
-                start_line: 9,
-                end_line: 9,
+                line: 9,
             }],
         ),
     ];

@@ -1,5 +1,5 @@
 use codebook::{
-    dictionary::{SpellCheckResult, TextRange},
+    parser::{TextRange, WordLocation},
     queries::LanguageType,
 };
 
@@ -15,13 +15,12 @@ fn test_css_location() {
             color: blue;
         }
 "#;
-    let expected = vec![SpellCheckResult::new(
+    let expected = vec![WordLocation::new(
         "testz".to_string(),
         vec![TextRange {
             start_char: 9,
             end_char: 14,
-            start_line: 4,
-            end_line: 4,
+            line: 4,
         }],
     )];
     let processor = utils::get_processor();

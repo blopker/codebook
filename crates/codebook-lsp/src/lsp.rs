@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use codebook::dictionary::{SpellCheckResult, TextRange};
+use codebook::parser::TextRange;
+use codebook::parser::WordLocation;
 use codebook::queries::LanguageType;
 use serde_json::Value;
 use tower_lsp::jsonrpc::Result as RpcResult;
@@ -182,16 +183,16 @@ impl Backend {
             document_cache: TextDocumentCache::new(),
         }
     }
-    fn make_diagnostic(&self, result: &SpellCheckResult, range: &TextRange) -> Diagnostic {
+    fn make_diagnostic(&self, result: &WordLocation, range: &TextRange) -> Diagnostic {
         let message = format!("Possible spelling issue '{}'.", result.word);
         Diagnostic {
             range: Range {
                 start: Position {
-                    line: range.start_line,
+                    line: range.line,
                     character: range.start_char,
                 },
                 end: Position {
-                    line: range.end_line,
+                    line: range.line,
                     character: range.end_char,
                 },
             },
