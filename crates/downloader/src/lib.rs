@@ -1,5 +1,6 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use log::info;
 use reqwest::blocking::{Client, Response};
 use reqwest::header::{IF_MODIFIED_SINCE, LAST_MODIFIED};
 use serde::{Deserialize, Serialize};
@@ -38,6 +39,7 @@ impl Downloader {
     pub fn new(cache_dir: impl AsRef<Path>) -> Result<Self> {
         let cache_dir = cache_dir.as_ref().to_path_buf();
         fs::create_dir_all(&cache_dir)?;
+        info!("Cache folder at: {:?}", cache_dir);
 
         let metadata_path = cache_dir.join(METADATA_FILE);
         let metadata = if metadata_path.exists() {
@@ -65,7 +67,7 @@ impl Downloader {
                 .get(url)
                 .map(|e| e.last_checked.timestamp() + TWO_WEEKS as i64 <= Utc::now().timestamp())
         };
-        println!("Needs update {:?}", needs_update);
+        // println!("Needs update {:?}", needs_update);
         match needs_update {
             Some(true) => self.try_update(url),
             Some(false) => Ok(self.metadata.read().unwrap().files[url].path.clone()),

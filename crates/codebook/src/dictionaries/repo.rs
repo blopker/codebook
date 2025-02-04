@@ -1,7 +1,5 @@
 use std::sync::LazyLock;
 
-use super::dictionary::{Dictionary, HunspellDictionary};
-
 static CODEBOOK_DICTIONARY: &str = include_str!("../../../../word_lists/combined.gen.txt");
 
 #[derive(Clone, Debug)]
@@ -23,14 +21,16 @@ impl HunspellRepo {
 
 #[derive(Clone, Debug)]
 pub struct TextRepo {
-    pub url: String,
+    pub url: Option<String>,
+    pub text: Option<&'static str>,
     pub name: String,
 }
 
 impl TextRepo {
     pub fn new(name: &str, url: &str) -> Self {
         Self {
-            url: url.to_string(),
+            url: Some(url.to_string()),
+            text: None,
             name: name.to_string(),
         }
     }
@@ -66,12 +66,14 @@ static DICTIONARIES: LazyLock<Vec<DictionaryRepo>> = LazyLock::new(|| {
         "rust",
         "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/rust/dict/rust.txt",
     )),
+    DictionaryRepo::Text(
+    TextRepo{
+        name: "codebook".to_string(),
+        text: Some(CODEBOOK_DICTIONARY),
+        url: None
+    }),
     ]
 });
-
-pub fn get_codebook_dictionary() -> impl Iterator<Item = &'static str> {
-    CODEBOOK_DICTIONARY.lines().filter(|l| !l.contains('#'))
-}
 
 pub fn get_repo(name: &str) -> Option<DictionaryRepo> {
     let res = DICTIONARIES.iter().find(|d| match d {

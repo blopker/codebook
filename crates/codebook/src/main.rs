@@ -9,11 +9,11 @@ fn main() {
     let config = Arc::new(codebook_config::CodebookConfig::new_no_file());
     let processor = Codebook::new(config).unwrap();
 
-    // println!("My path is {:?}", args);
+    println!("My path is {:?}", args);
     if args.len() < 2 {
         let sample_text = r#"
-            fn calculate_user_age(birthDate: String) -> u32 {
-                // This is an example_function that calculates age
+            fn calculate_user_age(bithDate: String) -> u32 {
+                // This is a codebook example_function that calculates age
                 let userAge = get_current_date() - birthDate;
                 userAge
             }

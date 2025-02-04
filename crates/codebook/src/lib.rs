@@ -38,11 +38,11 @@ impl Codebook {
         let dictionaries = self.get_dictionaries(language);
         parser::find_locations(text, language, |word| {
             for dictionary in &dictionaries {
-                if !dictionary.check(word) {
-                    return false;
+                if dictionary.check(word) {
+                    return true;
                 }
             }
-            true
+            false
         })
     }
 

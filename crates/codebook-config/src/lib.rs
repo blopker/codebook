@@ -94,16 +94,16 @@ impl CodebookConfig {
         Self::find_and_load_config(&current_dir)
     }
 
+    pub fn new_no_file() -> Self {
+        Self::default()
+    }
+
     pub fn get_dictionary_ids(&self) -> Vec<String> {
         let ids = self.settings.read().unwrap().dictionaries.clone();
         if ids.is_empty() {
-            return vec!["en".to_string()];
+            return vec!["en".to_string(), "codebook".to_string()];
         }
         ids
-    }
-
-    pub fn new_no_file() -> Self {
-        Self::default()
     }
 
     pub fn reload(&self) -> Result<bool> {

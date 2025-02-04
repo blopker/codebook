@@ -122,10 +122,20 @@ pub struct TextDictionary {
 
 impl Dictionary for TextDictionary {
     fn check(&self, word: &str) -> bool {
-        true
+        let lower = word.to_lowercase();
+        let words = self
+            .word_list
+            .lines()
+            .filter(|s| !s.is_empty() && !s.starts_with('#'));
+        for w in words {
+            if w == lower {
+                return true;
+            }
+        }
+        false
     }
-    fn suggest(&self, word: &str) -> Vec<String> {
-        vec!["bo".to_string()]
+    fn suggest(&self, _word: &str) -> Vec<String> {
+        vec![]
     }
 }
 
