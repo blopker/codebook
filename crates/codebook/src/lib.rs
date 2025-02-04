@@ -37,6 +37,9 @@ impl Codebook {
         let language = self.resolve_language(language, file_path);
         let dictionaries = self.get_dictionaries(language);
         parser::find_locations(text, language, |word| {
+            if self.config.is_allowed_word(word) {
+                return true;
+            }
             for dictionary in &dictionaries {
                 if dictionary.check(word) {
                     return true;
@@ -73,8 +76,6 @@ impl Codebook {
                 None => {}
             }
         }
-        // println!("dic_ids: {:?}", dictionary_ids);
-        // println!("dic: {:?}", dictionaries);
         dictionaries
     }
 
