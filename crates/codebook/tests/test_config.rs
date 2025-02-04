@@ -6,8 +6,6 @@ use codebook::{
     Codebook,
 };
 
-mod utils;
-
 pub fn get_processor(words: Option<&[&str]>) -> Codebook {
     let config = Arc::new(codebook_config::CodebookConfig::new_no_file());
     if words.is_some() {

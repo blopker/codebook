@@ -101,7 +101,7 @@ impl CodebookConfig {
     pub fn get_dictionary_ids(&self) -> Vec<String> {
         let ids = self.settings.read().unwrap().dictionaries.clone();
         if ids.is_empty() {
-            return vec!["en".to_string(), "codebook".to_string()];
+            return vec!["en_us".to_string()];
         }
         ids
     }

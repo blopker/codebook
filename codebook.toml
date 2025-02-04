@@ -1,3 +1,4 @@
+dictionaries = []
 words = [
     "aff",
     "allowlist",

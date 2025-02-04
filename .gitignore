@@ -5,3 +5,5 @@ examples/big.html
 profile.json
 
 node_modules
+.aider*
+.env

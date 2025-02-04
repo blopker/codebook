@@ -16,7 +16,7 @@ use log::{debug, info};
 
 use crate::file_cache::TextDocumentCache;
 
-const SOURCE_NAME: &str = "Codebook";
+const SOURCE_NAME: &str = "Codeword";
 
 pub struct Backend {
     pub client: Client,

@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    path::PathBuf,
     sync::{Arc, RwLock},
 };
 
@@ -7,24 +8,20 @@ use super::{
     dictionary::{self, TextDictionary},
     repo::{get_repo, DictionaryRepo, HunspellRepo, TextRepo},
 };
-use codebook_config::CodebookConfig;
 use dictionary::{Dictionary, HunspellDictionary};
 use downloader::Downloader;
 use log::info;
 
 pub struct DictionaryManager {
-    config: Arc<CodebookConfig>,
     dictionary_cache: Arc<RwLock<HashMap<String, Arc<dyn Dictionary>>>>,
     downloader: Downloader,
 }
 
 impl DictionaryManager {
-    pub fn new(config: Arc<CodebookConfig>) -> Self {
-        let cache_path = config.cache_dir.clone();
+    pub fn new(cache_dir: &PathBuf) -> Self {
         Self {
-            config,
             dictionary_cache: Arc::new(RwLock::new(HashMap::new())),
-            downloader: Downloader::new(cache_path).unwrap(),
+            downloader: Downloader::new(cache_dir).unwrap(),
         }
     }
 

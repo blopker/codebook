@@ -19,7 +19,7 @@ pub struct Codebook {
 impl Codebook {
     pub fn new(config: Arc<CodebookConfig>) -> Result<Self, Box<dyn std::error::Error>> {
         crate::log::init_logging();
-        let manager = DictionaryManager::new(Arc::clone(&config));
+        let manager = DictionaryManager::new(&config.cache_dir);
         Ok(Self { config, manager })
     }
 
@@ -35,7 +35,7 @@ impl Codebook {
         // get needed dictionaries
         // call spell check on each dictionary
         let language = self.resolve_language(language, file_path);
-        let dictionaries = self.get_dictionaries(language);
+        let dictionaries = self.get_dictionaries(Some(language));
         parser::find_locations(text, language, |word| {
             if self.config.is_allowed_word(word) {
                 return true;
@@ -64,10 +64,20 @@ impl Codebook {
         }
     }
 
-    fn get_dictionaries(&self, language: queries::LanguageType) -> Vec<Arc<dyn Dictionary>> {
+    fn get_dictionaries(
+        &self,
+        language: Option<queries::LanguageType>,
+    ) -> Vec<Arc<dyn Dictionary>> {
         let mut dictionary_ids = self.config.get_dictionary_ids();
-        let language_dictionary_ids = language.dictionary_ids();
-        dictionary_ids.extend(language_dictionary_ids);
+        match language {
+            Some(lang) => {
+                let language_dictionary_ids = lang.dictionary_ids();
+                dictionary_ids.extend(language_dictionary_ids);
+            }
+            None => {}
+        };
+        // Push custom codebook dictionary. Could be removed later for a more general solution.
+        dictionary_ids.push("codebook".to_string());
         let mut dictionaries = Vec::with_capacity(dictionary_ids.len());
         for dictionary_id in dictionary_ids {
             let dictionary = self.manager.get_dictionary(&dictionary_id);
@@ -86,6 +96,11 @@ impl Codebook {
     }
 
     pub fn get_suggestions(&self, word: &str) -> Vec<String> {
-        vec![]
+        let dictionaries = self.get_dictionaries(None);
+        let mut suggestions = Vec::new();
+        for dict in dictionaries {
+            suggestions.extend(dict.suggest(word));
+        }
+        suggestions.iter().take(5).cloned().collect()
     }
 }

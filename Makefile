@@ -3,7 +3,7 @@ MAKEFLAGS += -j4
 export RUST_LOG=info
 
 test:
-	cargo test -- --test-threads=20
+	cargo test --lib --bins --tests -- --test-threads=20
 
 build: generate_word_list
 	cd crates/codebook-lsp && cargo build
