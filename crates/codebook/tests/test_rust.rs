@@ -15,7 +15,7 @@ fn test_rust_simple() {
             userAge
         }
     "#;
-    let expected = vec!["bith", "calculat", "examle"];
+    let expected = vec!["bith", "calculat", "examle", "usr"];
     let binding = processor
         .spell_check(sample_text, Some(LanguageType::Rust), None)
         .to_vec();

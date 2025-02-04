@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/codebook", "crates/codebook-config", "crates/codebook-lsp"]
+members = ["crates/codebook", "crates/codebook-config", "crates/codebook-lsp", "crates/downloader"]
 resolver = "2"
 
 [profile.test]

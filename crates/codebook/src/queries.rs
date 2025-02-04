@@ -24,6 +24,18 @@ impl LanguageType {
         }
         LanguageType::Text
     }
+    pub fn dictionary_ids(&self) -> Vec<String> {
+        for language in LANGUAGE_SETTINGS.iter() {
+            if self == &language.type_ {
+                return language
+                    .dictionary_ids
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect();
+            }
+        }
+        vec![]
+    }
 }
 
 // Use https://intmainreturn0.com/ts-visualizer/ to help with writing grammar queries
@@ -31,6 +43,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     LanguageSetting {
         type_: LanguageType::Rust,
         ids: &["rust"],
+        dictionary_ids: &["rust"],
         query: r#"
                 (function_item
                     name: (identifier) @identifier)
@@ -51,6 +64,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     LanguageSetting {
         type_: LanguageType::Python,
         ids: &["python"],
+        dictionary_ids: &["python"],
         query: r#"
             (comment) @comment
             (string) @string
@@ -66,6 +80,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     LanguageSetting {
         type_: LanguageType::Javascript,
         ids: &["javascript", "javascriptreact"],
+        dictionary_ids: &["javascript", "javascriptreact"],
         query: r#"
             (comment) @comment
             (string_fragment) @string
@@ -85,6 +100,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     LanguageSetting {
         type_: LanguageType::Typescript,
         ids: &["typescript", "typescriptreact"],
+        dictionary_ids: &["typescript", "typescriptreact"],
         query: r#"
             (comment) @comment
             (string_fragment) @string
@@ -102,6 +118,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     LanguageSetting {
         type_: LanguageType::Html,
         ids: &["html"],
+        dictionary_ids: &["html"],
         query: r#"
             (text) @string
             (comment) @comment
@@ -112,6 +129,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     LanguageSetting {
         type_: LanguageType::Css,
         ids: &["css"],
+        dictionary_ids: &["css"],
         query: r#"
             (class_name) @identifier
             (id_name) @identifier
@@ -125,6 +143,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     LanguageSetting {
         type_: LanguageType::Go,
         ids: &["go"],
+        dictionary_ids: &["go"],
         query: r#"
                 (comment) @comment
                 (argument_list (interpreted_string_literal) @string)
@@ -140,6 +159,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     LanguageSetting {
         type_: LanguageType::TOML,
         ids: &["toml"],
+        dictionary_ids: &["toml"],
         query: r#"
             (string) @string
             (comment) @comment
@@ -154,6 +174,7 @@ pub struct LanguageSetting {
     pub query: &'static str,
     /// ID from https://code.visualstudio.com/docs/languages/identifiers
     pub ids: &'static [&'static str],
+    pub dictionary_ids: &'static [&'static str],
     pub extensions: &'static [&'static str],
 }
 

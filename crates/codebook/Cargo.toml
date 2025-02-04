@@ -28,6 +28,7 @@ log = "0.4.22"
 lru = "0.12.5"
 
 codebook_config = { path = "../codebook-config" }
+downloader = { path = "../downloader" }
 
 [dev-dependencies]
 tempfile = "3"

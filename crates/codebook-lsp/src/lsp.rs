@@ -18,7 +18,6 @@ use crate::file_cache::TextDocumentCache;
 
 const SOURCE_NAME: &str = "Codebook";
 
-#[derive(Debug)]
 pub struct Backend {
     pub client: Client,
     pub codebook: Codebook,

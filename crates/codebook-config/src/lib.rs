@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::RwLock;
 
 static CACHE_DIR: &str = "codebook";
@@ -71,9 +70,9 @@ impl<'de> Deserialize<'de> for ConfigSettings {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct CodebookConfig {
-    settings: Arc<RwLock<ConfigSettings>>,
+    settings: RwLock<ConfigSettings>,
     pub config_path: Option<PathBuf>,
     pub cache_dir: PathBuf,
 }
@@ -81,7 +80,7 @@ pub struct CodebookConfig {
 impl Default for CodebookConfig {
     fn default() -> Self {
         Self {
-            settings: Arc::new(RwLock::new(ConfigSettings::default())),
+            settings: RwLock::new(ConfigSettings::default()),
             config_path: None,
             cache_dir: env::temp_dir().join(CACHE_DIR),
         }
@@ -95,8 +94,12 @@ impl CodebookConfig {
         Self::find_and_load_config(&current_dir)
     }
 
-    pub fn get_settings(&self) -> ConfigSettings {
-        self.settings.read().unwrap().clone()
+    pub fn get_dictionary_ids(&self) -> Vec<String> {
+        let ids = self.settings.read().unwrap().dictionaries.clone();
+        if ids.is_empty() {
+            return vec!["en".to_string()];
+        }
+        ids
     }
 
     pub fn new_no_file() -> Self {
@@ -237,7 +240,7 @@ impl CodebookConfig {
 
         let settings: ConfigSettings = toml::from_str(&content)
             .with_context(|| format!("Failed to parse config file: {}", path.display()))?;
-        let settings_arc = Arc::new(RwLock::new(settings));
+        let settings_arc = RwLock::new(settings);
         // Store the config file path
         let config = Self {
             settings: settings_arc,

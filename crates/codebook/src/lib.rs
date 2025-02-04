@@ -1,47 +1,30 @@
-pub mod dictionary;
-mod dictionary_repo;
-pub mod downloader;
+pub mod dictionaries;
 mod log;
 pub mod parser;
 pub mod queries;
 mod splitter;
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::sync::Arc;
 
 use codebook_config::CodebookConfig;
-use dictionary::CodeDictionary;
-use downloader::DictionaryDownloader;
+use dictionaries::{dictionary, manager::DictionaryManager};
+use dictionary::Dictionary;
 use parser::WordLocation;
 
-#[derive(Debug)]
 pub struct Codebook {
-    downloader: DictionaryDownloader,
-    dictionary_cache: Arc<RwLock<HashMap<String, CodeDictionary>>>,
     config: Arc<CodebookConfig>,
+    manager: DictionaryManager,
 }
 
 impl Codebook {
     pub fn new(config: Arc<CodebookConfig>) -> Result<Self, Box<dyn std::error::Error>> {
         crate::log::init_logging();
-        let downloader = DictionaryDownloader::with_cache(&config.cache_dir);
-        let files = downloader.get("en").unwrap();
-        let mut dictionary_cache = HashMap::new();
-        let dictionary = CodeDictionary::new(
-            Arc::clone(&config),
-            &files.aff_local_path,
-            &files.dic_local_path,
-        )?;
-        dictionary_cache.insert("en".to_string(), dictionary);
-        Ok(Self {
-            downloader,
-            dictionary_cache: Arc::new(RwLock::new(dictionary_cache)),
-            config,
-        })
+        let manager = DictionaryManager::new(Arc::clone(&config));
+        Ok(Self { config, manager })
     }
 
+    /// Get WordLocations for a block of text.
+    /// Supply LanguageType, file path or both to use the correct code parser.
     pub fn spell_check(
         &self,
         text: &str,
@@ -52,9 +35,7 @@ impl Codebook {
         // get needed dictionaries
         // call spell check on each dictionary
         let language = self.resolve_language(language, file_path);
-        // let dictionary_ids = self.config.get_settings().dictionaries;
-        let dictionary_ids = vec!["en"];
-        let dictionaries = self.get_dictionaries(&dictionary_ids, language);
+        let dictionaries = self.get_dictionaries(language);
         parser::find_locations(text, language, |word| {
             for dictionary in &dictionaries {
                 if !dictionary.check(word) {
@@ -80,28 +61,20 @@ impl Codebook {
         }
     }
 
-    fn get_dictionaries(
-        &self,
-        dictionary_ids: &[&str],
-        language: queries::LanguageType,
-    ) -> Vec<CodeDictionary> {
+    fn get_dictionaries(&self, language: queries::LanguageType) -> Vec<Arc<dyn Dictionary>> {
+        let mut dictionary_ids = self.config.get_dictionary_ids();
+        let language_dictionary_ids = language.dictionary_ids();
+        dictionary_ids.extend(language_dictionary_ids);
         let mut dictionaries = Vec::with_capacity(dictionary_ids.len());
         for dictionary_id in dictionary_ids {
-            let dict = self.downloader.get(dictionary_id);
-            if dict.is_ok() {
-                let a = dict.unwrap();
-                let d = CodeDictionary::new(
-                    Arc::clone(&self.config),
-                    &a.aff_local_path,
-                    &a.dic_local_path,
-                );
-                if d.is_ok() {
-                    dictionaries.push(d.unwrap());
-                }
+            let dictionary = self.manager.get_dictionary(&dictionary_id);
+            match dictionary {
+                Some(d) => dictionaries.push(d),
+                None => {}
             }
         }
-        println!("dic_ids: {:?}", dictionary_ids);
-        println!("dic: {:?}", dictionaries);
+        // println!("dic_ids: {:?}", dictionary_ids);
+        // println!("dic: {:?}", dictionaries);
         dictionaries
     }
 
@@ -112,11 +85,6 @@ impl Codebook {
     }
 
     pub fn get_suggestions(&self, word: &str) -> Vec<String> {
-        self.dictionary_cache
-            .read()
-            .unwrap()
-            .get("en")
-            .unwrap()
-            .suggest(word)
+        vec![]
     }
 }

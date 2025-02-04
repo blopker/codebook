@@ -1,0 +1,16 @@
+[package]
+name = "downloader"
+version = "0.1.0"
+edition = "2021"
+
+[dev-dependencies]
+httpmock = "0.7.0"
+
+[dependencies]
+anyhow = "1.0.95"
+chrono = { version = "0.4.39", features = ["serde"] }
+reqwest = { version = "0.12.12", features = ["blocking"] }
+serde = { version = "1.0.217", features = ["derive", "serde_derive"] }
+serde_json = "1.0.138"
+sha2 = "0.10.8"
+tempfile = "3.16.0"
