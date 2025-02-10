@@ -1,0 +1,18 @@
+
+# 2025-02-04 14:43:16.773865
++/add README.md
+
+# 2025-02-04 14:45:05.109947
++/ask right now codebook does not rerun the spelling checks when a user uses their editor to make a spelling correction suggestion from codebook-lsp's codeaction response. what's a good way to only rerun checks when that happens. also, we'll need to make sure codebook has the latest file changes.
+
+# 2025-02-04 20:20:29.909709
++/add
+
+# 2025-02-04 20:20:41.419555
++/add crates/codebook-lsp/src/lsp.rs
+
+# 2025-02-04 20:21:13.460507
++/ask right now codebook does not rerun the spelling checks when a user uses their editor to make a spelling correction suggestion from codebook-lsp's codeaction response. what's a good way to only rerun checks when that happens. also, we'll need to make sure codebook has the latest file changes.
+
+# 2025-02-04 20:23:57.722935
++do it

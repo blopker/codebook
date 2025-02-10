@@ -1,0 +1,13 @@
+# Aider Configuration
+
+# Model settings
+model: r1
+editor-model: sonnet
+
+# Enable architect mode
+architect: true
+
+test-cmd: "make test"
+# Enable auto-test
+auto-test: true
+auto-commits: false
