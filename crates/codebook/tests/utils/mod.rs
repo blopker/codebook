@@ -8,6 +8,7 @@ pub fn get_processor() -> Codebook {
     dict
 }
 
+#[allow(dead_code)]
 pub fn init_logging() {
     let _ = env_logger::builder().is_test(true).try_init();
 }

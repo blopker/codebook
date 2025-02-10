@@ -7,6 +7,7 @@ mod utils;
 
 #[test]
 fn test_css_location() {
+    utils::init_logging();
     let sample_css = r#"
         .test {
             color: red;
