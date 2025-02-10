@@ -16,7 +16,7 @@ use log::{debug, info};
 
 use crate::file_cache::TextDocumentCache;
 
-const SOURCE_NAME: &str = "Codeword";
+const SOURCE_NAME: &str = "Codebook";
 
 pub struct Backend {
     pub client: Client,
@@ -97,6 +97,14 @@ impl LanguageServer for Backend {
         if let Some(text) = params.text {
             self.document_cache.update(&params.text_document.uri, &text);
             self.spell_check(&params.text_document.uri).await;
+        }
+    }
+
+    async fn did_change(&self, params: DidChangeTextDocumentParams) {
+        let uri = params.text_document.uri;
+        if let Some(change) = params.content_changes.first() {
+            self.document_cache.update(&uri, &change.text);
+            self.spell_check(&uri).await;
         }
     }
 
