@@ -3,6 +3,7 @@ mod lsp;
 use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
+use codebook_config::CodebookConfig;
 use log::info;
 use lsp::Backend;
 use tower_lsp::{LspService, Server};
@@ -23,6 +24,8 @@ struct Cli {
 enum Commands {
     /// Serve the Language Server
     Serve {},
+    /// Remove server cache
+    Clean {},
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -39,6 +42,11 @@ async fn main() {
     match &cli.command {
         Some(Commands::Serve {}) => {
             serve_lsp(&root.to_path_buf()).await;
+        }
+        Some(Commands::Clean {}) => {
+            let config = CodebookConfig::new_no_file();
+            info!("Cleaning: {:?}", config.cache_dir);
+            config.clean_cache()
         }
         None => {}
     }

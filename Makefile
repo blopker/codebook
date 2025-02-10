@@ -25,3 +25,6 @@ generate_word_list:
 
 release-lsp:
 	bun run scripts/release_lsp.ts
+
+clear_cache: build
+	target/debug/codebook-lsp clean

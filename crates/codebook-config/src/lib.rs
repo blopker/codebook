@@ -98,6 +98,27 @@ impl CodebookConfig {
         Self::default()
     }
 
+    pub fn clean_cache(&self) {
+        let dir_path = self.cache_dir.clone();
+        // Check if the path exists and is a directory
+        if !dir_path.is_dir() {
+            return;
+        }
+
+        // Read directory entries
+        for entry in fs::read_dir(dir_path).unwrap() {
+            let path = entry.unwrap().path();
+
+            if path.is_dir() {
+                // If it's a directory, recursively remove it
+                fs::remove_dir_all(path).unwrap();
+            } else {
+                // If it's a file, remove it
+                fs::remove_file(path).unwrap();
+            }
+        }
+    }
+
     pub fn get_dictionary_ids(&self) -> Vec<String> {
         let ids = self.settings.read().unwrap().dictionaries.clone();
         if ids.is_empty() {
