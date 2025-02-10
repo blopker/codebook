@@ -16,6 +16,7 @@ codebook = { path = "../codebook" }
 codebook_config = { path = "../codebook-config" }
 clap = { version = "4.5.26", features = ["derive"] }
 lru = "0.13"
+openssl = { version = "*", features = ["vendored"] }
 
 
 [build-dependencies]
