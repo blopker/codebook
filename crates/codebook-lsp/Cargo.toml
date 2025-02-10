@@ -4,19 +4,8 @@ version = "0.1.15"
 edition = "2021"
 
 [dependencies]
-lazy_static = "1.5.0"
-regex = "1.11.1"
-spellbook = "0.2.0"
-tree-sitter = "<0.25.0"
-tree-sitter-rust = "<0.25.0"
-tree-sitter-python = "<0.25.0"
-tree-sitter-javascript = "<0.25.0"
-tree-sitter-html = "<0.25.0"
-tree-sitter-go = "<0.25.0"
 streaming-iterator = "0.1.9"
 tower-lsp = "0.20.0"
-tree-sitter-typescript = "0.23.2"
-ureq = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 fs2 = "0.4"
@@ -26,7 +15,7 @@ log = "0.4.22"
 codebook = { path = "../codebook" }
 codebook_config = { path = "../codebook-config" }
 clap = { version = "4.5.26", features = ["derive"] }
-lru = "0.12.5"
+lru = "0.13"
 
 
 [build-dependencies]

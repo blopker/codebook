@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 lazy_static = "1.5.0"
 regex = "1.11.1"
-spellbook = { git = "https://github.com/helix-editor/spellbook.git", rev = "b6c31ea" }
+spellbook = "0.3.0"
 tree-sitter = "<0.25.0"
 tree-sitter-css = "<0.25.0"
 tree-sitter-rust = "<0.25.0"
@@ -18,14 +18,13 @@ tree-sitter-toml-ng = "<0.8.0"
 streaming-iterator = "0.1.9"
 tower-lsp = "0.20.0"
 tree-sitter-typescript = "0.23.2"
-ureq = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 fs2 = "0.4"
 tokio = { version = "1", features = ["full"] }
 env_logger = "0.11.6"
 log = "0.4.22"
-lru = "0.12.5"
+lru = "0.13"
 
 codebook_config = { path = "../codebook-config" }
 downloader = { path = "../downloader" }
