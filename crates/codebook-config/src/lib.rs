@@ -178,13 +178,36 @@ impl CodebookConfig {
         let mut current_dir = Some(start_dir.to_path_buf());
 
         while let Some(dir) = current_dir {
-            // Try each possible config filename in the current directory
+            // First check in .zed directory if it exists
+            let zed_dir = dir.join(".zed");
+            if zed_dir.is_dir() {
+                // Try each possible config filename in .zed directory
+                for config_name in &config_files {
+                    let config_path = zed_dir.join(config_name);
+                    if config_path.is_file() {
+                        match Self::load_settings_from_file(&config_path) {
+                            Ok(settings) => {
+                                return Ok(Some((config_path, settings)));
+                            }
+                            Err(e) => {
+                                return Err(e);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // If not found in .zed, try the directory itself
             for config_name in &config_files {
                 let config_path = dir.join(config_name);
                 if config_path.is_file() {
                     match Self::load_settings_from_file(&config_path) {
-                        Ok(settings) => return Ok(Some((config_path, settings))),
-                        Err(e) => return Err(e),
+                        Ok(settings) => {
+                            return Ok(Some((config_path, settings)));
+                        }
+                        Err(e) => {
+                            return Err(e);
+                        }
                     }
                 }
             }
@@ -851,6 +874,40 @@ mod tests {
         assert!(!config.is_allowed_word("globalword1")); // Not used from global
         assert!(config.should_flag_word("projecttodo")); // From project
         assert!(!config.should_flag_word("globaltodo")); // Not used from global
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_zed_directory_config() -> Result<(), io::Error> {
+        let temp_dir = TempDir::new().unwrap();
+        let zed_dir = temp_dir.path().join(".zed");
+        fs::create_dir_all(&zed_dir)?;
+
+        // Create config in .zed directory
+        let zed_config_path = zed_dir.join("codebook.toml");
+        let mut file = File::create(&zed_config_path)?;
+        write!(
+            file,
+            r#"
+            words = ["zedword"]
+            "#
+        )?;
+
+        // Create config in root directory
+        let root_config_path = temp_dir.path().join("codebook.toml");
+        let mut file = File::create(&root_config_path)?;
+        write!(
+            file,
+            r#"
+            words = ["rootword"]
+            "#
+        )?;
+
+        // Load config and verify it uses the one from .zed
+        let config = CodebookConfig::load(Some(&temp_dir.path().to_path_buf()))?;
+        assert!(config.is_allowed_word("zedword"));
+        assert!(!config.is_allowed_word("rootword"));
 
         Ok(())
     }
