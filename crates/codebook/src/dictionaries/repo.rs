@@ -44,42 +44,49 @@ pub enum DictionaryRepo {
 
 static HUNSPELL_DICTIONARIES: LazyLock<Vec<HunspellRepo>> = LazyLock::new(|| {
     vec![
-    HunspellRepo::new(
-        "en_us",
-        "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/en_US/src/hunspell/en_US-large.aff",
-        "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/en_US/src/hunspell/en_US-large.dic",
-    ),
-    HunspellRepo::new(
-        "en",
-        "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/en/index.aff",
-        "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/en/index.dic",
-    ),
-    HunspellRepo::new(
-        "en_gb",
-        "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/en_GB/src/hunspell/en_GB-large.aff",
-        "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/en_GB/src/hunspell/en_GB-large.dic",
-    ),]
+        HunspellRepo::new(
+            "en_us",
+            "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/en_US/src/hunspell/en_US-large.aff",
+            "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/en_US/src/hunspell/en_US-large.dic",
+        ),
+        HunspellRepo::new(
+            "en",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/en/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/en/index.dic",
+        ),
+        HunspellRepo::new(
+            "en_gb",
+            "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/en_GB/src/hunspell/en_GB-large.aff",
+            "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/en_GB/src/hunspell/en_GB-large.dic",
+        ),
+        HunspellRepo::new(
+            "es",
+            "https://raw.githubusercontent.com/titoBouzout/Dictionaries/refs/heads/master/Spanish.aff",
+            "https://raw.githubusercontent.com/titoBouzout/Dictionaries/refs/heads/master/Spanish.dic",
+        ),
+    ]
 });
 
 static TEXT_DICTIONARIES: LazyLock<Vec<TextRepo>> = LazyLock::new(|| {
     vec![
-    TextRepo::new(
-        "rust",
-        "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/rust/dict/rust.txt",
-    ),
-    TextRepo::new(
-        "software_terms",
-        "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/software-terms/dict/softwareTerms.txt",
-    ),
-    TextRepo::new(
-        "computing_acronyms",
-        "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/software-terms/dict/computing-acronyms.txt",
-    ),
-    TextRepo{
-        name: "codebook".to_string(),
-        text: Some(CODEBOOK_DICTIONARY),
-        url: None
-    },]
+        TextRepo::new(
+            "rust",
+            "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/rust/dict/rust.txt",
+        ),
+        TextRepo::new(
+            "software_terms",
+            "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/software-terms/dict/softwareTerms.txt",
+        ),
+        TextRepo::new(
+            "computing_acronyms",
+            "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/software-terms/dict/computing-acronyms.txt",
+        ),
+        TextRepo {
+            name: "codebook".to_string(),
+            text: Some(CODEBOOK_DICTIONARY),
+            url: None,
+        },
+    ]
 });
 
 pub fn get_repo(name: &str) -> Option<DictionaryRepo> {
