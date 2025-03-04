@@ -29,6 +29,7 @@ lru = "0.13"
 
 codebook_config = { path = "../codebook-config" }
 downloader = { path = "../downloader" }
+unicode-segmentation = "1.12.0"
 
 [dev-dependencies]
 tempfile = "3"

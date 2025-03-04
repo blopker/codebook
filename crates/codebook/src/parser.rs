@@ -5,6 +5,7 @@ use crate::queries::{LanguageType, get_language_setting};
 use std::collections::HashMap;
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
+use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Debug, Clone, Copy, PartialEq, Ord, Eq, PartialOrd)]
 pub struct TextRange {
@@ -156,13 +157,13 @@ fn get_words_from_text(text: &str) -> Vec<(String, (u32, u32))> {
     };
 
     for line in text.lines() {
-        let chars: Vec<char> = line.chars().collect();
+        let chars: Vec<&str> = line.graphemes(true).collect();
         let mut i = 0;
 
         while i < chars.len() {
             let c = chars[i];
 
-            if c == ':' && i + 1 < chars.len() {
+            if c == ":" && i + 1 < chars.len() {
                 // Create a substring starting at the current position
                 let byte_offset = line.char_indices().nth(i).unwrap().0;
                 let remaining = &line[byte_offset..];
@@ -188,17 +189,17 @@ fn get_words_from_text(text: &str) -> Vec<(String, (u32, u32))> {
                 }
             }
 
-            let is_contraction = c == '\''
+            let is_contraction = c == "\'"
                 && i > 0
                 && i < chars.len() - 1
-                && chars[i - 1].is_alphabetic()
-                && chars[i + 1].is_alphabetic();
+                && is_alphabetic(&chars[i - 1])
+                && is_alphabetic(&chars[i + 1]);
 
-            if c.is_alphabetic() || is_contraction {
+            if is_alphabetic(c) || is_contraction {
                 if current_word.is_empty() {
                     word_start_char = current_char;
                 }
-                current_word.push(c);
+                current_word += c;
             } else {
                 add_word_fn(&mut current_word, &mut words, word_start_char, current_line);
             }
@@ -213,6 +214,21 @@ fn get_words_from_text(text: &str) -> Vec<(String, (u32, u32))> {
     }
 
     words
+}
+
+fn is_alphabetic(s: &str) -> bool {
+    // Return false for empty strings (optional, depends on your requirements)
+    if s.is_empty() {
+        return false;
+    }
+
+    // Check if all characters are alphabetic
+    s.chars().all(|c| c.is_alphabetic())
+}
+
+/// Get a UTF-8 word from a string given the start and end indices.
+pub fn get_word_from_string(start: usize, end: usize, text: &str) -> String {
+    text.graphemes(true).skip(start).take(end - start).collect()
 }
 
 #[cfg(test)]
@@ -284,5 +300,78 @@ mod parser_tests {
         assert_eq!(words[2].0, "wouldn't");
         assert_eq!(words[3].0, "you");
         assert_eq!(words[4].0, "agree");
+    }
+
+    #[test]
+    fn test_get_word_from_string() {
+        // Test with ASCII characters
+        let text = "Hello World";
+        assert_eq!(get_word_from_string(0, 5, text), "Hello");
+        assert_eq!(get_word_from_string(6, 11, text), "World");
+
+        // Test with partial words
+        assert_eq!(get_word_from_string(2, 5, text), "llo");
+
+        // Test with Unicode characters
+        let unicode_text = "こんにちは世界";
+        assert_eq!(get_word_from_string(0, 5, unicode_text), "こんにちは");
+        assert_eq!(get_word_from_string(5, 7, unicode_text), "世界");
+
+        // Test with emoji (which can be multi-codepoint)
+        let emoji_text = "Hello 👨‍👩‍👧‍👦 World";
+        assert_eq!(get_word_from_string(6, 7, emoji_text), "👨‍👩‍👧‍👦");
+    }
+    #[test]
+    fn test_unicode_character_handling() {
+        crate::log::init_test_logging();
+        let text = "©<div>badword</div>";
+        let words = get_words_from_text(text);
+        println!("{:?}", words);
+
+        // Make sure "badword" is included and correctly positioned
+        assert!(words.iter().any(|(word, _)| word == "badword"));
+
+        // If "badword" is found, verify its position
+        if let Some((_, (start_char, line))) = words.iter().find(|(word, _)| word == "badword") {
+            // The correct position should be 6 (after ©<div>)
+            assert_eq!(
+                *start_char, 6,
+                "Expected 'badword' to start at character position 6"
+            );
+            assert_eq!(*line, 0, "Expected 'badword' to be on line 0");
+        } else {
+            panic!("Word 'badword' not found in the text");
+        }
+    }
+
+    #[test]
+    fn test_spell_checking_with_unicode() {
+        crate::log::init_test_logging();
+        let text = "©<div>badword</div>";
+
+        // Mock spell check function that flags "badword"
+        let results = find_locations(text, LanguageType::Html, |word| word != "badword");
+
+        println!("{:?}", results);
+
+        // Ensure "badword" is flagged
+        let badword_result = results.iter().find(|loc| loc.word == "badword");
+        assert!(badword_result.is_some(), "Expected 'badword' to be flagged");
+
+        // Check if the location is correct
+        if let Some(location) = badword_result {
+            assert_eq!(
+                location.locations.len(),
+                1,
+                "Expected exactly one location for 'badword'"
+            );
+            let range = &location.locations[0];
+
+            // The word should start after "©<div>" which is 6 characters
+            assert_eq!(range.start_char, 6, "Wrong start position for 'badword'");
+
+            // The word should end after "badword" which is 13 characters from the start
+            assert_eq!(range.end_char, 13, "Wrong end position for 'badword'");
+        }
     }
 }

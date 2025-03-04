@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use codebook::parser::TextRange;
 use codebook::parser::WordLocation;
+use codebook::parser::get_word_from_string;
 use codebook::queries::LanguageType;
 use serde_json::Value;
 use tokio::task;
@@ -128,14 +129,12 @@ impl LanguageServer for Backend {
                 .unwrap_or_default();
             let start_char = diag.range.start.character as usize;
             let end_char = diag.range.end.character as usize;
-            let word = if start_char < line.len() && end_char <= line.len() {
-                &line[start_char..end_char]
-            } else {
+            let word = get_word_from_string(start_char, end_char, line);
+            if word.is_empty() {
                 continue;
-            };
-
+            }
             let cb = self.codebook.clone();
-            let inner_word = word.to_string();
+            let inner_word = word.clone();
             let suggestions = task::spawn_blocking(move || cb.get_suggestions(&inner_word))
                 .await
                 .unwrap();
