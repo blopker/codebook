@@ -21,7 +21,7 @@ enum Colrs {
 
 // Global variabls
 static int globalCountr = 0;
-const char* mesage = "Helllo Wolrd!";
+const char* mesage = "Helllo:Wolrd!";
 
 // Funktion prototype
 void* memry_allocaton(size_t siz);
