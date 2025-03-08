@@ -101,83 +101,81 @@ pub fn split(s: &str) -> Vec<Split> {
     result
 }
 
-pub fn find_url_end(text: &str) -> usize {
-    debug_assert!(text.starts_with("://"), "Input must start with '://'");
+// pub fn find_url_end(text: &str) -> usize {
+//     debug_assert!(text.starts_with("://"), "Input must start with '://'");
 
-    // Track nesting of parentheses, brackets, etc.
-    let mut paren_level = 0;
-    let mut bracket_level = 0;
-    let mut brace_level = 0;
+//     // Track nesting of parentheses, brackets, etc.
+//     let mut paren_level = 0;
+//     let mut bracket_level = 0;
+//     let mut brace_level = 0;
 
-    // Track if we're inside a query string or fragment
-    let mut in_query_or_fragment = false;
+//     // Track if we're inside a query string or fragment
+//     let mut in_query_or_fragment = false;
 
-    // Examine each character to determine where URL ends
-    for (i, c) in text.char_indices() {
-        match c {
-            // Opening delimiters
-            '(' => paren_level += 1,
-            '[' => bracket_level += 1,
-            '{' => brace_level += 1,
+//     // Examine each character to determine where URL ends
+//     for (i, c) in text.char_indices() {
+//         match c {
+//             // Opening delimiters
+//             '(' => paren_level += 1,
+//             '[' => bracket_level += 1,
+//             '{' => brace_level += 1,
 
-            // Closing delimiters
-            ')' => {
-                if paren_level > 0 {
-                    paren_level -= 1;
-                } else {
-                    // Unpaired closing parenthesis ends the URL
-                    return i;
-                }
-            }
-            ']' => {
-                if bracket_level > 0 {
-                    bracket_level -= 1;
-                } else {
-                    return i;
-                }
-            }
-            '}' => {
-                if brace_level > 0 {
-                    brace_level -= 1;
-                } else {
-                    return i;
-                }
-            }
+//             // Closing delimiters
+//             ')' => {
+//                 if paren_level > 0 {
+//                     paren_level -= 1;
+//                 } else {
+//                     // Unpaired closing parenthesis ends the URL
+//                     return i;
+//                 }
+//             }
+//             ']' => {
+//                 if bracket_level > 0 {
+//                     bracket_level -= 1;
+//                 } else {
+//                     return i;
+//                 }
+//             }
+//             '}' => {
+//                 if brace_level > 0 {
+//                     brace_level -= 1;
+//                 } else {
+//                     return i;
+//                 }
+//             }
 
-            // Special URL components
-            '?' | '#' => in_query_or_fragment = true,
+//             // Special URL components
+//             '?' | '#' => in_query_or_fragment = true,
 
-            // Characters that typically end a URL
-            ' ' | '\t' | '\n' | '\r' | '"' | '\'' | '<' | '>' | '`' | '|' | '^' => return i,
+//             // Characters that typically end a URL
+//             ' ' | '\t' | '\n' | '\r' | '"' | '\'' | '<' | '>' | '`' | '|' | '^' => return i,
 
-            // Punctuation that may end a URL unless in query/fragment
-            '.' | ',' | ':' | ';' | '!' => {
-                if !in_query_or_fragment {
-                    // Look ahead to see if this is actually the end
-                    if let Some(next_char) = text[i + 1..].chars().next() {
-                        if next_char.is_whitespace() || "\"'<>()[]{}".contains(next_char) {
-                            return i;
-                        }
-                    } else {
-                        // End of string
-                        return i + 1;
-                    }
-                }
-            }
+//             // Punctuation that may end a URL unless in query/fragment
+//             '.' | ',' | ':' | ';' | '!' => {
+//                 if !in_query_or_fragment {
+//                     // Look ahead to see if this is actually the end
+//                     if let Some(next_char) = text[i + 1..].chars().next() {
+//                         if next_char.is_whitespace() || "\"'<>()[]{}".contains(next_char) {
+//                             return i;
+//                         }
+//                     } else {
+//                         // End of string
+//                         return i + 1;
+//                     }
+//                 }
+//             }
 
-            // Other characters are allowed in the URL
-            _ => {}
-        }
-    }
+//             // Other characters are allowed in the URL
+//             _ => {}
+//         }
+//     }
 
-    // If we reach the end of the string, the URL extends to the end
-    text.len()
-}
+//     // If we reach the end of the string, the URL extends to the end
+//     text.len()
+// }
 
 #[cfg(test)]
 mod tests {
-    use log::debug;
-
     use super::*;
 
     #[test]
@@ -313,12 +311,12 @@ mod tests {
         assert_eq!(words, vec!["こんにちは"]);
     }
 
-    #[test]
-    fn test_find_url() {
-        crate::log::init_test_logging();
-        let text = "://example.com/path/to/file.html)not a url";
-        let end = find_url_end(text);
-        debug!("URL: {}", &text[..end]);
-        assert_eq!(&text[..end], "://example.com/path/to/file.html");
-    }
+    // #[test]
+    // fn test_find_url() {
+    //     crate::log::init_test_logging();
+    //     let text = "://example.com/path/to/file.html)not a url";
+    //     let end = find_url_end(text);
+    //     debug!("URL: {}", &text[..end]);
+    //     assert_eq!(&text[..end], "://example.com/path/to/file.html");
+    // }
 }

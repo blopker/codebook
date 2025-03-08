@@ -1,5 +1,5 @@
-use crate::splitter::{self, find_url_end};
-use log::{debug, info};
+use crate::splitter::{self};
+use log::debug;
 
 use crate::queries::{LanguageType, get_language_setting};
 use std::collections::HashMap;
@@ -297,6 +297,7 @@ mod parser_tests {
         }
     }
 
+    // Something is up with the HTML tree-sitter package
     // #[test]
     // fn test_spell_checking_with_unicode() {
     //     crate::log::init_test_logging();
