@@ -19,7 +19,8 @@ pub fn split_camel_case(s: &str) -> Vec<SplitCamelCase> {
     for (i, c) in s.chars().enumerate() {
         assert!(
             !c.is_whitespace(),
-            "There should be no white space in the input."
+            "There should be no white space in the input: '{}'",
+            s
         );
         let char_type = if c.is_ascii_uppercase() {
             CharType::Upper
@@ -76,38 +77,77 @@ pub fn split_camel_case(s: &str) -> Vec<SplitCamelCase> {
     result
 }
 
-pub fn find_url_end(text: &str) -> Option<(usize, usize)> {
-    // Find the first occurrence of '://'
-    if !text.starts_with("://") {
-        return None;
+pub fn find_url_end(text: &str) -> usize {
+    debug_assert!(text.starts_with("://"), "Input must start with '://'");
+
+    // Track nesting of parentheses, brackets, etc.
+    let mut paren_level = 0;
+    let mut bracket_level = 0;
+    let mut brace_level = 0;
+
+    // Track if we're inside a query string or fragment
+    let mut in_query_or_fragment = false;
+
+    // Examine each character to determine where URL ends
+    for (i, c) in text.char_indices() {
+        match c {
+            // Opening delimiters
+            '(' => paren_level += 1,
+            '[' => bracket_level += 1,
+            '{' => brace_level += 1,
+
+            // Closing delimiters
+            ')' => {
+                if paren_level > 0 {
+                    paren_level -= 1;
+                } else {
+                    // Unpaired closing parenthesis ends the URL
+                    return i;
+                }
+            }
+            ']' => {
+                if bracket_level > 0 {
+                    bracket_level -= 1;
+                } else {
+                    return i;
+                }
+            }
+            '}' => {
+                if brace_level > 0 {
+                    brace_level -= 1;
+                } else {
+                    return i;
+                }
+            }
+
+            // Special URL components
+            '?' | '#' => in_query_or_fragment = true,
+
+            // Characters that typically end a URL
+            ' ' | '\t' | '\n' | '\r' | '"' | '\'' | '<' | '>' | '`' | '|' | '^' => return i,
+
+            // Punctuation that may end a URL unless in query/fragment
+            '.' | ',' | ':' | ';' | '!' => {
+                if !in_query_or_fragment {
+                    // Look ahead to see if this is actually the end
+                    if let Some(next_char) = text[i + 1..].chars().next() {
+                        if next_char.is_whitespace() || "\"'<>()[]{}".contains(next_char) {
+                            return i;
+                        }
+                    } else {
+                        // End of string
+                        return i + 1;
+                    }
+                }
+            }
+
+            // Other characters are allowed in the URL
+            _ => {}
+        }
     }
-    let start = 0;
-    // Valid URL characters
-    let valid_chars = |c: char| {
-        c.is_alphanumeric()
-            || c == '.'
-            || c == '-'
-            || c == '_'
-            || c == '/'
-            || c == '~'
-            || c == ':'
-            || c == '?'
-            || c == '='
-            || c == '&'
-            || c == '%'
-            || c == '#'
-            || c == '+'
-    };
 
-    // Limit the search to 2048 characters
-    let end_index = if text.len() > 2048 { 2048 } else { text.len() };
-    // Find the end of the URL
-    let end = text[start..end_index]
-        .find(|c: char| !valid_chars(c))
-        .map_or(text.len(), |pos| start + pos);
-
-    // Extract the URL
-    Some((start, end))
+    // If we reach the end of the string, the URL extends to the end
+    text.len()
 }
 
 #[cfg(test)]
@@ -186,11 +226,9 @@ mod tests {
     #[test]
     fn test_find_url() {
         crate::log::init_test_logging();
-        let text = "This is a URL: https://example.com/path/to/file.html)not a url";
-        assert!(find_url_end(text).is_none());
         let text = "://example.com/path/to/file.html)not a url";
-        let (start, end) = find_url_end(text).unwrap();
-        debug!("URL: {}", &text[start..end]);
-        assert_eq!(&text[start..end], "://example.com/path/to/file.html");
+        let end = find_url_end(text);
+        debug!("URL: {}", &text[..end]);
+        assert_eq!(&text[..end], "://example.com/path/to/file.html");
     }
 }
