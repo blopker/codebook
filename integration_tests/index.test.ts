@@ -142,7 +142,6 @@ test("should provide diagnostics for all example files", async () => {
   for (const file of files) {
     const filePath = path.join(exampleDir, file);
     const content = fs.readFileSync(filePath, { encoding: "utf8" });
-    console.log(content);
 
     await new Promise<void>((resolve, reject) => {
       const timeoutId = setTimeout(() => {
