@@ -8,6 +8,7 @@ pub enum LanguageType {
     Html,
     Javascript,
     Python,
+    Ruby,
     Rust,
     TOML,
     Text,
@@ -220,6 +221,25 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
             "#,
         extensions: &["toml"],
     },
+    LanguageSetting {
+        type_: LanguageType::Ruby,
+        ids: &["ruby"],
+        dictionary_ids: &["ruby"],
+        query: r#"
+            (string) @string
+            (comment) @comment
+            (assignment (identifier) @identifier)
+            (method
+              (method_parameters (keyword_parameter (identifier) @identifier)))
+            (method
+              (method_parameters (identifier) @identifier))
+            (heredoc_body
+              (heredoc_content) @string
+              (heredoc_end) @language
+              (#downcase! @language))
+            "#,
+        extensions: &["rb"],
+    },
 ];
 
 #[derive(Debug)]
@@ -244,6 +264,7 @@ impl LanguageSetting {
             LanguageType::Css => Some(tree_sitter_css::LANGUAGE.into()),
             LanguageType::Go => Some(tree_sitter_go::LANGUAGE.into()),
             LanguageType::TOML => Some(tree_sitter_toml_ng::LANGUAGE.into()),
+            LanguageType::Ruby => Some(tree_sitter_ruby::LANGUAGE.into()),
             LanguageType::Text => None,
         }
     }
