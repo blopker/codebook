@@ -103,7 +103,7 @@ test("should only highlight word in code", async () => {
     try {
       languageClient.once("textDocument/publishDiagnostics", (params) => {
         try {
-          console.log("Received diagnostics:", params);
+          // console.log("Received diagnostics:", params);
           expect(params).toBeDefined();
           expect(params.diagnostics.length).toBeGreaterThan(0);
           clearTimeout(timeoutId);
@@ -141,7 +141,8 @@ test("should provide diagnostics for all example files", async () => {
 
   for (const file of files) {
     const filePath = path.join(exampleDir, file);
-    const content = fs.readFileSync(filePath, "utf8");
+    const content = fs.readFileSync(filePath, { encoding: "utf8" });
+    console.log(content);
 
     await new Promise<void>((resolve, reject) => {
       const timeoutId = setTimeout(() => {
