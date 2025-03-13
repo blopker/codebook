@@ -64,6 +64,21 @@ static HUNSPELL_DICTIONARIES: LazyLock<Vec<HunspellRepo>> = LazyLock::new(|| {
             "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/es/index.aff",
             "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/es/index.dic",
         ),
+        HunspellRepo::new(
+            "de",
+            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/de/index.aff",
+            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/de/index.dic",
+        ),
+        HunspellRepo::new(
+            "de-AT",
+            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/de-AT/index.aff",
+            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/de-AT/index.dic",
+        ),
+        HunspellRepo::new(
+            "de-CH",
+            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/de-CH/index.aff",
+            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/de-CH/index.dic",
+        ),
     ]
 });
 
