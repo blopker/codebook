@@ -69,7 +69,7 @@ fn test_c_struct() {
             float intrest_rate;
         };
     "#;
-    let expected = vec![
+    let expected = [
         WordLocation::new(
             "Accaunt".to_string(),
             vec![TextRange {

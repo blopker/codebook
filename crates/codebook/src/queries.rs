@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use tree_sitter::Language;
 
 #[derive(Debug, Clone, PartialEq, Copy)]
@@ -8,6 +10,7 @@ pub enum LanguageType {
     Go,
     HTML,
     Javascript,
+    Php,
     Python,
     Ruby,
     Rust,
@@ -16,17 +19,21 @@ pub enum LanguageType {
     Typescript,
 }
 
-impl LanguageType {
-    pub fn from_str(s: &str) -> LanguageType {
+impl FromStr for LanguageType {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         for language in LANGUAGE_SETTINGS.iter() {
             for id in language.ids.iter() {
                 if s == *id {
-                    return language.type_;
+                    return Ok(language.type_);
                 }
             }
         }
-        LanguageType::Text
+        Ok(LanguageType::Text)
     }
+}
+
+impl LanguageType {
     pub fn dictionary_ids(&self) -> Vec<String> {
         for language in LANGUAGE_SETTINGS.iter() {
             if self == &language.type_ {
@@ -121,6 +128,14 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         query: include_str!("queries/bash.scm"),
         extensions: &["sh", "bash"],
     },
+    // Added PHP
+    LanguageSetting {
+        type_: LanguageType::Php,
+        ids: &["php"],
+        dictionary_ids: &["php"],
+        query: include_str!("queries/php.scm"),
+        extensions: &["php"],
+    },
 ];
 
 #[derive(Debug)]
@@ -142,6 +157,7 @@ impl LanguageSetting {
             LanguageType::Go => Some(tree_sitter_go::LANGUAGE.into()),
             LanguageType::HTML => Some(tree_sitter_html::LANGUAGE.into()),
             LanguageType::Javascript => Some(tree_sitter_javascript::LANGUAGE.into()),
+            LanguageType::Php => Some(tree_sitter_php::LANGUAGE_PHP.into()),
             LanguageType::Python => Some(tree_sitter_python::LANGUAGE.into()),
             LanguageType::Ruby => Some(tree_sitter_ruby::LANGUAGE.into()),
             LanguageType::Rust => Some(tree_sitter_rust::LANGUAGE.into()),
@@ -153,24 +169,54 @@ impl LanguageSetting {
 }
 
 pub fn get_language_setting(language_type: LanguageType) -> Option<&'static LanguageSetting> {
-    for setting in LANGUAGE_SETTINGS.iter() {
-        if setting.type_ == language_type {
-            if setting.language().is_some() {
-                return Some(setting);
-            }
-        }
-    }
-    None
+    LANGUAGE_SETTINGS
+        .iter()
+        .find(|&setting| setting.type_ == language_type && setting.language().is_some())
 }
 
 pub fn get_language_name_from_filename(filename: &str) -> LanguageType {
     let extension = filename.split('.').last().unwrap();
-    for setting in LANGUAGE_SETTINGS.iter() {
-        for ext in setting.extensions.iter() {
+    for setting in LANGUAGE_SETTINGS {
+        for ext in setting.extensions {
             if ext == &extension {
                 return setting.type_;
             }
         }
     }
     LanguageType::Text
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tree_sitter::Query;
+
+    #[test]
+    fn test_all_queries_are_valid() {
+        for language_setting in LANGUAGE_SETTINGS {
+            // Skip testing Text since it doesn't have a language or query
+            if language_setting.type_ == LanguageType::Text {
+                continue;
+            }
+
+            // Get the language for this setting
+            let language = match language_setting.language() {
+                Some(lang) => lang,
+                None => {
+                    panic!("Failed to get language for {:?}", language_setting.type_);
+                }
+            };
+
+            // Try to create a Query with the language and query
+            let query_result = Query::new(&language, language_setting.query);
+
+            // Assert that the query is valid
+            assert!(
+                query_result.is_ok(),
+                "Invalid query for language {:?}: {:?}",
+                language_setting.type_,
+                query_result.err()
+            );
+        }
+    }
 }

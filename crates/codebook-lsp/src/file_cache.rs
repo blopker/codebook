@@ -24,10 +24,7 @@ impl TextDocumentCacheItem {
         Self {
             uri: uri.clone(),
             version,
-            language_id: match language_id {
-                Some(id) => Some(id.to_string()),
-                None => None,
-            },
+            language_id: language_id.map(|id| id.to_string()),
             text: match text {
                 Some(text) => text.to_string(),
                 None => String::new(),

@@ -41,7 +41,7 @@ async fn main() {
 
     match &cli.command {
         Some(Commands::Serve {}) => {
-            serve_lsp(&root.to_path_buf()).await;
+            serve_lsp(root).await;
         }
         Some(Commands::Clean {}) => {
             let config = CodebookConfig::default();
@@ -52,10 +52,10 @@ async fn main() {
     }
 }
 
-async fn serve_lsp(root: &PathBuf) {
+async fn serve_lsp(root: &Path) {
     info!("Starting Codebook Language Server...");
     let (stdin, stdout) = (tokio::io::stdin(), tokio::io::stdout());
-    let inner_root = root.clone();
+    let inner_root = root.to_owned();
     // Some blocking setup is done, so spawn_block!
     let (service, socket) =
         task::spawn_blocking(move || LspService::new(|client| Backend::new(client, &inner_root)))

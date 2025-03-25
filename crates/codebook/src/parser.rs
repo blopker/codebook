@@ -32,12 +32,8 @@ pub fn find_locations(
     check_function: impl Fn(&str) -> bool,
 ) -> Vec<WordLocation> {
     match language {
-        LanguageType::Text => {
-            return find_locations_text(text, check_function);
-        }
-        _ => {
-            return find_locations_code(text, language, check_function);
-        }
+        LanguageType::Text => find_locations_text(text, check_function),
+        _ => find_locations_code(text, language, check_function),
     }
 }
 
@@ -121,7 +117,6 @@ fn find_locations_code(
 
     word_locations
         .keys()
-        .into_iter()
         .map(|word| WordLocation {
             word: word.clone(),
             locations: word_locations.get(word).cloned().unwrap_or_default(),
@@ -185,7 +180,7 @@ mod parser_tests {
     #[test]
     fn test_spell_checking() {
         let text = "HelloWorld calc_wrld";
-        let results = find_locations(&text, LanguageType::Text, |_| false);
+        let results = find_locations(text, LanguageType::Text, |_| false);
         println!("{:?}", results);
         assert_eq!(results.len(), 4);
     }
@@ -276,7 +271,7 @@ mod parser_tests {
     }
     #[test]
     fn test_unicode_character_handling() {
-        crate::log::init_test_logging();
+        crate::logging::init_test_logging();
         let text = "©<div>badword</div>";
         let words = get_words_from_text(text);
         println!("{:?}", words);

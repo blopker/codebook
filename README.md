@@ -47,6 +47,7 @@ Codebook is being developed, but the Zed extension is now live!
 | Markdown | ✅ |
 | Plain Text | ✅ |
 | Python | ✅ |
+| PHP | ⚠️ |
 | Ruby | ✅ |
 | Rust | ✅ |
 | TOML | ✅ |
@@ -54,6 +55,7 @@ Codebook is being developed, but the Zed extension is now live!
 
 ✅ = Good to go
 ⚠️ = Supported, but needs more testing
+❌ = Work has started, but there are issues
 
 If Codebook is not marking issues you think it should, please file a GitHub issue!
 
@@ -154,6 +156,67 @@ Codebook comes with a dictionary manager, which will automatically download and 
 
 Codebook uses a hierarchical configuration system with global (user-level) and project-specific settings, giving you flexibility to set defaults and override them as needed per project.
 
+## Adding a New Language
+
+Codebook uses Tree-sitter support additional programming languages. Here's how to add support for a new language:
+
+### 1. Create a Tree-sitter Query
+
+Each language needs a Tree-sitter query file that defines which parts of the code should be checked for spelling issues. The query needs to capture:
+
+- Identifiers (variable names, function names, class names, etc.)
+- String literals
+- Comments
+
+Create a new `.scm` file in `codebook/crates/codebook/src/queries/` named after your language (e.g., `java.scm`).
+
+### 2. Understand the Language's AST
+
+To write an effective query, you need to understand the Abstract Syntax Tree (AST) structure of your language. Use these tools:
+
+- [Tree-sitter Playground](https://tree-sitter.github.io/tree-sitter/7-playground.html): Interactively explore how Tree-sitter parses code
+- [Tree-sitter Visualizer](https://blopker.github.io/ts-visualizer/): Visualize the AST of your code in a more detailed way
+
+A good approach is to:
+1. Write sample code with identifiers, strings, and comments
+2. Paste it into the playground/visualizer
+3. Observe the node types used for each element
+4. Create capture patterns that target only definition nodes, not usages
+
+### 3. Update the Language Settings
+
+Add your language to `codebook/crates/codebook/src/queries.rs`:
+
+1. Add a new variant to the `LanguageType` enum
+2. Add a new entry to the `LANGUAGE_SETTINGS` array with:
+   - The language type
+   - File extensions for your language
+   - Language identifiers
+   - Path to your query file
+
+### 4. Add the Tree-sitter Grammar
+
+Make sure the appropriate Tree-sitter grammar is added as a dependency in `Cargo.toml` and update the `language()` function to return the correct language parser.
+
+### 5. Test Your Implementation
+
+Run the tests to ensure your query is valid:
+```bash
+cargo test -p codebook queries::tests::test_all_queries_are_valid
+```
+
+You can also test with real code files to verify that Codebook correctly identifies spelling issues in your language.
+
+### Tips for Writing Effective Queries
+
+- Focus on capturing definitions, not usages
+- Include only nodes that contain user-defined text (not keywords)
+- Test with representative code samples
+- Start simple and add complexity as needed
+- Look at existing language queries for patterns
+
+If you've successfully added support for a new language, please consider contributing it back to Codebook with a pull request!
+
 ## Roadmap
 
 - [X] Support more languages than US English
@@ -184,10 +247,3 @@ To update the Language server:
 1. Follow instructions
 1. Go to GitHub Releases
 1. Un-mark "prerelease" and publish
-
-To update the Zed Extension:
-
-1. Go to https://github.com/blopker/codebook-zed
-1. Update the version in extension.toml
-1. Run `git submodule update --remote --merge extensions/codebook` in zed/extensions
-1. Make a PR to zed/extensions with the updated submodule

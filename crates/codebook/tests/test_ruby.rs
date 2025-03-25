@@ -215,6 +215,6 @@ end
     }
     for word in not_expected {
         println!("Not expecting: {word:?}");
-        assert!(misspelled.iter().find(|r| r.word == word).is_none());
+        assert!(!misspelled.iter().any(|r| r.word == word));
     }
 }

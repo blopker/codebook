@@ -60,7 +60,7 @@ fn test_rust_struct() {
             pub dataz: String,
         }
         "#;
-    let expected = vec![
+    let expected = [
         WordLocation::new(
             "Speler".to_string(),
             vec![TextRange {

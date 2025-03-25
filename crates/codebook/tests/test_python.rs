@@ -129,7 +129,7 @@ def constructor():
     }
     for word in not_expected {
         println!("Not expecting: {word:?}");
-        assert!(misspelled.iter().find(|r| r.word == word).is_none());
+        assert!(!misspelled.iter().any(|r| r.word == word));
     }
 }
 
@@ -194,7 +194,7 @@ mesage = "Helllo Wolrd!"
         let miss = misspelled
             .iter()
             .find(|r| r.word == e.word)
-            .expect(format!("Word '{}' not found in misspelled list", e.word).as_str());
+            .unwrap_or_else(|| panic!("Word '{}' not found in misspelled list", e.word));
         println!("Expecting: {e:?}");
         assert_eq!(miss.locations, e.locations);
     }

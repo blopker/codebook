@@ -33,9 +33,9 @@ pub fn split(s: &str) -> Vec<Split> {
             .map(|ch| match ch {
                 ch if ch.is_uppercase() => CharType::Upper,
                 ch if ch.is_ascii_digit() => CharType::Digit,
-                ch if ch == '_' => CharType::Underscore,
-                ch if ch == '.' => CharType::Period,
-                ch if ch == ':' => CharType::Colon,
+                '_' => CharType::Underscore,
+                '.' => CharType::Period,
+                ':' => CharType::Colon,
                 _ => CharType::Lower,
             })
             .next()
@@ -51,10 +51,12 @@ pub fn split(s: &str) -> Vec<Split> {
         let should_split = match prev_char_type {
             Some(CharType::Lower) if char_type == CharType::Upper => true,
             Some(CharType::Upper)
-                if char_type == CharType::Upper
-                    && s.chars()
-                        .nth(i + 1)
-                        .map_or(false, |next| next.is_ascii_lowercase()) =>
+                if char_type == CharType::Upper && {
+                    match s.chars().nth(i + 1) {
+                        Some(t) => t.is_ascii_lowercase(),
+                        None => false,
+                    }
+                } =>
             {
                 true
             }

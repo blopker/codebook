@@ -7,8 +7,7 @@ pub fn get_processor() -> Codebook {
     config
         .add_ignore("**/ignore.txt")
         .expect("Should ignore file");
-    let dict = Codebook::new(config).unwrap();
-    dict
+    Codebook::new(config).unwrap()
 }
 
 #[allow(dead_code)]

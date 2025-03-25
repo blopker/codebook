@@ -89,7 +89,7 @@ impl Dictionary for HunspellDictionary {
         self.dictionary.suggest(word, &mut suggestions);
         suggestions.truncate(5);
         if !suggestions.is_empty() {
-            let word_case = self.get_word_case(&word);
+            let word_case = self.get_word_case(word);
             // mutate suggestions in place to match case
 
             for suggestion in &mut suggestions {
@@ -148,7 +148,7 @@ impl TextDictionary {
     }
     pub fn new_from_path(path: &PathBuf) -> Self {
         let word_list = std::fs::read_to_string(path)
-            .expect(format!("Failed to read dictionary file: {}", path.display()).as_str())
+            .unwrap_or_else(|_| panic!("Failed to read dictionary file: {}", path.display()))
             .to_ascii_lowercase();
         Self { word_list }
     }
@@ -158,8 +158,7 @@ impl TextDictionary {
 mod dictionary_tests {
     use super::*;
     fn get_dict() -> HunspellDictionary {
-        let dict = HunspellDictionary::new("./tests/en_index.aff", "./tests/en_index.dic").unwrap();
-        dict
+        HunspellDictionary::new("./tests/en_index.aff", "./tests/en_index.dic").unwrap()
     }
 
     #[test]

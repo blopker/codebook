@@ -79,6 +79,11 @@ static HUNSPELL_DICTIONARIES: LazyLock<Vec<HunspellRepo>> = LazyLock::new(|| {
             "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/de-CH/index.aff",
             "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/de-CH/index.dic",
         ),
+        HunspellRepo::new(
+            "ru",
+            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/ru/index.aff",
+            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/ru/index.dic",
+        ),
     ]
 });
 
@@ -106,12 +111,12 @@ static TEXT_DICTIONARIES: LazyLock<Vec<TextRepo>> = LazyLock::new(|| {
 
 pub fn get_repo(name: &str) -> Option<DictionaryRepo> {
     let res = HUNSPELL_DICTIONARIES.iter().find(|d| d.name == name);
-    if res.is_some() {
-        return Some(DictionaryRepo::Hunspell(res.unwrap().clone()));
+    if let Some(res1) = res {
+        return Some(DictionaryRepo::Hunspell(res1.clone()));
     }
     let res = TEXT_DICTIONARIES.iter().find(|d| d.name == name);
-    if res.is_some() {
-        return Some(DictionaryRepo::Text(res.unwrap().clone()));
+    if let Some(res1) = res {
+        return Some(DictionaryRepo::Text(res1.clone()));
     }
     None
 }
