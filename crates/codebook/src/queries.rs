@@ -12,6 +12,7 @@ pub enum LanguageType {
     Javascript,
     Php,
     Python,
+    R,
     Ruby,
     Rust,
     TOML,
@@ -136,6 +137,13 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         query: include_str!("queries/php.scm"),
         extensions: &["php"],
     },
+    LanguageSetting {
+        type_: LanguageType::R,
+        ids: &["r"],
+        dictionary_ids: &["r"],
+        query: include_str!("queries/r.scm"),
+        extensions: &["r", "R"],
+    },
 ];
 
 #[derive(Debug)]
@@ -159,6 +167,7 @@ impl LanguageSetting {
             LanguageType::Javascript => Some(tree_sitter_javascript::LANGUAGE.into()),
             LanguageType::Php => Some(tree_sitter_php::LANGUAGE_PHP.into()),
             LanguageType::Python => Some(tree_sitter_python::LANGUAGE.into()),
+            LanguageType::R => Some(tree_sitter_r::LANGUAGE.into()),
             LanguageType::Ruby => Some(tree_sitter_ruby::LANGUAGE.into()),
             LanguageType::Rust => Some(tree_sitter_rust::LANGUAGE.into()),
             LanguageType::TOML => Some(tree_sitter_toml_ng::LANGUAGE.into()),
