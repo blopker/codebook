@@ -7,6 +7,7 @@ pub enum LanguageType {
     Bash,
     C,
     Css,
+    Elixir,
     Go,
     HTML,
     Javascript,
@@ -144,6 +145,13 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         query: include_str!("queries/r.scm"),
         extensions: &["r", "R"],
     },
+    LanguageSetting {
+        type_: LanguageType::Elixir,
+        ids: &["elixir"],
+        dictionary_ids: &["elixir"],
+        query: include_str!("queries/elixir.scm"),
+        extensions: &["ex", "exs"],
+    },
 ];
 
 #[derive(Debug)]
@@ -173,6 +181,7 @@ impl LanguageSetting {
             LanguageType::TOML => Some(tree_sitter_toml_ng::LANGUAGE.into()),
             LanguageType::Text => None,
             LanguageType::Typescript => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
+            LanguageType::Elixir => Some(tree_sitter_elixir::LANGUAGE.into()),
         }
     }
 }
