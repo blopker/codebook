@@ -32,6 +32,7 @@ pub struct Backend {
 
 enum CodebookCommand {
     AddWord,
+    AddWordGlobal,
     Unknown,
 }
 
@@ -39,6 +40,7 @@ impl From<&str> for CodebookCommand {
     fn from(command: &str) -> Self {
         match command {
             "codebook.addWord" => CodebookCommand::AddWord,
+            "codebook.addWordGlobal" => CodebookCommand::AddWordGlobal,
             _ => CodebookCommand::Unknown,
         }
     }
@@ -48,6 +50,7 @@ impl From<CodebookCommand> for String {
     fn from(command: CodebookCommand) -> Self {
         match command {
             CodebookCommand::AddWord => "codebook.addWord".to_string(),
+            CodebookCommand::AddWordGlobal => "codebook.addWordGlobal".to_string(),
             CodebookCommand::Unknown => "codebook.unknown".to_string(),
         }
     }
@@ -199,6 +202,20 @@ impl LanguageServer for Backend {
                 disabled: None,
                 data: None,
             }));
+            actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                title: format!("Add '{}' to global dictionary", word),
+                kind: Some(CodeActionKind::QUICKFIX),
+                diagnostics: None,
+                edit: None,
+                command: Some(Command {
+                    title: format!("Add '{}' to global dictionary", word),
+                    command: CodebookCommand::AddWordGlobal.into(),
+                    arguments: Some(vec![word.to_string().into()]),
+                }),
+                is_preferred: None,
+                disabled: None,
+                data: None,
+            }));
         }
 
         Ok(Some(actions))
@@ -218,6 +235,18 @@ impl LanguageServer for Backend {
                 let updated = self.add_words(words);
                 if updated {
                     let _ = self.config.save();
+                    self.recheck_all().await;
+                }
+                Ok(None)
+            }
+            CodebookCommand::AddWordGlobal => {
+                let words = params
+                    .arguments
+                    .iter()
+                    .filter_map(|arg| arg.as_str().map(|s| s.to_string()));
+                let updated = self.add_words_global(words);
+                if updated {
+                    let _ = self.config.save_global();
                     self.recheck_all().await;
                 }
                 Ok(None)
@@ -274,6 +303,23 @@ impl Backend {
                 }
                 Ok(false) => {
                     log::info!("Word '{}' already exists in dictionary.", word);
+                }
+                Err(e) => {
+                    log::error!("Failed to add word: {}", e);
+                }
+            }
+        }
+        should_save
+    }
+    fn add_words_global(&self, words: impl Iterator<Item = String>) -> bool {
+        let mut should_save = false;
+        for word in words {
+            match self.config.add_word_global(&word) {
+                Ok(true) => {
+                    should_save = true;
+                }
+                Ok(false) => {
+                    log::info!("Word '{}' already exists in global dictionary.", word);
                 }
                 Err(e) => {
                     log::error!("Failed to add word: {}", e);

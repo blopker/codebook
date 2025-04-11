@@ -363,7 +363,7 @@ impl CodebookConfig {
         *self.regex_set.write().unwrap() = None;
     }
 
-    /// Add a word to the project configs allowlist
+    /// Add a word to the project config's allowlist
     pub fn add_word(&self, word: &str) -> Result<bool, io::Error> {
         {
             let word = word.to_ascii_lowercase();
@@ -379,6 +379,35 @@ impl CodebookConfig {
             // Sort/dedup for consistency
             project_settings.words.sort();
             project_settings.words.dedup();
+        }
+        self.recalculate_effective_settings();
+
+        Ok(true)
+    }
+    /// Add a word to the global  config's allowlist
+    pub fn add_word_global(&self, word: &str) -> Result<bool, io::Error> {
+        {
+            let word = word.to_ascii_lowercase();
+            let mut global_settings = self.global_settings.write().unwrap();
+
+            let global_config = match global_settings.as_mut() {
+                Some(config) => config,
+                None => {
+                    *global_settings = Some(ConfigSettings::default());
+                    global_settings.as_mut().unwrap()
+                }
+            };
+
+            // Check if word already exists
+            if global_config.words.contains(&word) {
+                return Ok(false);
+            }
+
+            // Add the word
+            global_config.words.push(word);
+            // Sort/dedup for consistency
+            global_config.words.sort();
+            global_config.words.dedup();
         }
         self.recalculate_effective_settings();
 
@@ -420,6 +449,22 @@ impl CodebookConfig {
             project_config_path.display()
         );
         fs::write(project_config_path, content)
+    }
+
+    /// Save the project configuration to its file
+    pub fn save_global(&self) -> Result<(), io::Error> {
+        let global_config_path = match self.global_config_path.as_ref() {
+            Some(c) => c,
+            None => return Ok(()),
+        };
+
+        let content = toml::to_string_pretty(&*self.global_settings.read().unwrap())
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        log::info!(
+            "Saving project configuration to {}",
+            global_config_path.display()
+        );
+        fs::write(global_config_path, content)
     }
 
     /// Get dictionary IDs from effective configuration
