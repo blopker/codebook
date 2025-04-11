@@ -2,32 +2,39 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct ConfigSettings {
     /// List of dictionaries to use for spell checking
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub dictionaries: Vec<String>,
 
     /// Custom allowlist of words
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub words: Vec<String>,
 
     /// Words that should always be flagged
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub flag_words: Vec<String>,
 
     /// Glob patterns for paths to ignore
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ignore_paths: Vec<String>,
 
     /// Regex patterns for text to ignore
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ignore_patterns: Vec<String>,
 
     /// Whether to use global configuration
-    #[serde(default = "default_use_global")]
+    #[serde(
+        default = "default_use_global",
+        skip_serializing_if = "is_default_use_global"
+    )]
     pub use_global: bool,
 }
 
 fn default_use_global() -> bool {
     true
+}
+
+fn is_default_use_global(value: &bool) -> bool {
+    *value == default_use_global()
 }
 
 impl Default for ConfigSettings {
