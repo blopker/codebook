@@ -582,14 +582,34 @@ mod tests {
     use std::io::Write;
     use tempfile::TempDir;
 
+    #[derive(Debug, Clone, Copy)]
+    pub enum ConfigType {
+        Project,
+        Global,
+    }
+
     // Helper function for tests
-    fn load_from_file<P: AsRef<Path>>(path: P) -> Result<CodebookConfig, io::Error> {
+    fn load_from_file<P: AsRef<Path>>(
+        config_type: ConfigType,
+        path: P,
+    ) -> Result<CodebookConfig, io::Error> {
         let mut config = CodebookConfig::default();
 
-        if let Ok(settings) = CodebookConfig::load_settings_from_file(&path) {
-            config.project_config_path = Some(path.as_ref().to_path_buf());
-            *config.project_settings.write().unwrap() = settings.clone();
-            *config.effective_settings.write().unwrap() = settings;
+        match config_type {
+            ConfigType::Project => {
+                if let Ok(settings) = CodebookConfig::load_settings_from_file(&path) {
+                    config.project_config_path = Some(path.as_ref().to_path_buf());
+                    *config.project_settings.write().unwrap() = settings.clone();
+                    *config.effective_settings.write().unwrap() = settings;
+                }
+            }
+            ConfigType::Global => {
+                if let Ok(settings) = CodebookConfig::load_settings_from_file(&path) {
+                    config.global_config_path = Some(path.as_ref().to_path_buf());
+                    *config.global_settings.write().unwrap() = Some(settings.clone());
+                    *config.effective_settings.write().unwrap() = settings;
+                }
+            }
         }
 
         Ok(config)
@@ -612,7 +632,31 @@ mod tests {
         config.save()?;
 
         // Reload config and verify
-        let loaded_config = load_from_file(&config_path)?;
+        let loaded_config = load_from_file(ConfigType::Project, &config_path)?;
+        assert!(loaded_config.is_allowed_word("testword"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_word_global() -> Result<(), io::Error> {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("codebook.toml");
+
+        // Create initial config
+        let config = CodebookConfig {
+            global_config_path: Some(config_path.clone()),
+            global_settings: RwLock::new(Some(ConfigSettings::default())),
+            ..Default::default()
+        };
+        config.save_global()?;
+
+        // Add a word
+        config.add_word_global("testword")?;
+        config.save_global()?;
+
+        // Reload config and verify
+        let loaded_config = load_from_file(ConfigType::Global, &config_path)?;
         assert!(loaded_config.is_allowed_word("testword"));
 
         Ok(())
@@ -631,7 +675,7 @@ mod tests {
         "#;
         file.write_all(a.as_bytes())?;
 
-        let config = load_from_file(&config_path)?;
+        let config = load_from_file(ConfigType::Project, &config_path)?;
         assert!(config.matches_ignore_pattern("GTAC"));
         assert!(config.matches_ignore_pattern("AATTCCGG"));
         assert!(config.matches_ignore_pattern("123-45-6789"));
@@ -657,7 +701,7 @@ mod tests {
             "#
         )?;
 
-        let config = load_from_file(&config_path)?;
+        let config = load_from_file(ConfigType::Project, &config_path)?;
         assert!(config.matches_ignore_pattern("GTAC"));
         assert!(!config.matches_ignore_pattern("123-45-6789"));
 
@@ -821,7 +865,33 @@ mod tests {
         config.save()?;
 
         // Reload config and verify with different cases
-        let loaded_config = load_from_file(&config_path)?;
+        let loaded_config = load_from_file(ConfigType::Global, &config_path)?;
+        assert!(loaded_config.is_allowed_word("testword"));
+        assert!(loaded_config.is_allowed_word("TESTWORD"));
+        assert!(loaded_config.is_allowed_word("TestWord"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_word_global_case() -> Result<(), io::Error> {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("codebook.toml");
+
+        // Create initial config
+        let config = CodebookConfig {
+            global_config_path: Some(config_path.clone()),
+            global_settings: RwLock::new(Some(ConfigSettings::default())),
+            ..Default::default()
+        };
+        config.save_global()?;
+
+        // Add a word with mixed case
+        config.add_word_global("TestWord")?;
+        config.save_global()?;
+
+        // Reload config and verify with different cases
+        let loaded_config = load_from_file(ConfigType::Global, &config_path)?;
         assert!(loaded_config.is_allowed_word("testword"));
         assert!(loaded_config.is_allowed_word("TESTWORD"));
         assert!(loaded_config.is_allowed_word("TestWord"));

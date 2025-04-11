@@ -54,6 +54,7 @@ The data model for configuration settings:
 
 - **Read-Only Global Config**: Global configuration is never modified by the library
 - **Project-Only Modifications**: Methods like `add_word()` only affect project configuration
+- **Global-Only Modifications**: Methods like `add_word_global()` only affect global configuration
 - **Effective Settings**: All validation methods use the merged effective settings
 - **Transparent Reloading**: Changes to either global or project config are detected on reload
 
@@ -101,7 +102,9 @@ The crate exposes the following main integration points:
    - `should_ignore_path()`
 4. Configuration manipulation methods:
    - `add_word()`: Add words to project allowlist only
+   - `add_word_global()`: Add words to global allowlist only
    - `save()`: Save project configuration only
+   - `save_global()`: Save global configuration only
    - `reload()`: Reload both global and project configurations
 
 ## Usage Example
@@ -119,6 +122,10 @@ let is_allowed = config.is_allowed_word("rustc");
 // Add a new word to the project allowlist (project config only)
 config.add_word("newterm")?;
 config.save()?;
+
+// Add a new word to the global allowlist (global config only)
+config.add_word_global("newterm")?;
+config.save_global()?;
 
 // Clean the cache directory
 config.clean_cache();
