@@ -66,7 +66,10 @@ impl LanguageServer for Backend {
                     TextDocumentSyncKind::FULL,
                 )),
                 execute_command_provider: Some(ExecuteCommandOptions {
-                    commands: vec![CodebookCommand::AddWord.into()],
+                    commands: vec![
+                        CodebookCommand::AddWord.into(),
+                        CodebookCommand::AddWordGlobal.into(),
+                    ],
                     work_done_progress_options: Default::default(),
                 }),
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),

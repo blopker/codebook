@@ -102,7 +102,8 @@ impl CodebookConfig {
                     }
                 }
             } else {
-                info!("No global config found");
+                info!("No global config found, using default");
+                config.global_config_path = Some(global_path);
             }
         }
 
@@ -145,26 +146,21 @@ impl CodebookConfig {
     }
     /// Find the platform-specific global config directory and file path
     fn find_global_config_path() -> Option<PathBuf> {
-        // First try XDG_CONFIG_HOME environment variable (Linux/macOS)
-        if let Ok(xdg_config_home) = env::var("XDG_CONFIG_HOME") {
-            let path = PathBuf::from(xdg_config_home)
-                .join("codebook")
-                .join(GLOBAL_CONFIG_FILE);
-            if path.exists() {
+        // On Linux/macOS XDG_CONFIG_HOME, fallback to ~/.config
+        if cfg!(unix) {
+            // First try XDG_CONFIG_HOME environment variable (Linux/macOS)
+            if let Ok(xdg_config_home) = env::var("XDG_CONFIG_HOME") {
+                let path = PathBuf::from(xdg_config_home)
+                    .join("codebook")
+                    .join(GLOBAL_CONFIG_FILE);
                 return Some(path);
             }
-        }
-
-        // On Linux/macOS, fallback to ~/.config
-        if cfg!(unix) {
             if let Some(home) = dirs::home_dir() {
                 let path = home
                     .join(".config")
                     .join("codebook")
                     .join(GLOBAL_CONFIG_FILE);
-                if path.exists() {
-                    return Some(path);
-                }
+                return Some(path);
             }
         }
 
