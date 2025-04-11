@@ -64,6 +64,26 @@ static HUNSPELL_DICTIONARIES: LazyLock<Vec<HunspellRepo>> = LazyLock::new(|| {
             "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/es/index.aff",
             "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/es/index.dic",
         ),
+        HunspellRepo::new(
+            "de",
+            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/de/index.aff",
+            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/de/index.dic",
+        ),
+        HunspellRepo::new(
+            "de_at",
+            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/de-AT/index.aff",
+            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/de-AT/index.dic",
+        ),
+        HunspellRepo::new(
+            "de_ch",
+            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/de-CH/index.aff",
+            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/de-CH/index.dic",
+        ),
+        HunspellRepo::new(
+            "ru",
+            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/ru/index.aff",
+            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/ru/index.dic",
+        ),
     ]
 });
 
@@ -99,4 +119,70 @@ pub fn get_repo(name: &str) -> Option<DictionaryRepo> {
         return Some(DictionaryRepo::Text(res1.clone()));
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn test_dictionary_names_unique_and_snake_case() {
+        // Test that dictionary names are unique across both collections
+        let hunspell_names: HashSet<String> = HUNSPELL_DICTIONARIES
+            .iter()
+            .map(|d| d.name.clone())
+            .collect();
+
+        let text_names: HashSet<String> =
+            TEXT_DICTIONARIES.iter().map(|d| d.name.clone()).collect();
+
+        // Check for duplicates within each collection
+        assert_eq!(
+            hunspell_names.len(),
+            HUNSPELL_DICTIONARIES.len(),
+            "Duplicate names found in HUNSPELL_DICTIONARIES"
+        );
+
+        assert_eq!(
+            text_names.len(),
+            TEXT_DICTIONARIES.len(),
+            "Duplicate names found in TEXT_DICTIONARIES"
+        );
+
+        // Check for overlaps between collections
+        let mut all_names = HashSet::new();
+        let mut duplicate_names = Vec::new();
+
+        for name in hunspell_names.iter().chain(text_names.iter()) {
+            if !all_names.insert(name) {
+                duplicate_names.push(name.clone());
+            }
+        }
+
+        assert!(
+            duplicate_names.is_empty(),
+            "Found duplicate names across collections: {:?}",
+            duplicate_names
+        );
+
+        // Test that all names follow snake_case convention
+        let non_snake_case = all_names
+            .iter()
+            .filter(|name| {
+                !name
+                    .chars()
+                    .all(|c| c.is_lowercase() || c == '_' || c.is_ascii_digit())
+                    || name.contains("__")
+                    || name.starts_with('_')
+                    || name.ends_with('_')
+            })
+            .collect::<Vec<_>>();
+
+        assert!(
+            non_snake_case.is_empty(),
+            "Found names not in snake_case format: {:?}",
+            non_snake_case
+        );
+    }
 }

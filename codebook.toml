@@ -3,11 +3,14 @@ words = [
     "aff",
     "allowlist",
     "codebook",
+    "cspell",
     "declarator",
     "dic",
     "musl",
     "scm",
     "spellbook",
+    "wooorm",
+    "xdg",
 ]
 flag_words = [
     "todo",

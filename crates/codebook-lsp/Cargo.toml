@@ -1,6 +1,6 @@
 [package]
 name = "codebook-lsp"
-version = "0.2.4"
+version = "0.2.7"
 edition = "2024"
 
 [dependencies]

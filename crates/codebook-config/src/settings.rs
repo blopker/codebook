@@ -163,9 +163,11 @@ mod tests {
 
     #[test]
     fn test_serialization() {
-        let mut config = ConfigSettings::default();
-        config.dictionaries = vec!["en_us".to_string()];
-        config.words = vec!["rust".to_string()];
+        let config = ConfigSettings {
+            dictionaries: vec!["en_us".to_string()],
+            words: vec!["rust".to_string()],
+            ..Default::default()
+        };
 
         let serialized = toml::to_string(&config).unwrap();
         assert!(serialized.contains("dictionaries = [\"en_us\"]"));

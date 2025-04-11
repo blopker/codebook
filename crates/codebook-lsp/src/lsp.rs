@@ -83,7 +83,23 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        info!("Server ready");
+        info!("Server ready!");
+        info!(
+            "Project config: {}",
+            self.config
+                .project_config_path
+                .clone()
+                .unwrap_or_default()
+                .display()
+        );
+        info!(
+            "Global config: {}",
+            self.config
+                .global_config_path
+                .clone()
+                .unwrap_or_default()
+                .display()
+        );
     }
 
     async fn shutdown(&self) -> RpcResult<()> {
@@ -146,14 +162,23 @@ impl LanguageServer for Backend {
             let start_char = diag.range.start.character as usize;
             let end_char = diag.range.end.character as usize;
             let word = get_word_from_string(start_char, end_char, line);
-            if word.is_empty() {
+            if word.is_empty() || word.contains(" ") {
                 continue;
             }
             let cb = self.codebook.clone();
             let inner_word = word.clone();
-            let suggestions = task::spawn_blocking(move || cb.get_suggestions(&inner_word))
-                .await
-                .unwrap();
+            let suggestions = task::spawn_blocking(move || cb.get_suggestions(&inner_word)).await;
+
+            let suggestions = match suggestions {
+                Ok(suggestions) => suggestions,
+                Err(e) => {
+                    error!(
+                        "Error getting suggestions for word '{}' in file '{:?}'\n Error: {}",
+                        word, doc.uri, e
+                    );
+                    return Ok(None);
+                }
+            };
 
             if suggestions.is_none() {
                 return Ok(None);
@@ -206,6 +231,10 @@ impl LanguageServer for Backend {
                     .arguments
                     .iter()
                     .filter_map(|arg| arg.as_str().map(|s| s.to_string()));
+                info!(
+                    "Adding words to dictionary {}",
+                    words.clone().collect::<Vec<String>>().join(", ")
+                );
                 let updated = self.add_words(words);
                 if updated {
                     let _ = self.config.save();
@@ -380,7 +409,7 @@ impl Backend {
             Ok(results) => results,
             Err(err) => {
                 error!(
-                    "Spell-checking failed for file: {:?} \n Error: {}",
+                    "Spell-checking failed for file '{:?}' \n Error: {}",
                     file_path, err
                 );
                 return;

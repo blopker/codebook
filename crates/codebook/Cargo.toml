@@ -7,17 +7,19 @@ edition = "2024"
 lazy_static.workspace = true
 regex.workspace = true
 spellbook.workspace = true
-tree-sitter.workspace = true
 tree-sitter-bash.workspace = true
-tree-sitter-css.workspace = true
-tree-sitter-rust.workspace = true
-tree-sitter-python.workspace = true
-tree-sitter-javascript.workspace = true
-tree-sitter-html.workspace = true
-tree-sitter-go.workspace = true
-tree-sitter-toml-ng.workspace = true
 tree-sitter-c.workspace = true
+tree-sitter-css.workspace = true
+tree-sitter-go.workspace = true
+tree-sitter-html.workspace = true
+tree-sitter-javascript.workspace = true
+tree-sitter-php.workspace = true
+tree-sitter-python.workspace = true
+tree-sitter-r.workspace = true
 tree-sitter-ruby.workspace = true
+tree-sitter-rust.workspace = true
+tree-sitter-toml-ng.workspace = true
+tree-sitter.workspace = true
 streaming-iterator.workspace = true
 tower-lsp.workspace = true
 tree-sitter-typescript.workspace = true
@@ -32,6 +34,7 @@ unicode-segmentation.workspace = true
 
 codebook_config.workspace = true
 downloader.workspace = true
+
 
 [dev-dependencies]
 tempfile.workspace = true

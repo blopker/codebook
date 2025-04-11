@@ -1,15 +1,15 @@
 pub mod dictionaries;
-mod log;
+mod logging;
 pub mod parser;
 pub mod queries;
 mod splitter;
 
 use std::sync::Arc;
 
-use ::log::info;
 use codebook_config::CodebookConfig;
 use dictionaries::{dictionary, manager::DictionaryManager};
 use dictionary::Dictionary;
+use log::info;
 use parser::WordLocation;
 
 pub struct Codebook {
@@ -22,7 +22,6 @@ static DEFAULT_DICTIONARIES: &[&str; 3] = &["codebook", "software_terms", "compu
 
 impl Codebook {
     pub fn new(config: Arc<CodebookConfig>) -> Result<Self, Box<dyn std::error::Error>> {
-        crate::log::init_logging();
         let manager = DictionaryManager::new(&config.cache_dir);
         Ok(Self { config, manager })
     }
@@ -105,18 +104,155 @@ impl Codebook {
     }
 
     pub fn get_suggestions(&self, word: &str) -> Option<Vec<String>> {
+        // Get top suggestions and return the first 5 suggestions in round robin order
+        let max_results = 5;
         let dictionaries = self.get_dictionaries(None);
-        let mut suggestions = Vec::new();
         let mut is_misspelled = false;
-        for dict in dictionaries {
-            if !dict.check(word) {
-                is_misspelled = true;
-                suggestions.extend(dict.suggest(word));
+        let suggestions: Vec<Vec<String>> = dictionaries
+            .iter()
+            .filter_map(|dict| {
+                if !dict.check(word) {
+                    is_misspelled = true;
+                    Some(dict.suggest(word))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        if !is_misspelled {
+            return None;
+        }
+        Some(collect_round_robin(&suggestions, max_results))
+    }
+}
+
+fn collect_round_robin<T: Clone + PartialEq + Ord>(sources: &[Vec<T>], max_count: usize) -> Vec<T> {
+    let mut result = Vec::with_capacity(max_count);
+    for i in 0..max_count {
+        for source in sources {
+            if let Some(item) = source.get(i) {
+                if !result.contains(item) {
+                    result.push(item.clone());
+                    if result.len() >= max_count {
+                        return result;
+                    }
+                }
             }
         }
-        if is_misspelled {
-            return Some(suggestions.iter().take(5).cloned().collect());
-        }
-        None
+    }
+    result.sort();
+    result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_collect_round_robin_basic() {
+        let sources = vec![
+            vec!["apple", "banana", "cherry"],
+            vec!["date", "elderberry", "fig"],
+            vec!["grape", "honeydew", "kiwi"],
+        ];
+
+        let result = collect_round_robin(&sources, 5);
+        // Round-robin order: first from each source, then second from each source
+        assert_eq!(
+            result,
+            vec!["apple", "date", "grape", "banana", "elderberry"]
+        );
+    }
+
+    #[test]
+    fn test_collect_round_robin_with_duplicates() {
+        let sources = vec![
+            vec!["apple", "banana", "cherry"],
+            vec!["banana", "cherry", "date"],
+            vec!["cherry", "date", "elderberry"],
+        ];
+
+        // In round-robin, we get:
+        // 1. apple (1st from 1st source)
+        // 2. banana (1st from 2nd source) - cherry already taken
+        // 3. cherry (1st from 3rd source)
+        // 4. banana (2nd from 1st source)
+        // 5. date (3rd from 2nd source) - cherry already taken
+        let result = collect_round_robin(&sources, 5);
+        assert_eq!(
+            result,
+            vec!["apple", "banana", "cherry", "date", "elderberry"]
+        );
+    }
+
+    #[test]
+    fn test_collect_round_robin_uneven_sources() {
+        let sources = vec![
+            vec!["apple", "banana", "cherry", "date"],
+            vec!["elderberry"],
+            vec!["fig", "grape"],
+        ];
+
+        // Round-robin order with uneven sources
+        let result = collect_round_robin(&sources, 7);
+        assert_eq!(
+            result,
+            vec![
+                "apple",
+                "elderberry",
+                "fig",
+                "banana",
+                "grape",
+                "cherry",
+                "date"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_collect_round_robin_empty_sources() {
+        let sources: Vec<Vec<&str>> = vec![];
+        let result = collect_round_robin(&sources, 5);
+        assert_eq!(result, Vec::<&str>::new());
+    }
+
+    #[test]
+    fn test_collect_round_robin_some_empty_sources() {
+        let sources = vec![vec!["apple", "banana"], vec![], vec!["cherry", "date"]];
+
+        // Round-robin order, skipping empty source
+        let result = collect_round_robin(&sources, 4);
+        assert_eq!(result, vec!["apple", "cherry", "banana", "date"]);
+    }
+
+    #[test]
+    fn test_collect_round_robin_with_numbers() {
+        let sources = vec![vec![1, 3, 5], vec![2, 4, 6]];
+
+        // Round-robin order with numbers
+        let result = collect_round_robin(&sources, 6);
+        assert_eq!(result, vec![1, 2, 3, 4, 5, 6]);
+    }
+
+    #[test]
+    fn test_collect_round_robin_max_count_exceeded() {
+        let sources = vec![
+            vec!["apple", "banana", "cherry"],
+            vec!["date", "elderberry", "fig"],
+            vec!["grape", "honeydew", "kiwi"],
+        ];
+
+        // First round of round-robin (first from each source)
+        let result = collect_round_robin(&sources, 3);
+        assert_eq!(result, vec!["apple", "date", "grape"]);
+    }
+
+    #[test]
+    fn test_collect_round_robin_max_count_higher_than_available() {
+        let sources = vec![vec!["apple", "banana"], vec!["cherry", "date"]];
+
+        // Round-robin order for all available elements
+        let result = collect_round_robin(&sources, 10);
+        assert_eq!(result, vec!["apple", "banana", "cherry", "date"]);
     }
 }

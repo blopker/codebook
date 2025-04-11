@@ -10,7 +10,9 @@ pub enum LanguageType {
     Go,
     HTML,
     Javascript,
+    Php,
     Python,
+    R,
     Ruby,
     Rust,
     TOML,
@@ -127,6 +129,21 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         query: include_str!("queries/bash.scm"),
         extensions: &["sh", "bash"],
     },
+    // Added PHP
+    LanguageSetting {
+        type_: LanguageType::Php,
+        ids: &["php"],
+        dictionary_ids: &["php"],
+        query: include_str!("queries/php.scm"),
+        extensions: &["php"],
+    },
+    LanguageSetting {
+        type_: LanguageType::R,
+        ids: &["r"],
+        dictionary_ids: &["r"],
+        query: include_str!("queries/r.scm"),
+        extensions: &["r", "R"],
+    },
 ];
 
 #[derive(Debug)]
@@ -148,7 +165,9 @@ impl LanguageSetting {
             LanguageType::Go => Some(tree_sitter_go::LANGUAGE.into()),
             LanguageType::HTML => Some(tree_sitter_html::LANGUAGE.into()),
             LanguageType::Javascript => Some(tree_sitter_javascript::LANGUAGE.into()),
+            LanguageType::Php => Some(tree_sitter_php::LANGUAGE_PHP.into()),
             LanguageType::Python => Some(tree_sitter_python::LANGUAGE.into()),
+            LanguageType::R => Some(tree_sitter_r::LANGUAGE.into()),
             LanguageType::Ruby => Some(tree_sitter_ruby::LANGUAGE.into()),
             LanguageType::Rust => Some(tree_sitter_rust::LANGUAGE.into()),
             LanguageType::TOML => Some(tree_sitter_toml_ng::LANGUAGE.into()),
@@ -174,4 +193,39 @@ pub fn get_language_name_from_filename(filename: &str) -> LanguageType {
         }
     }
     LanguageType::Text
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tree_sitter::Query;
+
+    #[test]
+    fn test_all_queries_are_valid() {
+        for language_setting in LANGUAGE_SETTINGS {
+            // Skip testing Text since it doesn't have a language or query
+            if language_setting.type_ == LanguageType::Text {
+                continue;
+            }
+
+            // Get the language for this setting
+            let language = match language_setting.language() {
+                Some(lang) => lang,
+                None => {
+                    panic!("Failed to get language for {:?}", language_setting.type_);
+                }
+            };
+
+            // Try to create a Query with the language and query
+            let query_result = Query::new(&language, language_setting.query);
+
+            // Assert that the query is valid
+            assert!(
+                query_result.is_ok(),
+                "Invalid query for language {:?}: {:?}",
+                language_setting.type_,
+                query_result.err()
+            );
+        }
+    }
 }

@@ -271,7 +271,7 @@ mod parser_tests {
     }
     #[test]
     fn test_unicode_character_handling() {
-        crate::log::init_test_logging();
+        crate::logging::init_test_logging();
         let text = "©<div>badword</div>";
         let words = get_words_from_text(text);
         println!("{:?}", words);

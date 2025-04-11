@@ -2,6 +2,7 @@ mod settings;
 use crate::settings::ConfigSettings;
 use glob::Pattern;
 use log::debug;
+use log::info;
 use regex::RegexSet;
 use std::env;
 use std::fs;
@@ -59,6 +60,8 @@ impl Default for CodebookConfig {
 impl CodebookConfig {
     /// Load configuration by searching for both global and project-specific configs
     pub fn load(current_dir: Option<&Path>) -> Result<Self, io::Error> {
+        info!("Initializing CodebookConfig");
+
         if let Some(current_dir) = current_dir {
             let current_dir = Path::new(current_dir);
             Self::load_configs(current_dir)
@@ -78,6 +81,7 @@ impl CodebookConfig {
             if global_path.exists() {
                 match Self::load_settings_from_file(&global_path) {
                     Ok(global_settings) => {
+                        info!("Loaded global config from {}", global_path.display());
                         config.global_config_path = Some(global_path.clone());
                         *config.global_settings.write().unwrap() = Some(global_settings.clone());
                         *config.effective_settings.write().unwrap() = global_settings;
@@ -97,11 +101,14 @@ impl CodebookConfig {
                         debug!("Failed to load global config: {}", e);
                     }
                 }
+            } else {
+                info!("No global config found");
             }
         }
 
         // Then try to find and load project config
         if let Some((project_path, project_settings)) = Self::find_project_config(start_dir)? {
+            info!("Loaded project config from {}", project_path.display());
             config.project_config_path = Some(project_path.clone());
             *config.project_settings.write().unwrap() = project_settings.clone();
 
@@ -128,6 +135,10 @@ impl CodebookConfig {
             } else {
                 *config.effective_settings.write().unwrap() = project_settings;
             }
+        } else {
+            info!("No project config found, using default");
+            // Set path to start_dir if no config is found
+            config.project_config_path = Some(start_dir.join(USER_CONFIG_FILES[0]));
         }
 
         Ok(config)
@@ -923,9 +934,11 @@ mod tests {
         )?;
 
         // Create a mock config with our test paths
-        let mut config = CodebookConfig::default();
-        config.global_config_path = Some(global_config_path);
-        config.project_config_path = Some(project_config_path);
+        let config = CodebookConfig {
+            global_config_path: Some(global_config_path),
+            project_config_path: Some(project_config_path),
+            ..Default::default()
+        };
 
         // Manually load both configs to test merging
         if let Ok(global_settings) =
