@@ -373,7 +373,7 @@ impl CodebookConfig {
 
         Ok(true)
     }
-    /// Add a word to the global  config's allowlist
+    /// Add a word to the global config's allowlist
     pub fn add_word_global(&self, word: &str) -> Result<bool, io::Error> {
         {
             let word = word.to_ascii_lowercase();
@@ -440,7 +440,7 @@ impl CodebookConfig {
         fs::write(project_config_path, content)
     }
 
-    /// Save the project configuration to its file
+    /// Save the global configuration to its file
     pub fn save_global(&self) -> Result<(), io::Error> {
         let global_config_path = match self.global_config_path.as_ref() {
             Some(c) => c,
