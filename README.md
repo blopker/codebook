@@ -154,6 +154,7 @@ use_global = true
 ### Working with Configurations
 
 - Words added with "Add to dictionary" are stored in the project configuration
+- Words added with "Add to global dictionary" are stored in the global configuration
 - Project settings are saved automatically when words are added
 - Configuration files are automatically reloaded when they change
 
