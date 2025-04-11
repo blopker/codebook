@@ -363,7 +363,7 @@ impl CodebookConfig {
         *self.regex_set.write().unwrap() = None;
     }
 
-    /// Add a word to the project config's allowlist
+    /// Add a word to the project configs allowlist
     pub fn add_word(&self, word: &str) -> Result<bool, io::Error> {
         {
             let word = word.to_ascii_lowercase();
@@ -384,7 +384,7 @@ impl CodebookConfig {
 
         Ok(true)
     }
-    /// Add a word to the global config's allowlist
+    /// Add a word to the global configs allowlist
     pub fn add_word_global(&self, word: &str) -> Result<bool, io::Error> {
         {
             let word = word.to_ascii_lowercase();
