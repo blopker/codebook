@@ -51,3 +51,9 @@ walkdir = "2.3.3"
 codebook = { path = "crates/codebook" }
 codebook_config = { path = "crates/codebook-config" }
 downloader = { path = "crates/downloader" }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+strip = true
