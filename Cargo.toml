@@ -52,3 +52,7 @@ walkdir = "2.3.3"
 codebook = { path = "crates/codebook" }
 codebook_config = { path = "crates/codebook-config" }
 downloader = { path = "crates/downloader" }
+
+
+[profile.release]
+lto = "thin"
