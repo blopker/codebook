@@ -80,6 +80,12 @@ jobs:
 
     runs-on: ${{ matrix.platform.os }}
     steps:
+      - name: Disable Defender Real-time Monitoring
+        if: matrix.platform.os == 'windows-latest'
+        shell: powershell
+        run: |
+          Set-MpPreference -DisableRealtimeMonitoring $true
+          Write-Host "Disabled Defender Real-time Monitoring"
       - name: Checkout
         uses: actions/checkout@v4
       - name: Build binary
