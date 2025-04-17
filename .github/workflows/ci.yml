@@ -86,6 +86,15 @@ jobs:
         run: |
           Set-MpPreference -DisableRealtimeMonitoring $true
           Write-Host "Disabled Defender Real-time Monitoring"
+      - name: Setup Cargo home directory on D drive
+        if: matrix.platform.os == 'windows-latest'
+        shell: powershell
+        run: |
+          # Create directory on D drive if it doesn't exist
+          New-Item -ItemType Directory -Force -Path "D:\cargo_home"
+          # Set CARGO_HOME for subsequent steps
+          echo "CARGO_HOME=D:\cargo_home" >> $env:GITHUB_ENV
+          Write-Host "Set CARGO_HOME to D:\cargo_home"
       - name: Checkout
         uses: actions/checkout@v4
       - name: Build binary
@@ -94,7 +103,6 @@ jobs:
           command: ${{ matrix.platform.command }}
           target: ${{ matrix.platform.target }}
           args: "--locked --release --bin ${{ matrix.platform.project }}"
-          strip: true
       - name: Package as archive
         shell: bash
         run: |
