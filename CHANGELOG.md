@@ -1,3 +1,8 @@
+[Unreleased]
+
+- Actually add Italian (`it`) dictionary, oops.
+- Faster CI for Windows
+
 [0.2.8]
 
 - Add Haskell support
