@@ -1,4 +1,3 @@
-use log::debug;
 use lru::LruCache;
 
 use std::{
@@ -77,10 +76,10 @@ impl Dictionary for HunspellDictionary {
     }
 
     fn suggest(&self, word: &str) -> Vec<String> {
-        debug!("Checking Cache: {:?}", word);
+        // debug!("Checking Cache: {:?}", word);
         // First try to get from cache with write lock since get() needs to modify LRU order
         if let Some(suggestions) = self.suggestion_cache.write().unwrap().get_mut(word) {
-            debug!("Cache hit for {:?}", word);
+            // debug!("Cache hit for {:?}", word);
             return suggestions.clone();
         }
 

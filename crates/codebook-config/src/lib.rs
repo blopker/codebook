@@ -60,7 +60,7 @@ impl Default for CodebookConfig {
 impl CodebookConfig {
     /// Load configuration by searching for both global and project-specific configs
     pub fn load(current_dir: Option<&Path>) -> Result<Self, io::Error> {
-        info!("Initializing CodebookConfig");
+        debug!("Initializing CodebookConfig");
 
         if let Some(current_dir) = current_dir {
             let current_dir = Path::new(current_dir);
@@ -81,7 +81,7 @@ impl CodebookConfig {
             if global_path.exists() {
                 match Self::load_settings_from_file(&global_path) {
                     Ok(global_settings) => {
-                        info!("Loaded global config from {}", global_path.display());
+                        debug!("Loaded global config from {}", global_path.display());
                         config.global_config_path = Some(global_path.clone());
                         *config.global_settings.write().unwrap() = Some(global_settings.clone());
                         *config.effective_settings.write().unwrap() = global_settings;
@@ -109,7 +109,7 @@ impl CodebookConfig {
 
         // Then try to find and load project config
         if let Some((project_path, project_settings)) = Self::find_project_config(start_dir)? {
-            info!("Loaded project config from {}", project_path.display());
+            debug!("Loaded project config from {}", project_path.display());
             config.project_config_path = Some(project_path.clone());
             *config.project_settings.write().unwrap() = project_settings.clone();
 
@@ -440,7 +440,7 @@ impl CodebookConfig {
 
         let content = toml::to_string_pretty(&*self.project_settings.read().unwrap())
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-        log::info!(
+        info!(
             "Saving project configuration to {}",
             project_config_path.display()
         );
@@ -456,7 +456,7 @@ impl CodebookConfig {
 
         let content = toml::to_string_pretty(&*self.global_settings.read().unwrap())
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-        log::info!(
+        info!(
             "Saving project configuration to {}",
             global_config_path.display()
         );

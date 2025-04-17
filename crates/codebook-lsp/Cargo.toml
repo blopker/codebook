@@ -9,7 +9,7 @@ tower-lsp.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 fs2.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["sync", "rt"] }
 env_logger.workspace = true
 log.workspace = true
 clap.workspace = true

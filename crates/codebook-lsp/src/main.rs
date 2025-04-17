@@ -1,5 +1,7 @@
 mod file_cache;
 mod lsp;
+mod lsp_logger;
+
 use clap::{Parser, Subcommand};
 use codebook_config::CodebookConfig;
 use log::info;
@@ -30,8 +32,6 @@ enum Commands {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    // Initialize logging so we can see server messages in the console.
-    env_logger::init();
     let cli = Cli::parse();
 
     let root = match cli.root.as_deref() {
@@ -53,13 +53,15 @@ async fn main() {
 }
 
 async fn serve_lsp(root: &Path) {
-    info!("Starting Codebook Language Server...");
+    eprintln!("Starting Codebook Language Server..");
     let (stdin, stdout) = (tokio::io::stdin(), tokio::io::stdout());
     let inner_root = root.to_owned();
+
     // Some blocking setup is done, so spawn_block!
     let (service, socket) =
         task::spawn_blocking(move || LspService::new(|client| Backend::new(client, &inner_root)))
             .await
             .unwrap();
+
     Server::new(stdin, stdout, socket).serve(service).await;
 }

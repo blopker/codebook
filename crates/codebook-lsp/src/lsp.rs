@@ -7,6 +7,7 @@ use codebook::parser::TextRange;
 use codebook::parser::WordLocation;
 use codebook::parser::get_word_from_string;
 use codebook::queries::LanguageType;
+use log::LevelFilter;
 use log::error;
 use serde_json::Value;
 use tokio::task;
@@ -19,6 +20,7 @@ use codebook_config::CodebookConfig;
 use log::{debug, info};
 
 use crate::file_cache::TextDocumentCache;
+use crate::lsp_logger;
 
 const SOURCE_NAME: &str = "Codebook";
 
@@ -58,8 +60,24 @@ impl From<CodebookCommand> for String {
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
-    async fn initialize(&self, _: InitializeParams) -> RpcResult<InitializeResult> {
-        info!("Server initialized");
+    async fn initialize(&self, params: InitializeParams) -> RpcResult<InitializeResult> {
+        // Get log level from initialization options
+        let log_level = params
+            .initialization_options
+            .as_ref()
+            .and_then(|options| options.get("logLevel"))
+            .and_then(|level| level.as_str())
+            .map(|level| {
+                if level == "debug" {
+                    LevelFilter::Debug
+                } else {
+                    LevelFilter::Info
+                }
+            })
+            .unwrap_or(LevelFilter::Info);
+        lsp_logger::LspLogger::init(self.client.clone(), log_level)
+            .expect("Failed to initialize LSP logger");
+        info!("LSP logger initialized with log level: {}", log_level);
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
@@ -313,10 +331,10 @@ impl Backend {
                     should_save = true;
                 }
                 Ok(false) => {
-                    log::info!("Word '{}' already exists in dictionary.", word);
+                    info!("Word '{}' already exists in dictionary.", word);
                 }
                 Err(e) => {
-                    log::error!("Failed to add word: {}", e);
+                    error!("Failed to add word: {}", e);
                 }
             }
         }
@@ -330,10 +348,10 @@ impl Backend {
                     should_save = true;
                 }
                 Ok(false) => {
-                    log::info!("Word '{}' already exists in global dictionary.", word);
+                    info!("Word '{}' already exists in global dictionary.", word);
                 }
                 Err(e) => {
-                    log::error!("Failed to add word: {}", e);
+                    error!("Failed to add word: {}", e);
                 }
             }
         }
@@ -379,7 +397,7 @@ impl Backend {
         let did_reload = match self.config.reload() {
             Ok(did_reload) => did_reload,
             Err(e) => {
-                log::error!("Failed to reload config: {}", e);
+                error!("Failed to reload config: {}", e);
                 false
             }
         };
@@ -399,7 +417,7 @@ impl Backend {
         };
         // Convert the file URI to a local file path.
         let file_path = doc.uri.to_file_path().unwrap_or_default();
-        info!("Spell-checking file: {:?}", file_path);
+        debug!("Spell-checking file: {:?}", file_path);
         // 1) Perform spell-check.
         let lang_type = doc
             .language_id
@@ -438,11 +456,11 @@ impl Backend {
             })
             .collect();
 
-        debug!("Diagnostics: {:?}", diagnostics);
+        // debug!("Diagnostics: {:?}", diagnostics);
         // 3) Send the diagnostics to the client.
         self.client
             .publish_diagnostics(doc.uri, diagnostics, None)
             .await;
-        debug!("Published diagnostics for: {:?}", file_path);
+        // debug!("Published diagnostics for: {:?}", file_path);
     }
 }

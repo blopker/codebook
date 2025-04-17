@@ -6,11 +6,11 @@ use std::{
 
 use super::{
     dictionary::{self, TextDictionary},
-    repo::{get_repo, DictionaryRepo, HunspellRepo, TextRepo},
+    repo::{DictionaryRepo, HunspellRepo, TextRepo, get_repo},
 };
 use dictionary::{Dictionary, HunspellDictionary};
 use downloader::Downloader;
-use log::info;
+use log::{debug, error};
 
 pub struct DictionaryManager {
     dictionary_cache: Arc<RwLock<HashMap<String, Arc<dyn Dictionary>>>>,
@@ -33,7 +33,7 @@ impl DictionaryManager {
         let repo = match get_repo(id) {
             Some(r) => r,
             None => {
-                info!("Failed to get repo for dictionary: {}", id);
+                debug!("Failed to get repo for dictionary, skipping: {}", id);
                 return None;
             }
         };
@@ -56,14 +56,14 @@ impl DictionaryManager {
         let aff_path = match self.downloader.get(&repo.aff_url) {
             Ok(path) => path,
             Err(e) => {
-                info!("Error: {:?}", e);
+                error!("Error: {:?}", e);
                 return None;
             }
         };
         let dic_path = match self.downloader.get(&repo.dict_url) {
             Ok(path) => path,
             Err(e) => {
-                info!("Error: {:?}", e);
+                error!("Error: {:?}", e);
                 return None;
             }
         };
@@ -71,7 +71,7 @@ impl DictionaryManager {
             match HunspellDictionary::new(aff_path.to_str().unwrap(), dic_path.to_str().unwrap()) {
                 Ok(dict) => dict,
                 Err(e) => {
-                    info!("Error: {:?}", e);
+                    error!("Error: {:?}", e);
                     return None;
                 }
             };
@@ -85,7 +85,7 @@ impl DictionaryManager {
         let text_path = match self.downloader.get(&repo.url.unwrap()) {
             Ok(path) => path,
             Err(e) => {
-                info!("Error: {:?}", e);
+                error!("Error: {:?}", e);
                 return None;
             }
         };

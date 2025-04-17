@@ -1,5 +1,4 @@
 use crate::splitter::{self};
-use log::debug;
 
 use crate::queries::{LanguageType, get_language_setting};
 use std::collections::HashMap;
@@ -87,12 +86,12 @@ fn find_locations_code(
             let current_line = node_start.row as u32;
             let current_column = node_start.column as u32;
             let words = get_words_from_text(node_text);
-            debug!("Found Capture: {node_text:?}");
-            debug!("Words: {words:?}");
-            debug!("Column: {current_column}");
-            debug!("Line: {current_line}");
+            // debug!("Found Capture: {node_text:?}");
+            // debug!("Words: {words:?}");
+            // debug!("Column: {current_column}");
+            // debug!("Line: {current_line}");
             for (word_text, (text_start_char, text_line)) in words {
-                debug!("Checking: {:?}", word_text);
+                // debug!("Checking: {:?}", word_text);
                 if !check_function(&word_text) {
                     let offset = if text_line == 0 { current_column } else { 0 };
                     let base_start_char = text_start_char + offset;
