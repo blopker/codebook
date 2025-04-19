@@ -1,3 +1,4 @@
+
 <br />
 <div align="center">
   <a href="https://github.com/blopker/codebook"> <img
@@ -9,6 +10,53 @@
   Bug</a> · <a href="https://github.com/blopker/codebook/issues">Request
   Feature</a> </p>
 </div>
+
+<details>
+<summary>Table Of Contents</summary>
+
+<!--toc:start-->
+- [Usage](#usage)
+- [Integrations](#integrations)
+  - [Zed](#zed)
+  - [Helix](#helix)
+  - [Other Editors](#other-editors)
+- [About](#about)
+- [Status](#status)
+  - [Supported Programming Languages](#supported-programming-languages)
+- [Installation](#installation)
+  - [Manual](#manual)
+  - [Eget Installation](#eget-installation)
+  - [Arch User Repository](#arch-user-repository)
+  - [From Source](#from-source)
+- [Configuration](#configuration)
+  - [Global Configuration](#global-configuration)
+  - [Project Configuration](#project-configuration)
+  - [Configuration Options](#configuration-options)
+  - [Configuration Precedence](#configuration-precedence)
+  - [Working with Configurations](#working-with-configurations)
+- [Goals](#goals)
+  - [Privacy](#privacy)
+  - [Don't be annoying](#dont-be-annoying)
+  - [Efficient](#efficient)
+- [Features](#features)
+  - [Code-aware spell checking](#code-aware-spell-checking)
+  - [Language Server](#language-server)
+  - [Dictionary Management](#dictionary-management)
+  - [Hierarchical Configuration](#hierarchical-configuration)
+- [Adding a New Language](#adding-a-new-language)
+  - [1. Create a Tree-sitter Query](#1-create-a-tree-sitter-query)
+  - [2. Understand the Language's AST](#2-understand-the-languages-ast)
+  - [3. Update the Language Settings](#3-update-the-language-settings)
+  - [4. Add the Tree-sitter Grammar](#4-add-the-tree-sitter-grammar)
+  - [5. Test Your Implementation](#5-test-your-implementation)
+  - [Tips for Writing Effective Queries](#tips-for-writing-effective-queries)
+- [Roadmap](#roadmap)
+- [Running Tests](#running-tests)
+- [Acknowledgments](#acknowledgments)
+- [Release](#release)
+<!--toc:end-->
+
+</details>
 
 ## Usage
 
@@ -72,6 +120,14 @@ Suggestions will appear in files opened, and
 [space-mode](https://docs.helix-editor.com/keymap.html#space-mode) `a` key
 binding can be used to accept suggestions.
 
+### Other Editors
+
+Any editor that implements the Language Server Protocol should be compatible with Codebook. To get started, follow the [installation instructions](#installation), then consult your editor's documentation to learn how to configure and enable a new language server. For your reference, the following command starts the server s.t. it listens on `STDIN` and emits on `STDOUT`:
+
+```sh
+codebook-lsp serve
+```
+
 ## About
 
 Codebook is a spellchecker for code. It binds together the venerable Tree Sitter and the fast spell checker [Spellbook](https://github.com/helix-editor/spellbook). Included is a Language Server for use in (theoretically) any editor. Everything is done in Rust to keep response times snappy and memory usage _low_.
@@ -108,6 +164,39 @@ Codebook is in active development. As better dictionaries are added, words that 
 ❌ = Work has started, but there are issues
 
 If Codebook is not marking issues you think it should, please file a GitHub issue!
+
+## Installation
+
+If you are a Zed user, you may skip this step and consult the [Zed section](#zed) of this document. Otherwise, you will need to install the `codebook-lsp` binary and make it available on your `$PATH`. You have a number of options to do this.
+
+### Manual
+
+1. Download the latest release for your architecture from the [releases](https://github.com/blopker/codebook/releases) page.
+2. Extract the binary from the tarball, and move it somewhere on your system `$PATH`.
+  - `~/.local/bin/codebook-lsp`
+  - `/usr/bin/codebook-lsp`
+  - Etc...
+
+### Eget Installation
+
+You can easily install the latest release using [eget](https://github.com/zyedidia/eget):
+
+```sh
+eget blopker/codebook
+```
+
+### Arch User Repository
+
+The binary release is available on the AUR under the [codebook-bin](aur.archlinux.org/packages/codebook-bin) package. Arch users can easily install it with their favorite AUR helper, such as [paru](https://github.com/Morganamilo/paru):
+
+```sh
+paru -S codebook-bin
+```
+
+### From Source
+
+You may also build `codebook` from source by cloning the repository and running `make build`. Note that the `bun` runtime is required to build the word lists.
+
 
 ## Configuration
 
