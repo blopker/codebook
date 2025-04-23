@@ -24,7 +24,7 @@ Please gift us a ⭐ if you find Codebook useful!
 
 ### Zed
 
-Codebook is the most popular spell checker the Zed editor! To install, go to the Extension tab in Zed and look for "Codebook".
+Codebook is the most popular spell checker for Zed! To install, go to the Extension tab in Zed and look for "Codebook".
 
 **Note**: The version that Zed displays in the extension menus is for the [Zed Extension](https://github.com/blopker/codebook-zed), and not the LSP version (this repo). The extension will automatically update the LSP. If that updater is broken for some reason, try uninstalling the extension and reinstalling.
 
