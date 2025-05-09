@@ -28,6 +28,17 @@ Codebook is the most popular spell checker for Zed! To install, go to the Extens
 
 **Note**: The version that Zed displays in the extension menus is for the [Zed Extension](https://github.com/blopker/codebook-zed), and not the LSP version (this repo). The extension will automatically update the LSP. If that updater is broken for some reason, try uninstalling the extension and reinstalling.
 
+If quickfix code actions are not showing up for specific languages, ensure your `settings.json` file incudes the special `"..."` value in any `language_servers` values defined:
+
+```json
+"languages": {
+  "Python": {
+    "language_servers": ["pyright", "ruff", "..."],
+    "format_on_save": "on"
+  }
+},
+```
+
 To enable DEBUG logs, add this to your settings.json:
 
 ```json

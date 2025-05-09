@@ -7,6 +7,7 @@ use codebook::parser::TextRange;
 use codebook::parser::WordLocation;
 use codebook::parser::get_word_from_string;
 use codebook::queries::LanguageType;
+
 use log::LevelFilter;
 use log::error;
 use serde_json::Value;
@@ -90,7 +91,21 @@ impl LanguageServer for Backend {
                     ],
                     work_done_progress_options: Default::default(),
                 }),
-                code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
+                code_action_provider: Some(CodeActionProviderCapability::Options(
+                    CodeActionOptions {
+                        code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+                        resolve_provider: None,
+                        work_done_progress_options: WorkDoneProgressOptions {
+                            work_done_progress: None,
+                        },
+                    },
+                )),
+                diagnostic_provider: Some(DiagnosticServerCapabilities::Options(
+                    DiagnosticOptions {
+                        identifier: Some(SOURCE_NAME.to_string()),
+                        ..DiagnosticOptions::default()
+                    },
+                )),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -422,7 +437,7 @@ impl Backend {
         let lang_type = doc
             .language_id
             .as_deref()
-            .map(|lang| LanguageType::from_str(lang).unwrap());
+            .and_then(|lang| LanguageType::from_str(lang).ok());
 
         let cb = self.codebook.clone();
         let fp = file_path.clone();

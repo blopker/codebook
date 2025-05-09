@@ -50,7 +50,6 @@ impl LanguageType {
     }
 }
 
-// Use https://intmainreturn0.com/ts-visualizer/ to help with writing grammar queries
 // Language ids documented at https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentItem
 pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     LanguageSetting {
