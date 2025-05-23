@@ -1,6 +1,7 @@
 use crate::splitter::{self};
 
 use crate::queries::{LanguageType, get_language_setting};
+use regex::Regex;
 use std::collections::HashMap;
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
@@ -11,6 +12,18 @@ pub struct TextRange {
     pub start_char: u32,
     pub end_char: u32,
     pub line: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct SkipRange {
+    start_char: usize, // Start position in grapheme clusters
+    end_char: usize,   // End position in grapheme clusters
+}
+
+impl SkipRange {
+    fn overlaps(&self, start: usize, end: usize) -> bool {
+        start < self.end_char && end > self.start_char
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -29,16 +42,21 @@ pub fn find_locations(
     text: &str,
     language: LanguageType,
     check_function: impl Fn(&str) -> bool,
+    skip_patterns: &[Regex],
 ) -> Vec<WordLocation> {
     match language {
-        LanguageType::Text => find_locations_text(text, check_function),
-        _ => find_locations_code(text, language, check_function),
+        LanguageType::Text => find_locations_text(text, check_function, skip_patterns),
+        _ => find_locations_code(text, language, check_function, skip_patterns),
     }
 }
 
-fn find_locations_text(text: &str, check_function: impl Fn(&str) -> bool) -> Vec<WordLocation> {
+fn find_locations_text(
+    text: &str,
+    check_function: impl Fn(&str) -> bool,
+    skip_patterns: &[Regex],
+) -> Vec<WordLocation> {
     let mut results: Vec<WordLocation> = Vec::new();
-    let words = get_words_from_text(text);
+    let words = get_words_from_text(text, skip_patterns);
 
     // Check the last word if text doesn't end with punctuation
     for (current_word, (word_start_char, current_line)) in words {
@@ -62,6 +80,7 @@ fn find_locations_code(
     text: &str,
     language: LanguageType,
     check_function: impl Fn(&str) -> bool,
+    skip_patterns: &[Regex],
 ) -> Vec<WordLocation> {
     let language_setting =
         get_language_setting(language).expect("This _should_ never happen. Famous last words.");
@@ -85,7 +104,7 @@ fn find_locations_code(
             let node_start = node.start_position();
             let current_line = node_start.row as u32;
             let current_column = node_start.column as u32;
-            let words = get_words_from_text(node_text);
+            let words = get_words_from_text(node_text, skip_patterns);
             // debug!("Found Capture: {node_text:?}");
             // debug!("Words: {words:?}");
             // debug!("Column: {current_column}");
@@ -123,7 +142,59 @@ fn find_locations_code(
         .collect()
 }
 
-fn get_words_from_text(text: &str) -> Vec<(String, (u32, u32))> {
+fn find_skip_ranges(text: &str, patterns: &[Regex]) -> Vec<SkipRange> {
+    let mut ranges = Vec::new();
+
+    for pattern in patterns {
+        for regex_match in pattern.find_iter(text) {
+            // Convert byte positions to grapheme positions
+            let text_before_match = &text[..regex_match.start()];
+            let start_char = text_before_match.graphemes(true).count();
+            let match_str = regex_match.as_str();
+            let end_char = start_char + match_str.graphemes(true).count();
+
+            ranges.push(SkipRange {
+                start_char,
+                end_char,
+            });
+        }
+    }
+
+    // Sort ranges by start position and merge overlapping ones
+    ranges.sort_by_key(|r| r.start_char);
+    merge_overlapping_ranges(ranges)
+}
+
+fn merge_overlapping_ranges(ranges: Vec<SkipRange>) -> Vec<SkipRange> {
+    if ranges.is_empty() {
+        return ranges;
+    }
+
+    let mut merged = Vec::new();
+    let mut current = ranges[0];
+
+    for range in ranges.into_iter().skip(1) {
+        if range.start_char <= current.end_char {
+            // Overlapping or adjacent ranges - merge them
+            current.end_char = current.end_char.max(range.end_char);
+        } else {
+            merged.push(current);
+            current = range;
+        }
+    }
+    merged.push(current);
+    merged
+}
+
+fn get_words_from_text(text: &str, skip_patterns: &[Regex]) -> Vec<(String, (u32, u32))> {
+    let skip_ranges = find_skip_ranges(text, skip_patterns);
+    get_words_from_text_with_ranges(text, &skip_ranges)
+}
+
+fn get_words_from_text_with_ranges(
+    text: &str,
+    skip_ranges: &[SkipRange],
+) -> Vec<(String, (u32, u32))> {
     let mut result = Vec::new();
 
     let add_word_fn = |current_word: &str,
@@ -146,11 +217,30 @@ fn get_words_from_text(text: &str) -> Vec<(String, (u32, u32))> {
             }
         }
     };
+
+    // Calculate absolute character positions for each line start
+    let mut line_start_positions = vec![0];
+    let mut absolute_pos = 0;
+    for line in text.lines() {
+        absolute_pos += line.graphemes(true).count() + 1; // +1 for newline
+        line_start_positions.push(absolute_pos);
+    }
+
     for (line_number, line) in text.lines().enumerate() {
         let mut column = 0;
+        let line_start_char = line_start_positions[line_number];
+
         let words = line.split_word_bounds();
         for word in words {
-            if is_alphabetic(word) {
+            let current_pos = line_start_char + column;
+            let word_end_pos = current_pos + word.graphemes(true).count();
+
+            // Check if this word overlaps with any skip range
+            let should_skip = skip_ranges
+                .iter()
+                .any(|range| range.overlaps(current_pos, word_end_pos));
+
+            if is_alphabetic(word) && !should_skip {
                 add_word_fn(word, &mut result, column, line_number);
             }
             column += word.graphemes(true).count();
@@ -179,7 +269,7 @@ mod parser_tests {
     #[test]
     fn test_spell_checking() {
         let text = "HelloWorld calc_wrld";
-        let results = find_locations(text, LanguageType::Text, |_| false);
+        let results = find_locations(text, LanguageType::Text, |_| false, &[]);
         println!("{:?}", results);
         assert_eq!(results.len(), 4);
     }
@@ -208,38 +298,17 @@ mod parser_tests {
             ("rd", (23, 3)),
             ("line", (26, 3)),
         ];
-        let words = get_words_from_text(text);
+        let words = get_words_from_text(text, &[]);
         println!("{:?}", words);
         for (i, w) in expected.into_iter().enumerate() {
             assert_eq!(words[i], (w.0.to_string(), w.1));
         }
     }
 
-    // #[test]
-    // fn test_is_url() {
-    //     crate::log::init_test_logging();
-    //     let text = "https://www.google.com";
-    //     let words = get_words_from_text(text);
-    //     println!("{:?}", words);
-    //     assert_eq!(words.len(), 0);
-    // }
-
-    // #[test]
-    // fn test_is_url_in_context() {
-    //     crate::log::init_test_logging();
-    //     let text = "Usez: https://intmainreturn0.com/ts-visualizer/ badwrd";
-    //     let words = get_words_from_text(text);
-    //     println!("{:?}", words);
-    //     assert_eq!(words.len(), 2);
-    //     assert_eq!(words[0].0, "Usez");
-    //     assert_eq!(words[1].0, "badwrd");
-    //     assert_eq!(words[1].1, (48, 0));
-    // }
-
     #[test]
     fn test_contraction() {
         let text = "I'm a contraction, wouldn't you agree'?";
-        let words = get_words_from_text(text);
+        let words = get_words_from_text(text, &[]);
         println!("{:?}", words);
         assert_eq!(words[0].0, "I'm");
         assert_eq!(words[1].0, "a");
@@ -272,7 +341,7 @@ mod parser_tests {
     fn test_unicode_character_handling() {
         crate::logging::init_test_logging();
         let text = "©<div>badword</div>";
-        let words = get_words_from_text(text);
+        let words = get_words_from_text(text, &[]);
         println!("{:?}", words);
 
         // Make sure "badword" is included and correctly positioned

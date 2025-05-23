@@ -2,8 +2,11 @@ pub mod dictionaries;
 mod logging;
 pub mod parser;
 pub mod queries;
+pub mod regexes;
 mod splitter;
 
+use regex::Regex;
+use regexes::get_default_skip_patterns;
 use std::sync::Arc;
 
 use codebook_config::CodebookConfig;
@@ -15,6 +18,7 @@ use parser::WordLocation;
 pub struct Codebook {
     config: Arc<CodebookConfig>,
     manager: DictionaryManager,
+    regex_cache: Vec<Regex>,
 }
 
 // Custom 'codebook' dictionary could be removed later for a more general solution.
@@ -23,7 +27,12 @@ static DEFAULT_DICTIONARIES: &[&str; 3] = &["codebook", "software_terms", "compu
 impl Codebook {
     pub fn new(config: Arc<CodebookConfig>) -> Result<Self, Box<dyn std::error::Error>> {
         let manager = DictionaryManager::new(&config.cache_dir);
-        Ok(Self { config, manager })
+        let regex_cache = get_default_skip_patterns();
+        Ok(Self {
+            config,
+            manager,
+            regex_cache,
+        })
     }
 
     /// Get WordLocations for a block of text.
@@ -42,23 +51,28 @@ impl Codebook {
         // call spell check on each dictionary
         let language = self.resolve_language(language, file_path);
         let dictionaries = self.get_dictionaries(Some(language));
-        parser::find_locations(text, language, |word| {
-            if self.config.should_flag_word(word) {
-                return false;
-            }
-            if word.len() < 3 {
-                return true;
-            }
-            if self.config.is_allowed_word(word) {
-                return true;
-            }
-            for dictionary in &dictionaries {
-                if dictionary.check(word) {
+        parser::find_locations(
+            text,
+            language,
+            |word| {
+                if self.config.should_flag_word(word) {
+                    return false;
+                }
+                if word.len() < 3 {
                     return true;
                 }
-            }
-            false
-        })
+                if self.config.is_allowed_word(word) {
+                    return true;
+                }
+                for dictionary in &dictionaries {
+                    if dictionary.check(word) {
+                        return true;
+                    }
+                }
+                false
+            },
+            &self.regex_cache,
+        )
     }
 
     fn resolve_language(
