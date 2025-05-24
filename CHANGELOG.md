@@ -1,3 +1,11 @@
+[0.3.0]
+
+Breaking changes:
+
+- User defined regex is now run on a file line-by-line instead of word-by-word. This means regex should likely not match the beginning of a line. For example to match DNA, this pattern used to work: `^[ATCG]+$`. This pattern will now need to be something like: `\\b[ATCG]+\\b` (double `\\` is for escaping in TOML)
+
+- Codebook will now ignore text like URLs and color hex codes by default. See README `User-Defined Regex Patterns` for more details.
+
 [0.2.13]
 
 - Switch out OpenSSL for rustls
