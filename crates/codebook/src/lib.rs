@@ -51,6 +51,10 @@ impl Codebook {
         // call spell check on each dictionary
         let language = self.resolve_language(language, file_path);
         let dictionaries = self.get_dictionaries(Some(language));
+        let mut regex_patterns = self.regex_cache.clone();
+        if let Some(config_patterns) = self.config.get_ignore_patterns() {
+            regex_patterns.extend(config_patterns);
+        }
         parser::find_locations(
             text,
             language,
@@ -71,7 +75,7 @@ impl Codebook {
                 }
                 false
             },
-            &self.regex_cache,
+            &regex_patterns,
         )
     }
 

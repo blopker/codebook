@@ -22,4 +22,4 @@ ignore_paths = [
     "**/*.json",
     ".git/**/*",
 ]
-ignore_patterns = ["^[ATCG]+$"]
+ignore_patterns = ["\\b[ATCG]+\\b"]

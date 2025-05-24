@@ -179,3 +179,74 @@ fn test_multiple_patterns_combined() {
     println!("Misspelled words: {misspelled:?}");
     assert_eq!(misspelled, expected);
 }
+
+#[test]
+fn test_user_defined_regex_patterns() {
+    utils::init_logging();
+
+    // Create a temporary config with user-defined patterns
+    let temp_dir = tempfile::TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("codebook.toml");
+
+    // Test multiple types of user-defined regex patterns
+    let config_content = r#"
+        ignore_patterns = [
+            "^[A-Z]{2,}$",           # All caps words like "HTML", "CSS"
+            "\\bcustom\\w*",             # Words starting with "custom"
+            "\\d{4}-\\d{2}-\\d{2}",  # Date format like "2024-01-15"
+            "testpattern"            # Simple literal match
+        ]
+    "#;
+
+    std::fs::write(&config_path, config_content).unwrap();
+
+    let config =
+        std::sync::Arc::new(codebook_config::CodebookConfig::load(Some(temp_dir.path())).unwrap());
+
+    let processor = codebook::Codebook::new(config).unwrap();
+
+    let sample_text = r#"
+        This text has HTML and CSS frameworks.
+        Also customword and testpattern should be ignored.
+        The date 2024-01-15 should be skipped too.
+        But badword and anotherbadword should be flagged.
+    "#;
+
+    let binding = processor
+        .spell_check(sample_text, Some(LanguageType::Text), None)
+        .to_vec();
+    let mut misspelled = binding
+        .iter()
+        .map(|r| r.word.as_str())
+        .collect::<Vec<&str>>();
+    misspelled.sort();
+    println!("Misspelled words: {misspelled:?}");
+
+    // Verify words that should be skipped by user patterns
+    assert!(
+        !misspelled.contains(&"HTML"),
+        "HTML should be skipped by ^[A-Z]{{2,}}$ pattern"
+    );
+    assert!(
+        !misspelled.contains(&"CSS"),
+        "CSS should be skipped by ^[A-Z]{{2,}}$ pattern"
+    );
+    assert!(
+        !misspelled.contains(&"customword"),
+        "customword should be skipped by ^custom.* pattern"
+    );
+    assert!(
+        !misspelled.contains(&"testpattern"),
+        "testpattern should be skipped by literal pattern"
+    );
+
+    // Verify words that should still be flagged (not matching any user pattern)
+    assert!(
+        misspelled.contains(&"badword"),
+        "badword should be flagged as it doesn't match any pattern"
+    );
+    assert!(
+        misspelled.contains(&"anotherbadword"),
+        "anotherbadword should be flagged as it doesn't match any pattern"
+    );
+}

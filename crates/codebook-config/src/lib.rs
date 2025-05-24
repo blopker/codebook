@@ -3,7 +3,7 @@ use crate::settings::ConfigSettings;
 use glob::Pattern;
 use log::debug;
 use log::info;
-use regex::RegexSet;
+use regex::Regex;
 use std::env;
 use std::fs;
 use std::io;
@@ -30,7 +30,7 @@ pub struct CodebookConfig {
     /// Combined settings (global merged with project overrides)
     effective_settings: RwLock<ConfigSettings>,
     /// Compiled regex patterns for ignoring text
-    regex_set: RwLock<Option<RegexSet>>,
+    regex_cache: RwLock<Option<Vec<Regex>>>,
     /// Path to the project-specific config file
     pub project_config_path: Option<PathBuf>,
     project_config_state: RwLock<Option<ConfigFileState>>,
@@ -47,7 +47,7 @@ impl Default for CodebookConfig {
             project_settings: RwLock::new(ConfigSettings::default()),
             global_settings: RwLock::new(None),
             effective_settings: RwLock::new(ConfigSettings::default()),
-            regex_set: RwLock::new(None),
+            regex_cache: RwLock::new(None),
             project_config_path: None,
             project_config_state: RwLock::new(None),
             global_config_path: None,
@@ -356,7 +356,7 @@ impl CodebookConfig {
         }
 
         // Invalidate regex cache
-        *self.regex_set.write().unwrap() = None;
+        *self.regex_cache.write().unwrap() = None;
     }
 
     /// Add a word to the project configs allowlist
@@ -493,9 +493,6 @@ impl CodebookConfig {
 
     /// Check if a word is in the effective allowlist
     pub fn is_allowed_word(&self, word: &str) -> bool {
-        if self.matches_ignore_pattern(word) {
-            return true;
-        }
         let word = word.to_ascii_lowercase();
         self.effective_settings
             .read()
@@ -516,27 +513,26 @@ impl CodebookConfig {
             .any(|w| w == &word)
     }
 
-    /// Check if text matches any of the ignore patterns
-    fn matches_ignore_pattern(&self, word: &str) -> bool {
-        let patterns = &self.effective_settings.read().unwrap().ignore_patterns;
-        if patterns.is_empty() {
-            return false;
+    /// Get the list of user-defined ignore patterns
+    pub fn get_ignore_patterns(&self) -> Option<Vec<Regex>> {
+        let str_patterns = self
+            .effective_settings
+            .read()
+            .unwrap()
+            .ignore_patterns
+            .clone();
+
+        // Lazily initialize the Regex cache
+        let mut regex_cache = self.regex_cache.write().unwrap();
+        if regex_cache.is_none() {
+            let regex_set = str_patterns
+                .into_iter()
+                .map(|pattern| Regex::new(&pattern).unwrap())
+                .collect::<Vec<_>>();
+            *regex_cache = Some(regex_set);
         }
 
-        // Lazily initialize the RegexSet
-        let mut regex_set = self.regex_set.write().unwrap();
-        if regex_set.is_none() {
-            match RegexSet::new(patterns) {
-                Ok(set) => *regex_set = Some(set),
-                Err(_) => return false,
-            }
-        }
-
-        // Check if text matches any pattern
-        if let Some(set) = &*regex_set {
-            return set.is_match(word);
-        }
-        false
+        regex_cache.clone()
     }
 
     /// Clean the cache directory
@@ -702,12 +698,18 @@ mod tests {
         file.write_all(a.as_bytes())?;
 
         let config = load_from_file(ConfigType::Project, &config_path)?;
-        assert!(config.matches_ignore_pattern("GTAC"));
-        assert!(config.matches_ignore_pattern("AATTCCGG"));
-        assert!(config.matches_ignore_pattern("123-45-6789"));
-        assert!(!config.matches_ignore_pattern("Hello"));
-        assert!(!config.matches_ignore_pattern("GTACZ")); // Invalid DNA sequence
+        let patterns = config
+            .effective_settings
+            .read()
+            .unwrap()
+            .ignore_patterns
+            .clone();
+        assert!(patterns.contains(&String::from("^[ATCG]+$")));
+        assert!(patterns.contains(&String::from("\\d{3}-\\d{2}-\\d{4}")));
+        let reg = config.get_ignore_patterns();
 
+        let patterns = reg.as_ref().unwrap();
+        assert!(patterns.len() == 2);
         Ok(())
     }
 
@@ -728,8 +730,7 @@ mod tests {
         )?;
 
         let config = load_from_file(ConfigType::Project, &config_path)?;
-        assert!(config.matches_ignore_pattern("GTAC"));
-        assert!(!config.matches_ignore_pattern("123-45-6789"));
+        assert!(config.get_ignore_patterns().unwrap().len() == 1);
 
         // Update config with new pattern
         let mut file = File::create(&config_path)?;
@@ -743,8 +744,7 @@ mod tests {
 
         // Reload and verify both patterns work
         config.reload()?;
-        assert!(config.matches_ignore_pattern("GTAC"));
-        assert!(config.matches_ignore_pattern("123-45-6789"));
+        assert!(config.get_ignore_patterns().unwrap().len() == 2);
 
         // Update config to remove all patterns
         let mut file = File::create(&config_path)?;
@@ -757,8 +757,7 @@ mod tests {
 
         // Reload and verify no patterns match
         config.reload()?;
-        assert!(!config.matches_ignore_pattern("GTAC"));
-        assert!(!config.matches_ignore_pattern("123-45-6789"));
+        assert!(config.get_ignore_patterns().unwrap().is_empty());
 
         Ok(())
     }
