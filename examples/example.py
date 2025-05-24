@@ -89,7 +89,7 @@ def mainee():
     multiline_txt = """This is a verry long string
                       that continuez on multiple linez
                       with lots of speling misstakes"""
-
+    print(multiline_txt)
     # Generatr expression
     evenn_numbrs = (x for x in range(10) if x % 2 == 0)
 

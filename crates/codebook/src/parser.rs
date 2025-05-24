@@ -21,8 +21,137 @@ struct SkipRange {
 }
 
 impl SkipRange {
-    fn overlaps(&self, start: usize, end: usize) -> bool {
-        start < self.end_char && end > self.start_char
+    fn contains(&self, pos: usize) -> bool {
+        pos >= self.start_char && pos < self.end_char
+    }
+}
+
+/// Helper struct to handle all text position tracking in one place
+struct TextProcessor {
+    text: String,
+    line_starts: Vec<usize>, // Absolute character positions where each line starts
+    skip_ranges: Vec<SkipRange>,
+}
+
+impl TextProcessor {
+    fn new(text: &str, skip_patterns: &[Regex]) -> Self {
+        let text = text.to_string();
+        let skip_ranges = Self::find_skip_ranges(&text, skip_patterns);
+        let line_starts = Self::calculate_line_starts(&text);
+
+        Self {
+            text,
+            line_starts,
+            skip_ranges,
+        }
+    }
+
+    fn find_skip_ranges(text: &str, patterns: &[Regex]) -> Vec<SkipRange> {
+        let mut ranges = Vec::new();
+
+        for pattern in patterns {
+            for regex_match in pattern.find_iter(text) {
+                // Convert byte positions to grapheme positions
+                let text_before_match = &text[..regex_match.start()];
+                let start_char = text_before_match.graphemes(true).count();
+                let match_str = regex_match.as_str();
+                let end_char = start_char + match_str.graphemes(true).count();
+
+                ranges.push(SkipRange {
+                    start_char,
+                    end_char,
+                });
+            }
+        }
+
+        // Sort ranges by start position and merge overlapping ones
+        ranges.sort_by_key(|r| r.start_char);
+        Self::merge_overlapping_ranges(ranges)
+    }
+
+    fn merge_overlapping_ranges(ranges: Vec<SkipRange>) -> Vec<SkipRange> {
+        if ranges.is_empty() {
+            return ranges;
+        }
+
+        let mut merged = Vec::new();
+        let mut current = ranges[0];
+
+        for range in ranges.into_iter().skip(1) {
+            if range.start_char <= current.end_char {
+                // Overlapping or adjacent ranges - merge them
+                current.end_char = current.end_char.max(range.end_char);
+            } else {
+                merged.push(current);
+                current = range;
+            }
+        }
+        merged.push(current);
+        merged
+    }
+
+    fn calculate_line_starts(text: &str) -> Vec<usize> {
+        let mut line_starts = vec![0];
+        let mut pos = 0;
+
+        for line in text.lines() {
+            pos += line.graphemes(true).count() + 1; // +1 for newline
+            line_starts.push(pos);
+        }
+
+        line_starts
+    }
+
+    fn should_skip(&self, absolute_pos: usize, word_len: usize) -> bool {
+        let word_end = absolute_pos + word_len;
+        self.skip_ranges.iter().any(|range| {
+            range.contains(absolute_pos)
+                || range.contains(word_end.saturating_sub(1))
+                || (absolute_pos < range.start_char && word_end > range.end_char)
+        })
+    }
+
+    fn extract_words(&self) -> Vec<(String, (u32, u32))> {
+        let mut result = Vec::new();
+
+        for (line_number, line) in self.text.lines().enumerate() {
+            let line_start_abs = self.line_starts[line_number];
+            let mut column = 0;
+
+            for word in line.split_word_bounds() {
+                if is_alphabetic(word) {
+                    let absolute_pos = line_start_abs + column;
+                    let word_len = word.graphemes(true).count();
+
+                    if !self.should_skip(absolute_pos, word_len) {
+                        self.add_split_words(word, column, line_number, &mut result);
+                    }
+                }
+                column += word.graphemes(true).count();
+            }
+        }
+
+        result
+    }
+
+    fn add_split_words(
+        &self,
+        word: &str,
+        column: usize,
+        line_number: usize,
+        result: &mut Vec<(String, (u32, u32))>,
+    ) {
+        if !word.is_empty() {
+            let split = splitter::split(word);
+            for split_word in split {
+                if !is_numeric(&split_word.word) {
+                    result.push((
+                        split_word.word,
+                        (column as u32 + split_word.start_char, line_number as u32),
+                    ));
+                }
+            }
+        }
     }
 }
 
@@ -55,10 +184,11 @@ fn find_locations_text(
     check_function: impl Fn(&str) -> bool,
     skip_patterns: &[Regex],
 ) -> Vec<WordLocation> {
-    let mut results: Vec<WordLocation> = Vec::new();
-    let words = get_words_from_text(text, skip_patterns);
+    let processor = TextProcessor::new(text, skip_patterns);
+    let words = processor.extract_words();
 
-    // Check the last word if text doesn't end with punctuation
+    let mut results: Vec<WordLocation> = Vec::new();
+
     for (current_word, (word_start_char, current_line)) in words {
         if !check_function(&current_word) {
             let locations = vec![TextRange {
@@ -104,7 +234,8 @@ fn find_locations_code(
             let node_start = node.start_position();
             let current_line = node_start.row as u32;
             let current_column = node_start.column as u32;
-            let words = get_words_from_text(node_text, skip_patterns);
+            let processor = TextProcessor::new(node_text, skip_patterns);
+            let words = processor.extract_words();
             // debug!("Found Capture: {node_text:?}");
             // debug!("Words: {words:?}");
             // debug!("Column: {current_column}");
@@ -140,113 +271,6 @@ fn find_locations_code(
             locations: word_locations.get(word).cloned().unwrap_or_default(),
         })
         .collect()
-}
-
-fn find_skip_ranges(text: &str, patterns: &[Regex]) -> Vec<SkipRange> {
-    let mut ranges = Vec::new();
-
-    for pattern in patterns {
-        for regex_match in pattern.find_iter(text) {
-            // Convert byte positions to grapheme positions
-            let text_before_match = &text[..regex_match.start()];
-            let start_char = text_before_match.graphemes(true).count();
-            let match_str = regex_match.as_str();
-            let end_char = start_char + match_str.graphemes(true).count();
-
-            ranges.push(SkipRange {
-                start_char,
-                end_char,
-            });
-        }
-    }
-
-    // Sort ranges by start position and merge overlapping ones
-    ranges.sort_by_key(|r| r.start_char);
-    merge_overlapping_ranges(ranges)
-}
-
-fn merge_overlapping_ranges(ranges: Vec<SkipRange>) -> Vec<SkipRange> {
-    if ranges.is_empty() {
-        return ranges;
-    }
-
-    let mut merged = Vec::new();
-    let mut current = ranges[0];
-
-    for range in ranges.into_iter().skip(1) {
-        if range.start_char <= current.end_char {
-            // Overlapping or adjacent ranges - merge them
-            current.end_char = current.end_char.max(range.end_char);
-        } else {
-            merged.push(current);
-            current = range;
-        }
-    }
-    merged.push(current);
-    merged
-}
-
-fn get_words_from_text(text: &str, skip_patterns: &[Regex]) -> Vec<(String, (u32, u32))> {
-    let skip_ranges = find_skip_ranges(text, skip_patterns);
-    get_words_from_text_with_ranges(text, &skip_ranges)
-}
-
-fn get_words_from_text_with_ranges(
-    text: &str,
-    skip_ranges: &[SkipRange],
-) -> Vec<(String, (u32, u32))> {
-    let mut result = Vec::new();
-
-    let add_word_fn = |current_word: &str,
-                       words: &mut Vec<(String, (u32, u32))>,
-                       word_start_char: usize,
-                       current_line: usize| {
-        if !current_word.is_empty() {
-            let split = splitter::split(current_word);
-            for split_word in split {
-                if is_numeric(&split_word.word) {
-                    continue;
-                }
-                words.push((
-                    split_word.word,
-                    (
-                        word_start_char as u32 + split_word.start_char,
-                        current_line as u32,
-                    ),
-                ));
-            }
-        }
-    };
-
-    // Calculate absolute character positions for each line start
-    let mut line_start_positions = vec![0];
-    let mut absolute_pos = 0;
-    for line in text.lines() {
-        absolute_pos += line.graphemes(true).count() + 1; // +1 for newline
-        line_start_positions.push(absolute_pos);
-    }
-
-    for (line_number, line) in text.lines().enumerate() {
-        let mut column = 0;
-        let line_start_char = line_start_positions[line_number];
-
-        let words = line.split_word_bounds();
-        for word in words {
-            let current_pos = line_start_char + column;
-            let word_end_pos = current_pos + word.graphemes(true).count();
-
-            // Check if this word overlaps with any skip range
-            let should_skip = skip_ranges
-                .iter()
-                .any(|range| range.overlaps(current_pos, word_end_pos));
-
-            if is_alphabetic(word) && !should_skip {
-                add_word_fn(word, &mut result, column, line_number);
-            }
-            column += word.graphemes(true).count();
-        }
-    }
-    result
 }
 
 fn is_numeric(s: &str) -> bool {
@@ -298,7 +322,8 @@ mod parser_tests {
             ("rd", (23, 3)),
             ("line", (26, 3)),
         ];
-        let words = get_words_from_text(text, &[]);
+        let processor = TextProcessor::new(text, &[]);
+        let words = processor.extract_words();
         println!("{:?}", words);
         for (i, w) in expected.into_iter().enumerate() {
             assert_eq!(words[i], (w.0.to_string(), w.1));
@@ -308,7 +333,8 @@ mod parser_tests {
     #[test]
     fn test_contraction() {
         let text = "I'm a contraction, wouldn't you agree'?";
-        let words = get_words_from_text(text, &[]);
+        let processor = TextProcessor::new(text, &[]);
+        let words = processor.extract_words();
         println!("{:?}", words);
         assert_eq!(words[0].0, "I'm");
         assert_eq!(words[1].0, "a");
@@ -341,7 +367,8 @@ mod parser_tests {
     fn test_unicode_character_handling() {
         crate::logging::init_test_logging();
         let text = "©<div>badword</div>";
-        let words = get_words_from_text(text, &[]);
+        let processor = TextProcessor::new(text, &[]);
+        let words = processor.extract_words();
         println!("{:?}", words);
 
         // Make sure "badword" is included and correctly positioned
