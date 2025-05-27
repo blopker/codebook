@@ -3,6 +3,7 @@ examples/big.html
 .cache
 *.wasm
 profile.json
+flamegraph.svg
 
 node_modules
 .aider*
