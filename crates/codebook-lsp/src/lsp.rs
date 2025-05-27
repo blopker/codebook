@@ -311,7 +311,7 @@ impl Backend {
             client,
             codebook,
             config: Arc::clone(&config_arc),
-            document_cache: TextDocumentCache::new(),
+            document_cache: TextDocumentCache::default(),
         }
     }
     fn make_diagnostic(&self, result: &WordLocation, range: &TextRange) -> Diagnostic {
