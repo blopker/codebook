@@ -144,9 +144,9 @@ impl TextProcessor {
         if !word.is_empty() {
             let split = splitter::split(word);
             for split_word in split {
-                if !is_numeric(&split_word.word) {
+                if !is_numeric(split_word.word) {
                     result.push((
-                        split_word.word,
+                        split_word.word.to_string(),
                         (column as u32 + split_word.start_char, line_number as u32),
                     ));
                 }

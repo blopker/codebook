@@ -37,9 +37,6 @@ tower-lsp.workspace = true
 codebook = { workspace = true }
 codebook_config = { workspace = true }
 
-[target.'cfg(target_os = "linux")'.dependencies]
-tikv-jemallocator.workspace = true
-
 [build-dependencies]
 cc = "1.0"
 

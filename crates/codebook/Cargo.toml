@@ -47,6 +47,7 @@ env_logger.workspace = true
 log.workspace = true
 lru.workspace = true
 unicode-segmentation.workspace = true
+pprof.workspace = true
 
 codebook_config.workspace = true
 codebook_downloader.workspace = true
