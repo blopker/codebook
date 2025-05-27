@@ -7,8 +7,12 @@ use codebook_config::CodebookConfig;
 use log::info;
 use lsp::Backend;
 use std::path::{Path, PathBuf};
+use tikv_jemallocator::Jemalloc;
 use tokio::task;
 use tower_lsp::{LspService, Server};
+
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None, arg_required_else_help = true)]

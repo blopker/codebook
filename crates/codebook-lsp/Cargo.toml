@@ -33,6 +33,7 @@ env_logger.workspace = true
 log.workspace = true
 clap.workspace = true
 lru.workspace = true
+tikv-jemallocator.workspace = true
 
 codebook = { workspace = true }
 codebook_config = { workspace = true }

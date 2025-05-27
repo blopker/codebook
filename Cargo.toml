@@ -57,6 +57,7 @@ tree-sitter-typescript = "0.23.2"
 unicode-segmentation = "1.12.0"
 url = "2.4.0"
 walkdir = "2.3.3"
+tikv-jemallocator = "0.5.4"
 
 codebook = { path = "crates/codebook", version = "0.3.0" }
 codebook_config = { path = "crates/codebook-config", version = "0.3.0" }
