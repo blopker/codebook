@@ -23,17 +23,17 @@ name = "codebook_lsp"
 path = "src/lib.rs"
 
 [dependencies]
-streaming-iterator.workspace = true
-tower-lsp.workspace = true
+clap.workspace = true
+env_logger.workspace = true
+fs2.workspace = true
+log.workspace = true
+lru.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-fs2.workspace = true
-tokio = { workspace = true, features = ["sync", "rt"] }
-env_logger.workspace = true
-log.workspace = true
-clap.workspace = true
-lru.workspace = true
+streaming-iterator.workspace = true
 tikv-jemallocator.workspace = true
+tokio = { workspace = true, features = ["sync", "rt"] }
+tower-lsp.workspace = true
 
 codebook = { workspace = true }
 codebook_config = { workspace = true }

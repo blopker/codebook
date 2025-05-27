@@ -11,6 +11,8 @@ use tikv_jemallocator::Jemalloc;
 use tokio::task;
 use tower_lsp::{LspService, Server};
 
+// only on linux builds
+#[cfg(target_os = "linux")]
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
