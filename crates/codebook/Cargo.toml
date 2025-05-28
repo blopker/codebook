@@ -47,6 +47,8 @@ env_logger.workspace = true
 log.workspace = true
 lru.workspace = true
 unicode-segmentation.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
 pprof.workspace = true
 
 codebook_config.workspace = true

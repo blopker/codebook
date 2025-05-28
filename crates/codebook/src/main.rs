@@ -43,6 +43,12 @@ fn main() {
     println!("Done");
 }
 
+#[cfg(target_os = "windows")]
+fn run_benchmark(processor: &Codebook) {
+    println!("Not supported in windows");
+}
+
+#[cfg(not(target_os = "windows"))]
 fn run_benchmark(processor: &Codebook) {
     println!("Running spell_check benchmark...");
     let guard = pprof::ProfilerGuardBuilder::default()
