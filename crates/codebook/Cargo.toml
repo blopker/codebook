@@ -48,11 +48,12 @@ log.workspace = true
 lru.workspace = true
 unicode-segmentation.workspace = true
 
+codebook_config.workspace = true
+codebook_downloader.workspace = true
+
 [target.'cfg(target_os = "macos")'.dependencies]
 pprof.workspace = true
 
-codebook_config.workspace = true
-codebook_downloader.workspace = true
 
 
 [dev-dependencies]
