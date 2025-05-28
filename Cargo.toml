@@ -66,7 +66,7 @@ codebook_downloader = { path = "crates/downloader", version = "0.3.0" }
 
 [profile.release]
 lto = "thin"
-debug=true
+# debug=true
 
 [profile.fast-release]
 inherits = "release"

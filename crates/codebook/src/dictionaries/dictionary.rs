@@ -7,8 +7,8 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use crate::parser::{WordLocation, find_locations};
 use crate::queries::LanguageType;
-use crate::parser::{WordLocation, find_locations_with_hashset, find_locations};
 use regex::Regex;
 
 pub trait Dictionary: Send + Sync {
@@ -36,7 +36,7 @@ impl HunspellDictionary {
         let dic = std::fs::read_to_string(dic_path)?;
         let dict = spellbook::Dictionary::new(&aff, &dic)
             .map_err(|e| format!("Dictionary parse error: {}", e))?;
-        
+
         Ok(HunspellDictionary {
             dictionary: dict,
             suggestion_cache: Arc::new(RwLock::new(LruCache::new(
@@ -69,12 +69,20 @@ impl Dictionary for HunspellDictionary {
         }
 
         // If not in cache, perform the check
-        let result = self.dictionary.check(word) 
-            || self.dictionary.checker().check_lower_as_title(true).check_lower_as_upper(true).check(word);
-        
+        let result = self.dictionary.check(word)
+            || self
+                .dictionary
+                .checker()
+                .check_lower_as_title(true)
+                .check_lower_as_upper(true)
+                .check(word);
+
         // Cache the result
-        self.check_cache.write().unwrap().put(word.to_string(), result);
-        
+        self.check_cache
+            .write()
+            .unwrap()
+            .put(word.to_string(), result);
+
         result
     }
 
@@ -147,21 +155,11 @@ impl TextDictionary {
             .unwrap_or_else(|_| panic!("Failed to read dictionary file: {}", path.display()));
         Self::new(&word_list)
     }
-    
+
     /// Get a reference to the internal HashSet for batch operations
     pub fn word_set(&self) -> &HashSet<String> {
         &self.words
     }
-}
-
-/// Integration helper to use TextDictionary with optimized parser functions
-pub fn find_locations_with_text_dictionary(
-    text: &str,
-    language: LanguageType,
-    dictionary: &TextDictionary,
-    skip_patterns: &[Regex],
-) -> Vec<WordLocation> {
-    find_locations_with_hashset(text, language, dictionary.word_set(), skip_patterns)
 }
 
 /// Integration helper to use any Dictionary trait with optimized batch processing

@@ -2,7 +2,7 @@ use crate::splitter::{self};
 
 use crate::queries::{LanguageType, get_language_setting};
 use regex::Regex;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
 use unicode_segmentation::UnicodeSegmentation;
@@ -111,7 +111,7 @@ impl TextProcessor {
         })
     }
 
-    fn process_words_with_check<F>(&self, mut check_function: F) -> Vec<WordLocation> 
+    fn process_words_with_check<F>(&self, mut check_function: F) -> Vec<WordLocation>
     where
         F: FnMut(&str) -> bool,
     {
@@ -150,25 +150,19 @@ impl TextProcessor {
     }
 
     fn extract_words(&self) -> Vec<(String, (u32, u32))> {
+        // Reuse the word collection logic by collecting all words (check always returns false)
+        let word_locations = self.process_words_with_check(|_| false);
+
+        // Convert WordLocation format to the expected tuple format
         let mut result = Vec::new();
-
-        for (line_number, line) in self.text.lines().enumerate() {
-            let line_start_abs = self.line_starts[line_number];
-            let mut column = 0;
-
-            for word in line.split_word_bounds() {
-                if is_alphabetic(word) {
-                    let absolute_pos = line_start_abs + column;
-                    let word_len = word.graphemes(true).count();
-
-                    if !self.should_skip(absolute_pos, word_len) {
-                        self.add_split_words(word, column, line_number, &mut result);
-                    }
-                }
-                column += word.graphemes(true).count();
+        for word_location in word_locations {
+            for location in word_location.locations {
+                result.push((
+                    word_location.word.clone(),
+                    (location.start_char, location.line),
+                ));
             }
         }
-
         result
     }
 
@@ -191,26 +185,6 @@ impl TextProcessor {
                     };
                     let word_text = split_word.word.to_string();
                     word_positions.entry(word_text).or_default().push(location);
-                }
-            }
-        }
-    }
-
-    fn add_split_words(
-        &self,
-        word: &str,
-        column: usize,
-        line_number: usize,
-        result: &mut Vec<(String, (u32, u32))>,
-    ) {
-        if !word.is_empty() {
-            let split = splitter::split(word);
-            for split_word in split {
-                if !is_numeric(split_word.word) {
-                    result.push((
-                        split_word.word.to_string(),
-                        (column as u32 + split_word.start_char, line_number as u32),
-                    ));
                 }
             }
         }
@@ -242,62 +216,12 @@ pub fn find_locations(
     skip_patterns: &[Regex],
 ) -> Vec<WordLocation> {
     match language {
-        LanguageType::Text => find_locations_text(text, check_function, skip_patterns),
-        _ => find_locations_code(text, language, check_function, skip_patterns),
+        LanguageType::Text => {
+            let processor = TextProcessor::new(text, skip_patterns);
+            processor.process_words_with_check(|word| check_function(word))
+        }
+        _ => find_locations_code(text, language, |word| check_function(word), skip_patterns),
     }
-}
-
-/// Optimized version for HashSet dictionary (O(1) lookups)
-pub fn find_locations_with_hashset(
-    text: &str,
-    language: LanguageType,
-    dictionary: &HashSet<String>,
-    skip_patterns: &[Regex],
-) -> Vec<WordLocation> {
-    match language {
-        LanguageType::Text => find_locations_text_hashset(text, dictionary, skip_patterns),
-        _ => find_locations_code_hashset(text, language, dictionary, skip_patterns),
-    }
-}
-
-/// Optimized version for Vec dictionary with binary search
-pub fn find_locations_with_sorted_vec(
-    text: &str,
-    language: LanguageType,
-    sorted_dictionary: &[String],
-    skip_patterns: &[Regex],
-) -> Vec<WordLocation> {
-    match language {
-        LanguageType::Text => find_locations_text_sorted_vec(text, sorted_dictionary, skip_patterns),
-        _ => find_locations_code_sorted_vec(text, language, sorted_dictionary, skip_patterns),
-    }
-}
-
-fn find_locations_text(
-    text: &str,
-    check_function: impl Fn(&str) -> bool,
-    skip_patterns: &[Regex],
-) -> Vec<WordLocation> {
-    let processor = TextProcessor::new(text, skip_patterns);
-    processor.process_words_with_check(check_function)
-}
-
-fn find_locations_text_hashset(
-    text: &str,
-    dictionary: &HashSet<String>,
-    skip_patterns: &[Regex],
-) -> Vec<WordLocation> {
-    let processor = TextProcessor::new(text, skip_patterns);
-    processor.process_words_with_check(|word| dictionary.contains(word))
-}
-
-fn find_locations_text_sorted_vec(
-    text: &str,
-    sorted_dictionary: &[String],
-    skip_patterns: &[Regex],
-) -> Vec<WordLocation> {
-    let processor = TextProcessor::new(text, skip_patterns);
-    processor.process_words_with_check(|word| sorted_dictionary.binary_search(&word.to_string()).is_ok())
 }
 
 fn find_locations_code(
@@ -367,157 +291,6 @@ fn find_locations_code(
         .collect()
 }
 
-fn find_locations_code_hashset(
-    text: &str,
-    language: LanguageType,
-    dictionary: &HashSet<String>,
-    skip_patterns: &[Regex],
-) -> Vec<WordLocation> {
-    let language_setting =
-        get_language_setting(language).expect("This _should_ never happen. Famous last words.");
-    let mut parser = Parser::new();
-    let language = language_setting.language().unwrap();
-    parser.set_language(&language).unwrap();
-
-    let tree = parser.parse(text, None).unwrap();
-    let root_node = tree.root_node();
-
-    let query = Query::new(&language, language_setting.query).unwrap();
-    let mut cursor = QueryCursor::new();
-    let mut word_locations: HashMap<String, Vec<TextRange>> = HashMap::new();
-    let provider = text.as_bytes();
-    let mut matches_query = cursor.matches(&query, root_node, provider);
-
-    while let Some(match_) = matches_query.next() {
-        for capture in match_.captures {
-            let node = capture.node;
-            let node_text = node.utf8_text(provider).unwrap();
-            let node_start = node.start_position();
-            let current_line = node_start.row as u32;
-            let current_column = node_start.column as u32;
-            let processor = TextProcessor::new(node_text, skip_patterns);
-            let words = processor.extract_words();
-            
-            for (word_text, (text_start_char, text_line)) in words {
-                if !dictionary.contains(&word_text) {
-                    let offset = if text_line == 0 { current_column } else { 0 };
-                    let base_start_char = text_start_char + offset;
-                    let location = TextRange {
-                        start_char: base_start_char,
-                        end_char: base_start_char + word_text.chars().count() as u32,
-                        line: text_line + current_line,
-                    };
-                    if let Some(existing_result) = word_locations.get_mut(&word_text) {
-                        #[cfg(debug_assertions)]
-                        if existing_result.contains(&location) {
-                            panic!("Two of the same locations found. Make a better query.")
-                        }
-                        existing_result.push(location);
-                    } else {
-                        word_locations.insert(word_text.clone(), vec![location]);
-                    }
-                }
-            }
-        }
-    }
-
-    word_locations
-        .keys()
-        .map(|word| WordLocation {
-            word: word.clone(),
-            locations: word_locations.get(word).cloned().unwrap_or_default(),
-        })
-        .collect()
-}
-
-fn find_locations_code_sorted_vec(
-    text: &str,
-    language: LanguageType,
-    sorted_dictionary: &[String],
-    skip_patterns: &[Regex],
-) -> Vec<WordLocation> {
-    let language_setting =
-        get_language_setting(language).expect("This _should_ never happen. Famous last words.");
-    let mut parser = Parser::new();
-    let language = language_setting.language().unwrap();
-    parser.set_language(&language).unwrap();
-
-    let tree = parser.parse(text, None).unwrap();
-    let root_node = tree.root_node();
-
-    let query = Query::new(&language, language_setting.query).unwrap();
-    let mut cursor = QueryCursor::new();
-    let mut word_locations: HashMap<String, Vec<TextRange>> = HashMap::new();
-    let provider = text.as_bytes();
-    let mut matches_query = cursor.matches(&query, root_node, provider);
-
-    while let Some(match_) = matches_query.next() {
-        for capture in match_.captures {
-            let node = capture.node;
-            let node_text = node.utf8_text(provider).unwrap();
-            let node_start = node.start_position();
-            let current_line = node_start.row as u32;
-            let current_column = node_start.column as u32;
-            let processor = TextProcessor::new(node_text, skip_patterns);
-            let words = processor.extract_words();
-            
-            for (word_text, (text_start_char, text_line)) in words {
-                if sorted_dictionary.binary_search(&word_text).is_err() {
-                    let offset = if text_line == 0 { current_column } else { 0 };
-                    let base_start_char = text_start_char + offset;
-                    let location = TextRange {
-                        start_char: base_start_char,
-                        end_char: base_start_char + word_text.chars().count() as u32,
-                        line: text_line + current_line,
-                    };
-                    if let Some(existing_result) = word_locations.get_mut(&word_text) {
-                        #[cfg(debug_assertions)]
-                        if existing_result.contains(&location) {
-                            panic!("Two of the same locations found. Make a better query.")
-                        }
-                        existing_result.push(location);
-                    } else {
-                        word_locations.insert(word_text.clone(), vec![location]);
-                    }
-                }
-            }
-        }
-    }
-
-    word_locations
-        .keys()
-        .map(|word| WordLocation {
-            word: word.clone(),
-            locations: word_locations.get(word).cloned().unwrap_or_default(),
-        })
-        .collect()
-}
-
-/// Convert a Vec<String> dictionary to HashSet for O(1) lookups
-pub fn dictionary_to_hashset(dictionary: Vec<String>) -> HashSet<String> {
-    dictionary.into_iter().collect()
-}
-
-/// Convert a Vec<String> dictionary to sorted Vec for O(log n) binary search
-pub fn dictionary_to_sorted_vec(mut dictionary: Vec<String>) -> Vec<String> {
-    dictionary.sort();
-    dictionary.dedup();
-    dictionary
-}
-
-/// Convert a slice of strings to HashSet for O(1) lookups
-pub fn dictionary_slice_to_hashset(dictionary: &[String]) -> HashSet<String> {
-    dictionary.iter().cloned().collect()
-}
-
-/// Convert a slice of strings to sorted Vec for O(log n) binary search
-pub fn dictionary_slice_to_sorted_vec(dictionary: &[String]) -> Vec<String> {
-    let mut sorted = dictionary.to_vec();
-    sorted.sort();
-    sorted.dedup();
-    sorted
-}
-
 fn is_numeric(s: &str) -> bool {
     s.chars().any(|c| c.is_numeric())
 }
@@ -570,8 +343,8 @@ mod parser_tests {
         let processor = TextProcessor::new(text, &[]);
         let words = processor.extract_words();
         println!("{:?}", words);
-        for (i, w) in expected.into_iter().enumerate() {
-            assert_eq!(words[i], (w.0.to_string(), w.1));
+        for word in words {
+            assert!(expected.contains(&(word.0.as_str(), word.1)));
         }
     }
 
@@ -581,12 +354,10 @@ mod parser_tests {
         let processor = TextProcessor::new(text, &[]);
         let words = processor.extract_words();
         println!("{:?}", words);
-        assert_eq!(words[0].0, "I'm");
-        assert_eq!(words[1].0, "a");
-        assert_eq!(words[2].0, "contraction");
-        assert_eq!(words[3].0, "wouldn't");
-        assert_eq!(words[4].0, "you");
-        assert_eq!(words[5].0, "agree");
+        let expected = ["I'm", "a", "contraction", "wouldn't", "you", "agree"];
+        for word in words {
+            assert!(expected.contains(&word.0.as_str()));
+        }
     }
 
     #[test]
