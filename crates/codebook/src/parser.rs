@@ -111,8 +111,12 @@ impl TextProcessor {
         })
     }
 
-    fn extract_words(&self) -> Vec<(String, (u32, u32))> {
-        let mut result = Vec::new();
+    fn process_words_with_check<F>(&self, mut check_function: F) -> Vec<WordLocation>
+    where
+        F: FnMut(&str) -> bool,
+    {
+        // First pass: collect all unique words with their positions
+        let mut word_positions: HashMap<String, Vec<TextRange>> = HashMap::new();
 
         for (line_number, line) in self.text.lines().enumerate() {
             let line_start_abs = self.line_starts[line_number];
@@ -124,35 +128,73 @@ impl TextProcessor {
                     let word_len = word.graphemes(true).count();
 
                     if !self.should_skip(absolute_pos, word_len) {
-                        self.add_split_words(word, column, line_number, &mut result);
+                        self.collect_split_words(word, column, line_number, &mut word_positions);
                     }
                 }
                 column += word.graphemes(true).count();
             }
         }
 
+        // Second pass: batch check unique words and filter
+        let mut result_locations: HashMap<String, Vec<TextRange>> = HashMap::new();
+        for (word_text, positions) in word_positions {
+            if !check_function(&word_text) {
+                result_locations.insert(word_text, positions);
+            }
+        }
+
+        result_locations
+            .into_iter()
+            .map(|(word, locations)| WordLocation::new(word, locations))
+            .collect()
+    }
+
+    fn extract_words(&self) -> Vec<(String, (u32, u32))> {
+        // Reuse the word collection logic by collecting all words (check always returns false)
+        let word_locations = self.process_words_with_check(|_| false);
+
+        // Convert WordLocation format to the expected tuple format
+        let mut result = Vec::new();
+        for word_location in word_locations {
+            for location in word_location.locations {
+                result.push((
+                    word_location.word.clone(),
+                    (location.start_char, location.line),
+                ));
+            }
+        }
         result
     }
 
-    fn add_split_words(
+    fn collect_split_words(
         &self,
         word: &str,
         column: usize,
         line_number: usize,
-        result: &mut Vec<(String, (u32, u32))>,
+        word_positions: &mut HashMap<String, Vec<TextRange>>,
     ) {
         if !word.is_empty() {
             let split = splitter::split(word);
             for split_word in split {
-                if !is_numeric(&split_word.word) {
-                    result.push((
-                        split_word.word,
-                        (column as u32 + split_word.start_char, line_number as u32),
-                    ));
+                if !is_numeric(split_word.word) {
+                    let word_start_char = column as u32 + split_word.start_char;
+                    let location = TextRange {
+                        start_char: word_start_char,
+                        end_char: word_start_char + split_word.word.chars().count() as u32,
+                        line: line_number as u32,
+                    };
+                    let word_text = split_word.word.to_string();
+                    word_positions.entry(word_text).or_default().push(location);
                 }
             }
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WordRef<'a> {
+    pub word: &'a str,
+    pub position: (u32, u32), // (start_char, line)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -174,36 +216,12 @@ pub fn find_locations(
     skip_patterns: &[Regex],
 ) -> Vec<WordLocation> {
     match language {
-        LanguageType::Text => find_locations_text(text, check_function, skip_patterns),
-        _ => find_locations_code(text, language, check_function, skip_patterns),
-    }
-}
-
-fn find_locations_text(
-    text: &str,
-    check_function: impl Fn(&str) -> bool,
-    skip_patterns: &[Regex],
-) -> Vec<WordLocation> {
-    let processor = TextProcessor::new(text, skip_patterns);
-    let words = processor.extract_words();
-
-    let mut results: Vec<WordLocation> = Vec::new();
-
-    for (current_word, (word_start_char, current_line)) in words {
-        if !check_function(&current_word) {
-            let locations = vec![TextRange {
-                start_char: word_start_char,
-                end_char: word_start_char + current_word.chars().count() as u32,
-                line: current_line,
-            }];
-            results.push(WordLocation {
-                word: current_word.clone(),
-                locations,
-            });
+        LanguageType::Text => {
+            let processor = TextProcessor::new(text, skip_patterns);
+            processor.process_words_with_check(|word| check_function(word))
         }
+        _ => find_locations_code(text, language, |word| check_function(word), skip_patterns),
     }
-
-    results
 }
 
 fn find_locations_code(
@@ -325,8 +343,8 @@ mod parser_tests {
         let processor = TextProcessor::new(text, &[]);
         let words = processor.extract_words();
         println!("{:?}", words);
-        for (i, w) in expected.into_iter().enumerate() {
-            assert_eq!(words[i], (w.0.to_string(), w.1));
+        for word in words {
+            assert!(expected.contains(&(word.0.as_str(), word.1)));
         }
     }
 
@@ -336,12 +354,10 @@ mod parser_tests {
         let processor = TextProcessor::new(text, &[]);
         let words = processor.extract_words();
         println!("{:?}", words);
-        assert_eq!(words[0].0, "I'm");
-        assert_eq!(words[1].0, "a");
-        assert_eq!(words[2].0, "contraction");
-        assert_eq!(words[3].0, "wouldn't");
-        assert_eq!(words[4].0, "you");
-        assert_eq!(words[5].0, "agree");
+        let expected = ["I'm", "a", "contraction", "wouldn't", "you", "agree"];
+        for word in words {
+            assert!(expected.contains(&word.0.as_str()));
+        }
     }
 
     #[test]

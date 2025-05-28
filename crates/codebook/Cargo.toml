@@ -51,6 +51,10 @@ unicode-segmentation.workspace = true
 codebook_config.workspace = true
 codebook_downloader.workspace = true
 
+[target.'cfg(not(target_os = "windows"))'.dependencies]
+pprof.workspace = true
+
+
 
 [dev-dependencies]
 tempfile.workspace = true

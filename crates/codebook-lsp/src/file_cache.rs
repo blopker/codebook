@@ -38,13 +38,15 @@ pub struct TextDocumentCache {
     documents: Arc<RwLock<LruCache<String, TextDocumentCacheItem>>>,
 }
 
-impl TextDocumentCache {
-    pub fn new() -> Self {
+impl Default for TextDocumentCache {
+    fn default() -> Self {
         Self {
             documents: Arc::new(RwLock::new(LruCache::new(NonZero::new(1000).unwrap()))),
         }
     }
+}
 
+impl TextDocumentCache {
     pub fn get(&self, uri: &str) -> Option<TextDocumentCacheItem> {
         self.documents.write().unwrap().get(uri).cloned()
     }

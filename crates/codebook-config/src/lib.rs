@@ -7,6 +7,7 @@ use regex::Regex;
 use std::env;
 use std::fs;
 use std::io;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 use std::time::SystemTime;
@@ -211,7 +212,7 @@ impl CodebookConfig {
             Ok(settings) => Ok(settings),
             Err(e) => {
                 let err = io::Error::new(
-                    io::ErrorKind::InvalidData,
+                    ErrorKind::InvalidData,
                     format!("Failed to parse config file {}: {}", path.display(), e),
                 );
                 Err(err)
@@ -439,7 +440,7 @@ impl CodebookConfig {
         };
 
         let content = toml::to_string_pretty(&*self.project_settings.read().unwrap())
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            .map_err(io::Error::other)?;
         info!(
             "Saving project configuration to {}",
             project_config_path.display()
@@ -455,7 +456,7 @@ impl CodebookConfig {
         };
 
         let content = toml::to_string_pretty(&*self.global_settings.read().unwrap())
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            .map_err(io::Error::other)?;
         info!(
             "Saving global configuration to {}",
             global_config_path.display()

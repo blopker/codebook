@@ -153,7 +153,7 @@ eget blopker/codebook
 
 ### Arch User Repository
 
-The binary release is available on the AUR under the [codebook-bin](aur.archlinux.org/packages/codebook-bin) package. Arch users can easily install it with their favorite AUR helper, such as [paru](https://github.com/Morganamilo/paru):
+The binary release is available on the AUR under the [codebook-bin](https://aur.archlinux.org/packages/codebook-bin) package. Arch users can easily install it with their favorite AUR helper, such as [paru](https://github.com/Morganamilo/paru):
 
 ```sh
 paru -S codebook-bin

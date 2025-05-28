@@ -57,6 +57,8 @@ tree-sitter-typescript = "0.23.2"
 unicode-segmentation = "1.12.0"
 url = "2.4.0"
 walkdir = "2.3.3"
+mimalloc = "0.1.46"
+pprof = { version = "0.15", features = ["flamegraph"] }
 
 codebook = { path = "crates/codebook", version = "0.3.0" }
 codebook_config = { path = "crates/codebook-config", version = "0.3.0" }
@@ -65,6 +67,7 @@ codebook_downloader = { path = "crates/downloader", version = "0.3.0" }
 
 [profile.release]
 lto = "thin"
+# debug=true
 
 [profile.fast-release]
 inherits = "release"
