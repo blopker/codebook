@@ -43,7 +43,7 @@ impl HunspellDictionary {
                 NonZeroUsize::new(10000).unwrap(),
             ))),
             check_cache: Arc::new(RwLock::new(LruCache::new(
-                NonZeroUsize::new(50000).unwrap(),
+                NonZeroUsize::new(10000).unwrap(),
             ))),
         })
     }
@@ -64,7 +64,7 @@ impl HunspellDictionary {
 impl Dictionary for HunspellDictionary {
     fn check(&self, word: &str) -> bool {
         // Check cache first
-        if let Some(result) = self.check_cache.write().unwrap().get_mut(word) {
+        if let Some(result) = self.check_cache.write().unwrap().get(word) {
             return *result;
         }
 

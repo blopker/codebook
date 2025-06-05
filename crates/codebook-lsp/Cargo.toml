@@ -33,7 +33,6 @@ serde_json.workspace = true
 streaming-iterator.workspace = true
 tokio = { workspace = true, features = ["sync", "rt"] }
 tower-lsp.workspace = true
-mimalloc.workspace = true
 
 codebook = { workspace = true }
 codebook_config = { workspace = true }
