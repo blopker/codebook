@@ -12,6 +12,17 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  benchmark:
+    name: Benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build
+        run: cargo build --release
+      - name: Run benchmark
+        run: ./target/release/codebook --benchmark
   test:
     name: Test
     runs-on: ubuntu-latest
