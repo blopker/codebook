@@ -116,7 +116,7 @@ impl TextProcessor {
         F: FnMut(&str) -> bool,
     {
         // First pass: collect all unique words with their positions
-        let mut word_positions: HashMap<String, Vec<TextRange>> = HashMap::new();
+        let mut word_positions: HashMap<&str, Vec<TextRange>> = HashMap::new();
 
         for (line_number, line) in self.text.lines().enumerate() {
             let line_start_abs = self.line_starts[line_number];
@@ -138,8 +138,8 @@ impl TextProcessor {
         // Second pass: batch check unique words and filter
         let mut result_locations: HashMap<String, Vec<TextRange>> = HashMap::new();
         for (word_text, positions) in word_positions {
-            if !check_function(&word_text) {
-                result_locations.insert(word_text, positions);
+            if !check_function(word_text) {
+                result_locations.insert(word_text.to_string(), positions);
             }
         }
 
@@ -166,12 +166,12 @@ impl TextProcessor {
         result
     }
 
-    fn collect_split_words(
+    fn collect_split_words<'a>(
         &self,
-        word: &str,
+        word: &'a str,
         column: usize,
         line_number: usize,
-        word_positions: &mut HashMap<String, Vec<TextRange>>,
+        word_positions: &mut HashMap<&'a str, Vec<TextRange>>,
     ) {
         if !word.is_empty() {
             let split = splitter::split(word);
@@ -183,7 +183,7 @@ impl TextProcessor {
                         end_char: word_start_char + split_word.word.chars().count() as u32,
                         line: line_number as u32,
                     };
-                    let word_text = split_word.word.to_string();
+                    let word_text = split_word.word;
                     word_positions.entry(word_text).or_default().push(location);
                 }
             }
