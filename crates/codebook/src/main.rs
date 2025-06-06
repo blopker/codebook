@@ -71,6 +71,7 @@ fn run_benchmark(processor: &Codebook) {
             println!("Iteration {}/{}", i, iterations);
         }
         let _misspelled = processor.spell_check(sample_text, Some(LanguageType::Text), None);
+        assert!(_misspelled.len() == 262);
     }
 
     // Calculate duration
