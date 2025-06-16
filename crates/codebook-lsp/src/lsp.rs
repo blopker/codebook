@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use codebook::parser::TextRange;
 use codebook::parser::WordLocation;
-use codebook::parser::get_word_from_string;
 use codebook::queries::LanguageType;
 
 use log::LevelFilter;
@@ -191,19 +190,22 @@ impl LanguageServer for Backend {
             if diag.source.as_deref() != Some(SOURCE_NAME) {
                 continue;
             }
-            let line = doc
-                .text
-                .lines()
-                .nth(diag.range.start.line as usize)
-                .unwrap_or_default();
+            let line_idx = diag.range.start.line as usize;
+            if line_idx > doc.text.len_lines() {
+                continue;
+            }
+            let line = doc.text.line(line_idx);
             let start_char = diag.range.start.character as usize;
             let end_char = diag.range.end.character as usize;
-            let word = get_word_from_string(start_char, end_char, line);
-            if word.is_empty() || word.contains(" ") {
+            if end_char == start_char || end_char > line.len_chars() {
+                continue;
+            }
+            let word = line.slice(start_char..end_char);
+            if word.chars().any(|c| c.is_whitespace()) {
                 continue;
             }
             let cb = self.codebook.clone();
-            let inner_word = word.clone();
+            let inner_word = word.to_string();
             let suggestions = task::spawn_blocking(move || cb.get_suggestions(&inner_word)).await;
 
             let suggestions = match suggestions {
@@ -442,7 +444,11 @@ impl Backend {
         let cb = self.codebook.clone();
         let fp = file_path.clone();
         let spell_results = task::spawn_blocking(move || {
-            cb.spell_check(&doc.text, lang_type, Some(fp.to_str().unwrap_or_default()))
+            cb.spell_check(
+                &doc.text.to_string(),
+                lang_type,
+                Some(fp.to_str().unwrap_or_default()),
+            )
         })
         .await;
 

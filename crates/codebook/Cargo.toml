@@ -46,6 +46,7 @@ tokio.workspace = true
 env_logger.workspace = true
 log.workspace = true
 lru.workspace = true
+ropey.workspace = true
 unicode-segmentation.workspace = true
 
 codebook_config.workspace = true

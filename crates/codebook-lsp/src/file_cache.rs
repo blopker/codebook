@@ -1,14 +1,14 @@
+use lru::LruCache;
+use ropey::Rope;
 use std::{
     num::NonZero,
     sync::{Arc, RwLock},
 };
-
-use lru::LruCache;
 use tower_lsp::lsp_types::{TextDocumentItem, Url};
 
 #[derive(Debug, Clone)]
 pub struct TextDocumentCacheItem {
-    pub text: String,
+    pub text: Rope,
     pub uri: Url,
     pub version: Option<i32>,
     pub language_id: Option<String>,
@@ -26,8 +26,8 @@ impl TextDocumentCacheItem {
             version,
             language_id: language_id.map(|id| id.to_string()),
             text: match text {
-                Some(text) => text.to_string(),
-                None => String::new(),
+                Some(text) => Rope::from_str(text),
+                None => Rope::new(),
             },
         }
     }

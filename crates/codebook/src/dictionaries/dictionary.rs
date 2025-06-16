@@ -7,10 +7,6 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::parser::{WordLocation, find_locations};
-use crate::queries::LanguageType;
-use regex::Regex;
-
 pub trait Dictionary: Send + Sync {
     fn check(&self, word: &str) -> bool;
     fn suggest(&self, word: &str) -> Vec<String>;
@@ -167,17 +163,6 @@ impl TextDictionary {
     pub fn word_set(&self) -> &HashSet<String> {
         &self.words
     }
-}
-
-/// Integration helper to use any Dictionary trait with optimized batch processing
-pub fn find_locations_with_dictionary_batch(
-    text: &str,
-    language: LanguageType,
-    dictionary: &dyn Dictionary,
-    skip_patterns: &[Regex],
-) -> Vec<WordLocation> {
-    // For non-HashSet dictionaries, we still get deduplication benefits
-    find_locations(text, language, |word| dictionary.check(word), skip_patterns)
 }
 
 #[cfg(test)]

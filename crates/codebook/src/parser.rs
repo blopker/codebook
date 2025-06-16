@@ -2,9 +2,10 @@ use crate::splitter::{self};
 
 use crate::queries::{LanguageType, get_language_setting};
 use regex::Regex;
+use ropey::Rope;
 use std::collections::HashMap;
 use streaming_iterator::StreamingIterator;
-use tree_sitter::{Parser, Query, QueryCursor};
+use tree_sitter::{Parser, Query, QueryCursor, TextProvider};
 use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Debug, Clone, Copy, PartialEq, Ord, Eq, PartialOrd)]
@@ -27,36 +28,26 @@ impl SkipRange {
 }
 
 /// Helper struct to handle all text position tracking in one place
-struct TextProcessor {
-    text: String,
-    line_starts: Vec<usize>, // Absolute character positions where each line starts
+struct TextProcessor<'a> {
+    text: &'a Rope,
     skip_ranges: Vec<SkipRange>,
 }
 
-impl TextProcessor {
-    fn new(text: &str, skip_patterns: &[Regex]) -> Self {
-        let text = text.to_string();
-        let skip_ranges = Self::find_skip_ranges(&text, skip_patterns);
-        let line_starts = Self::calculate_line_starts(&text);
+impl<'a> TextProcessor<'a> {
+    fn new(text: &'a Rope, skip_patterns: &[Regex]) -> Self {
+        // let text = text.to_string();
+        let skip_ranges = Self::find_skip_ranges(text, skip_patterns);
 
-        Self {
-            text,
-            line_starts,
-            skip_ranges,
-        }
+        Self { text, skip_ranges }
     }
 
-    fn find_skip_ranges(text: &str, patterns: &[Regex]) -> Vec<SkipRange> {
+    fn find_skip_ranges(text: &Rope, patterns: &[Regex]) -> Vec<SkipRange> {
         let mut ranges = Vec::new();
-
+        let str_text = text.to_string();
         for pattern in patterns {
-            for regex_match in pattern.find_iter(text) {
-                // Convert byte positions to grapheme positions
-                let text_before_match = &text[..regex_match.start()];
-                let start_char = text_before_match.graphemes(true).count();
-                let match_str = regex_match.as_str();
-                let end_char = start_char + match_str.graphemes(true).count();
-
+            for regex_match in pattern.find_iter(&str_text) {
+                let start_char = text.byte_to_char(regex_match.start());
+                let end_char = text.byte_to_char(regex_match.end());
                 ranges.push(SkipRange {
                     start_char,
                     end_char,
@@ -90,18 +81,6 @@ impl TextProcessor {
         merged
     }
 
-    fn calculate_line_starts(text: &str) -> Vec<usize> {
-        let mut line_starts = vec![0];
-        let mut pos = 0;
-
-        for line in text.lines() {
-            pos += line.graphemes(true).count() + 1; // +1 for newline
-            line_starts.push(pos);
-        }
-
-        line_starts
-    }
-
     fn should_skip(&self, absolute_pos: usize, word_len: usize) -> bool {
         let word_end = absolute_pos + word_len;
         self.skip_ranges.iter().any(|range| {
@@ -117,21 +96,12 @@ impl TextProcessor {
     {
         // First pass: collect all unique words with their positions
         let mut word_positions: HashMap<&str, Vec<TextRange>> = HashMap::new();
-
-        for (line_number, line) in self.text.lines().enumerate() {
-            let line_start_abs = self.line_starts[line_number];
-            let mut column = 0;
-
-            for word in line.split_word_bounds() {
-                if is_alphabetic(word) {
-                    let absolute_pos = line_start_abs + column;
-                    let word_len = word.graphemes(true).count();
-
-                    if !self.should_skip(absolute_pos, word_len) {
-                        self.collect_split_words(word, column, line_number, &mut word_positions);
-                    }
-                }
-                column += word.graphemes(true).count();
+        let text_str = self.text.to_string();
+        for (i, word) in text_str.unicode_word_indices() {
+            let word_len = word.graphemes(true).count();
+            let idx = self.text.byte_to_char(i);
+            if !self.should_skip(idx, word_len) {
+                self.collect_split_words(word, idx, &mut word_positions);
             }
         }
 
@@ -166,22 +136,24 @@ impl TextProcessor {
         result
     }
 
-    fn collect_split_words<'a>(
+    fn collect_split_words(
         &self,
         word: &'a str,
-        column: usize,
-        line_number: usize,
+        idx: usize,
         word_positions: &mut HashMap<&'a str, Vec<TextRange>>,
     ) {
         if !word.is_empty() {
             let split = splitter::split(word);
             for split_word in split {
                 if !is_numeric(split_word.word) {
-                    let word_start_char = column as u32 + split_word.start_char;
+                    // let word_start_char = column as u32 + split_word.start_char;
+                    let line = self.text.char_to_line(idx);
+                    let word_start_char = idx - self.text.line_to_char(line);
                     let location = TextRange {
-                        start_char: word_start_char,
-                        end_char: word_start_char + split_word.word.chars().count() as u32,
-                        line: line_number as u32,
+                        start_char: word_start_char as u32 + split_word.start_char,
+                        end_char: (word_start_char + split_word.word.graphemes(true).count())
+                            as u32,
+                        line: line as u32,
                     };
                     let word_text = split_word.word;
                     word_positions.entry(word_text).or_default().push(location);
@@ -210,7 +182,7 @@ impl WordLocation {
 }
 
 pub fn find_locations(
-    text: &str,
+    text: &Rope,
     language: LanguageType,
     check_function: impl Fn(&str) -> bool,
     skip_patterns: &[Regex],
@@ -224,8 +196,25 @@ pub fn find_locations(
     }
 }
 
+pub struct TextProviderRope<'a>(pub &'a Rope);
+
+impl<'a> TextProvider<&'a [u8]> for &'a TextProviderRope<'a> {
+    type I = ChunksBytes<'a>;
+    fn text(&mut self, node: tree_sitter::Node) -> Self::I {
+        ChunksBytes(self.0.byte_slice(node.byte_range()).chunks())
+    }
+}
+pub struct ChunksBytes<'a>(ropey::iter::Chunks<'a>);
+
+impl<'a> Iterator for ChunksBytes<'a> {
+    type Item = &'a [u8];
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next().map(str::as_bytes)
+    }
+}
+
 fn find_locations_code(
-    text: &str,
+    text: &Rope,
     language: LanguageType,
     check_function: impl Fn(&str) -> bool,
     skip_patterns: &[Regex],
@@ -235,24 +224,35 @@ fn find_locations_code(
     let mut parser = Parser::new();
     let language = language_setting.language().unwrap();
     parser.set_language(&language).unwrap();
-
-    let tree = parser.parse(text, None).unwrap();
+    println!("{text:?}");
+    // let text_str = text.chunks().collect();
+    // let text_bytes = text.bytes().collect();
+    let tree = parser
+        .parse_with_options(
+            &mut |start_byte, _| text.byte_slice(start_byte..).chunks().next().unwrap_or(""),
+            None,
+            None,
+        )
+        .unwrap();
     let root_node = tree.root_node();
 
     let query = Query::new(&language, language_setting.query).unwrap();
     let mut cursor = QueryCursor::new();
+    let provider = TextProviderRope(text);
     let mut word_locations: HashMap<String, Vec<TextRange>> = HashMap::new();
-    let provider = text.as_bytes();
-    let mut matches_query = cursor.matches(&query, root_node, provider);
+    let mut matches_query = cursor.matches(&query, root_node, &provider);
 
     while let Some(match_) = matches_query.next() {
         for capture in match_.captures {
             let node = capture.node;
-            let node_text = node.utf8_text(provider).unwrap();
+            // let node_text = node.utf8_text(text_bytes).unwrap();
+            let node_start_byte = node.start_byte();
+            let node_end_byte = node.end_byte();
             let node_start = node.start_position();
             let current_line = node_start.row as u32;
             let current_column = node_start.column as u32;
-            let processor = TextProcessor::new(node_text, skip_patterns);
+            let rope = Rope::from(text.byte_slice(node_start_byte..node_end_byte));
+            let processor = TextProcessor::new(&rope, skip_patterns);
             let words = processor.extract_words();
             // debug!("Found Capture: {node_text:?}");
             // debug!("Words: {words:?}");
@@ -295,34 +295,27 @@ fn is_numeric(s: &str) -> bool {
     s.chars().any(|c| c.is_numeric())
 }
 
-fn is_alphabetic(c: &str) -> bool {
-    c.chars().any(|c| c.is_alphabetic())
-}
-
-/// Get a UTF-8 word from a string given the start and end indices.
-pub fn get_word_from_string(start: usize, end: usize, text: &str) -> String {
-    text.graphemes(true).skip(start).take(end - start).collect()
-}
-
 #[cfg(test)]
 mod parser_tests {
     use super::*;
 
     #[test]
     fn test_spell_checking() {
-        let text = "HelloWorld calc_wrld";
-        let results = find_locations(text, LanguageType::Text, |_| false, &[]);
+        let text = Rope::from("HelloWorld calc_wrld");
+        let results = find_locations(&text, LanguageType::Text, |_| false, &[]);
         println!("{:?}", results);
         assert_eq!(results.len(), 4);
     }
 
     #[test]
     fn test_get_words_from_text() {
-        let text = r#"
+        let text = Rope::from(
+            r#"
             HelloWorld calc_wrld
             I'm a contraction, don't ignore me
             this is a 3rd line.
-            "#;
+            "#,
+        );
         let expected = vec![
             ("Hello", (12, 1)),
             ("World", (17, 1)),
@@ -340,18 +333,19 @@ mod parser_tests {
             ("rd", (23, 3)),
             ("line", (26, 3)),
         ];
-        let processor = TextProcessor::new(text, &[]);
+        let processor = TextProcessor::new(&text, &[]);
         let words = processor.extract_words();
         println!("{:?}", words);
         for word in words {
+            println!("{:?}", word);
             assert!(expected.contains(&(word.0.as_str(), word.1)));
         }
     }
 
     #[test]
     fn test_contraction() {
-        let text = "I'm a contraction, wouldn't you agree'?";
-        let processor = TextProcessor::new(text, &[]);
+        let text = Rope::from("I'm a contraction, wouldn't you agree'?");
+        let processor = TextProcessor::new(&text, &[]);
         let words = processor.extract_words();
         println!("{:?}", words);
         let expected = ["I'm", "a", "contraction", "wouldn't", "you", "agree"];
@@ -361,29 +355,10 @@ mod parser_tests {
     }
 
     #[test]
-    fn test_get_word_from_string() {
-        // Test with ASCII characters
-        let text = "Hello World";
-        assert_eq!(get_word_from_string(0, 5, text), "Hello");
-        assert_eq!(get_word_from_string(6, 11, text), "World");
-
-        // Test with partial words
-        assert_eq!(get_word_from_string(2, 5, text), "llo");
-
-        // Test with Unicode characters
-        let unicode_text = "こんにちは世界";
-        assert_eq!(get_word_from_string(0, 5, unicode_text), "こんにちは");
-        assert_eq!(get_word_from_string(5, 7, unicode_text), "世界");
-
-        // Test with emoji (which can be multi-codepoint)
-        let emoji_text = "Hello 👨‍👩‍👧‍👦 World";
-        assert_eq!(get_word_from_string(6, 7, emoji_text), "👨‍👩‍👧‍👦");
-    }
-    #[test]
     fn test_unicode_character_handling() {
         crate::logging::init_test_logging();
-        let text = "©<div>badword</div>";
-        let processor = TextProcessor::new(text, &[]);
+        let text = Rope::from("©<div>badword</div>");
+        let processor = TextProcessor::new(&text, &[]);
         let words = processor.extract_words();
         println!("{:?}", words);
 

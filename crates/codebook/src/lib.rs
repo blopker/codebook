@@ -6,6 +6,7 @@ pub mod regexes;
 mod splitter;
 
 use regexes::get_default_skip_patterns;
+use ropey::Rope;
 use std::sync::Arc;
 
 use codebook_config::CodebookConfig;
@@ -33,6 +34,16 @@ impl Codebook {
     pub fn spell_check(
         &self,
         text: &str,
+        language: Option<queries::LanguageType>,
+        file_path: Option<&str>,
+    ) -> Vec<parser::WordLocation> {
+        let rope = Rope::from(text);
+        self.spell_check_rope(&rope, language, file_path)
+    }
+
+    pub fn spell_check_rope(
+        &self,
+        text: &Rope,
         language: Option<queries::LanguageType>,
         file_path: Option<&str>,
     ) -> Vec<parser::WordLocation> {
