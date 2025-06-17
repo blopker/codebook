@@ -229,11 +229,16 @@ fn find_locations_code(
     // let text_bytes = text.bytes().collect();
     let tree = parser
         .parse_with_options(
-            &mut |start_byte, _| text.byte_slice(start_byte..).chunks().next().unwrap_or(""),
-            None,
-            None,
+            &mut |byte_offset, _| {
+                // Get the chunk for the given byte offset.
+                let (chunk, chunk_byte_idx, _, _) = text.chunk_at_byte(byte_offset);
+                // Return the part of the chunk that starts at the offset.
+                &chunk.as_bytes()[byte_offset - chunk_byte_idx..]
+            },
+            None, // No old tree to reuse
+            None, // No options
         )
-        .unwrap();
+        .expect("Failed to parse the code");
     let root_node = tree.root_node();
 
     let query = Query::new(&language, language_setting.query).unwrap();
