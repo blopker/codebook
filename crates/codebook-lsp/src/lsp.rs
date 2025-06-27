@@ -100,12 +100,6 @@ impl LanguageServer for Backend {
                         },
                     },
                 )),
-                diagnostic_provider: Some(DiagnosticServerCapabilities::Options(
-                    DiagnosticOptions {
-                        identifier: Some(SOURCE_NAME.to_string()),
-                        ..DiagnosticOptions::default()
-                    },
-                )),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
