@@ -12,6 +12,7 @@ downloader
 etag
 exe
 filesystem
+github
 gz
 hasher
 hashers

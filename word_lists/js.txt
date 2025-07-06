@@ -310,7 +310,6 @@ get
 getattribute
 getelementbyid
 getelementsbytagname
-github
 given
 gl
 global
