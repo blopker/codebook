@@ -13,6 +13,7 @@ etag
 exe
 filesystem
 github
+gitlab
 gz
 hasher
 hashers
@@ -27,6 +28,7 @@ msvc
 pbkdf
 pc
 prerelease
+prerender
 pst
 redownload
 roadmap
@@ -35,6 +37,8 @@ scm
 semibold
 sha
 ssl
+sveltekit
+sveltejs
 tsx
 ttf
 typescript
@@ -42,4 +46,5 @@ ubuntu
 uncomment
 validator
 validators
+vite
 webp
