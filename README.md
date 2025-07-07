@@ -16,7 +16,7 @@
 <img
   src="assets/example.png" alt="Example" width="400" >
 
-No setup needed. Code book will automatically detect the language you are editing and mark issues for you. Note, Codebook will only mark issues for words that you control, where they are initially defined.
+No setup needed. Codebook will automatically detect the language you are editing and mark issues for you. Note, Codebook will only mark issues for words that you control, where they are initially defined.
 
 Please gift us a ⭐ if you find Codebook useful!
 
@@ -60,10 +60,9 @@ editor](https://helix-editor.com/) by adding the LSP to the
 [language.toml](https://docs.helix-editor.com/languages.html) configuration
 file.
 
-First, get the latest release from [Releases](https://github.com/blopker/codebook/releases) for your architecture.
+First, [install Codebook](#installation), and ensure that `codebook-lsp` is installed into your `$PATH`.
 
-Then, ensure that `codebook-lsp` is installed into your `$PATH` and add into
-the Helix config file:
+Then, add into the Helix config file:
 
 ```toml
 [language-server.codebook]
@@ -78,13 +77,26 @@ language-servers = ["codebook"]
 
 This can be verified with:
 
-```shell
+```sh
 hx --health markdown
 ```
 
 Suggestions will appear in files opened, and
 [space-mode](https://docs.helix-editor.com/keymap.html#space-mode) `a` key
 binding can be used to accept suggestions.
+
+### Neovim
+
+[nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) includes a [configuration for Codebook](https://github.com/neovim/nvim-lspconfig/blob/master/lsp/codebook.lua).
+
+First, [install Codebook](#installation), and ensure that `codebook-lsp` is installed into your `$PATH`.
+
+[Install nvim-lspconfig](https://github.com/neovim/nvim-lspconfig?tab=readme-ov-file#install) if you have not already.
+Then, add the following to your Neovim configuration:
+
+```sh
+vim.lsp.enable('cookbook')
+```
 
 ### Other Editors
 
