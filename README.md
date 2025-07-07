@@ -28,7 +28,7 @@ Codebook is the most popular spell checker for Zed! To install, go to the Extens
 
 **Note**: The version that Zed displays in the extension menus is for the [Zed Extension](https://github.com/blopker/codebook-zed), and not the LSP version (this repo). The extension will automatically update the LSP. If that updater is broken for some reason, try uninstalling the extension and reinstalling.
 
-If quickfix code actions are not showing up for specific languages, ensure your `settings.json` file incudes the special `"..."`, or `"codebook"`, value in any `language_servers` values defined:
+If quickfix code actions are not showing up for specific languages, ensure your `settings.json` file includes the special `"..."`, or `"codebook"`, value in any `language_servers` values defined:
 
 ```json
 "languages": {
@@ -152,12 +152,12 @@ You can install the latest release using [eget](https://github.com/zyedidia/eget
 eget blopker/codebook
 ```
 
-### Arch User Repository
+### Arch Linux
 
-The binary release is available on the AUR under the [codebook-bin](https://aur.archlinux.org/packages/codebook-bin) package. Arch users can easily install it with their favorite AUR helper, such as [paru](https://github.com/Morganamilo/paru):
+You can install the Codebook LSP using pacman:
 
 ```sh
-paru -S codebook-bin
+pacman -S codebook-lsp
 ```
 
 ### Cargo Install
