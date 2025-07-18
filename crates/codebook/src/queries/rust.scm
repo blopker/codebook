@@ -8,6 +8,7 @@
     name: (type_identifier) @identifier)
 (field_declaration
     name: (field_identifier) @identifier)
+(block_comment) @comment
 (line_comment) @comment
 (string_content) @string
 (char_literal) @string
