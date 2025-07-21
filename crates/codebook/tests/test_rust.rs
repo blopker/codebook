@@ -52,6 +52,70 @@ fn test_rust_comment_location() {
 }
 
 #[test]
+fn test_rust_block_comments() {
+    utils::init_logging();
+    let sample_rust = r#"
+        /* Comment with a typos on multiple lines: mment
+
+        examle
+        */
+
+        /*! Inner block doc comment: testz
+        */
+
+        /** Outer block doc comment.
+
+        Eror.
+        */
+        "#;
+    let expected = [
+        WordLocation::new(
+            "mment".to_string(),
+            vec![TextRange {
+                start_char: 51,
+                end_char: 56,
+                line: 1,
+            }],
+        ),
+        WordLocation::new(
+            "examle".to_string(),
+            vec![TextRange {
+                start_char: 8,
+                end_char: 14,
+                line: 3,
+            }],
+        ),
+        WordLocation::new(
+            "testz".to_string(),
+            vec![TextRange {
+                start_char: 37,
+                end_char: 42,
+                line: 6,
+            }],
+        ),
+        WordLocation::new(
+            "Eror".to_string(),
+            vec![TextRange {
+                start_char: 8,
+                end_char: 12,
+                line: 11,
+            }],
+        ),
+    ];
+    let processor = utils::get_processor();
+    let misspelled = processor
+        .spell_check(sample_rust, Some(LanguageType::Rust), None)
+        .to_vec();
+    println!("Misspelled words: {misspelled:?}");
+    for expect in expected.iter() {
+        println!("Expecting {}", expect.word);
+        let result = misspelled.iter().find(|r| r.word == expect.word).unwrap();
+        assert_eq!(result.word, expect.word);
+        assert_eq!(result.locations, expect.locations);
+    }
+}
+
+#[test]
 fn test_rust_struct() {
     utils::init_logging();
     let sample_rust = r#"
