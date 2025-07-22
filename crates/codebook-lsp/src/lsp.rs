@@ -225,12 +225,12 @@ impl LanguageServer for Backend {
                 )));
             });
             actions.push(CodeActionOrCommand::CodeAction(CodeAction {
-                title: format!("Add '{}' to dictionary", word),
+                title: format!("Add '{word}' to dictionary"),
                 kind: Some(CodeActionKind::QUICKFIX),
                 diagnostics: None,
                 edit: None,
                 command: Some(Command {
-                    title: format!("Add '{}' to dictionary", word),
+                    title: format!("Add '{word}' to dictionary"),
                     command: CodebookCommand::AddWord.into(),
                     arguments: Some(vec![word.to_string().into()]),
                 }),
@@ -239,12 +239,12 @@ impl LanguageServer for Backend {
                 data: None,
             }));
             actions.push(CodeActionOrCommand::CodeAction(CodeAction {
-                title: format!("Add '{}' to global dictionary", word),
+                title: format!("Add '{word}' to global dictionary"),
                 kind: Some(CodeActionKind::QUICKFIX),
                 diagnostics: None,
                 edit: None,
                 command: Some(Command {
-                    title: format!("Add '{}' to global dictionary", word),
+                    title: format!("Add '{word}' to global dictionary"),
                     command: CodebookCommand::AddWordGlobal.into(),
                     arguments: Some(vec![word.to_string().into()]),
                 }),
@@ -309,7 +309,7 @@ impl Backend {
         }
     }
     fn make_diagnostic(&self, result: &WordLocation, range: &TextRange) -> Diagnostic {
-        let message = format!("Possible spelling issue '{}'.", result.word);
+        let message = format!("Possible spelling issue '{word}'.", word = result.word);
         Diagnostic {
             range: Range {
                 start: Position {
@@ -340,10 +340,10 @@ impl Backend {
                     should_save = true;
                 }
                 Ok(false) => {
-                    info!("Word '{}' already exists in dictionary.", word);
+                    info!("Word '{word}' already exists in dictionary.");
                 }
                 Err(e) => {
-                    error!("Failed to add word: {}", e);
+                    error!("Failed to add word: {e}");
                 }
             }
         }
@@ -357,10 +357,10 @@ impl Backend {
                     should_save = true;
                 }
                 Ok(false) => {
-                    info!("Word '{}' already exists in global dictionary.", word);
+                    info!("Word '{word}' already exists in global dictionary.");
                 }
                 Err(e) => {
-                    error!("Failed to add word: {}", e);
+                    error!("Failed to add word: {e}");
                 }
             }
         }
@@ -368,7 +368,7 @@ impl Backend {
     }
 
     fn make_suggestion(&self, suggestion: &str, range: &Range, uri: &Url) -> CodeAction {
-        let title = format!("Replace with '{}'", suggestion);
+        let title = format!("Replace with '{suggestion}'");
         let mut map = HashMap::new();
         map.insert(
             uri.clone(),
@@ -396,7 +396,7 @@ impl Backend {
 
     async fn recheck_all(&self) {
         let urls = self.document_cache.cached_urls();
-        debug!("Rechecking documents: {:?}", urls);
+        debug!("Rechecking documents: {urls:?}");
         for url in urls {
             self.publish_spellcheck_diagnostics(&url).await;
         }
@@ -406,7 +406,7 @@ impl Backend {
         let did_reload = match self.config.reload() {
             Ok(did_reload) => did_reload,
             Err(e) => {
-                error!("Failed to reload config: {}", e);
+                error!("Failed to reload config: {e}");
                 false
             }
         };
@@ -426,7 +426,7 @@ impl Backend {
         };
         // Convert the file URI to a local file path.
         let file_path = doc.uri.to_file_path().unwrap_or_default();
-        debug!("Spell-checking file: {:?}", file_path);
+        debug!("Spell-checking file: {file_path:?}");
         // 1) Perform spell-check.
         let lang_type = doc
             .language_id
@@ -443,10 +443,7 @@ impl Backend {
         let spell_results = match spell_results {
             Ok(results) => results,
             Err(err) => {
-                error!(
-                    "Spell-checking failed for file '{:?}' \n Error: {}",
-                    file_path, err
-                );
+                error!("Spell-checking failed for file '{file_path:?}' \n Error: {err}");
                 return;
             }
         };

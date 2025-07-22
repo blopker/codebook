@@ -21,7 +21,7 @@ await $`git checkout main`;
 // error if we're dirty
 try {
   await $`git diff --exit-code > /dev/null`;
-} catch (e) {
+} catch (_) {
   console.error("Warning: git is dirty");
   const answer = prompt("Continue? [Y/n]") ?? "Y";
   if (answer.toLowerCase() !== "y") {

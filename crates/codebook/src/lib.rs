@@ -98,7 +98,7 @@ impl Codebook {
         };
         dictionary_ids.extend(DEFAULT_DICTIONARIES.iter().map(|f| f.to_string()));
         let mut dictionaries = Vec::with_capacity(dictionary_ids.len());
-        debug!("Checking text with dictionaries: {:?}", dictionary_ids);
+        debug!("Checking text with dictionaries: {dictionary_ids:?}");
         for dictionary_id in dictionary_ids {
             let dictionary = self.manager.get_dictionary(&dictionary_id);
             if let Some(d) = dictionary {

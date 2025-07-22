@@ -30,8 +30,7 @@ pub fn split(s: &str) -> Vec<SplitRef> {
     while let Some((byte_pos, c)) = char_iter.next() {
         assert!(
             !c.is_whitespace(),
-            "There should be no white space in the input: '{}'",
-            s
+            "There should be no white space in the input: '{s}'"
         );
 
         let char_type = match c {

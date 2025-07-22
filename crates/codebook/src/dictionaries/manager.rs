@@ -35,7 +35,7 @@ impl DictionaryManager {
         let repo = match get_repo(id) {
             Some(r) => r,
             None => {
-                debug!("Failed to get repo for dictionary, skipping: {}", id);
+                debug!("Failed to get repo for dictionary, skipping: {id}");
                 return None;
             }
         };
@@ -59,14 +59,14 @@ impl DictionaryManager {
         let aff_path = match self.downloader.get(&repo.aff_url) {
             Ok(path) => path,
             Err(e) => {
-                error!("Error: {:?}", e);
+                error!("Error: {e:?}");
                 return None;
             }
         };
         let dic_path = match self.downloader.get(&repo.dict_url) {
             Ok(path) => path,
             Err(e) => {
-                error!("Error: {:?}", e);
+                error!("Error: {e:?}");
                 return None;
             }
         };
@@ -74,7 +74,7 @@ impl DictionaryManager {
             match HunspellDictionary::new(aff_path.to_str().unwrap(), dic_path.to_str().unwrap()) {
                 Ok(dict) => dict,
                 Err(e) => {
-                    error!("Error: {:?}", e);
+                    error!("Error: {e:?}");
                     return None;
                 }
             };
@@ -88,7 +88,7 @@ impl DictionaryManager {
         let text_path = match self.downloader.get(&repo.url.unwrap()) {
             Ok(path) => path,
             Err(e) => {
-                error!("Error: {:?}", e);
+                error!("Error: {e:?}");
                 return None;
             }
         };

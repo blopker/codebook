@@ -12,12 +12,17 @@ const multiLineString = `This is a multi-line string
 spanning multiple lines
 with some spelling mistkes`;
 
+console.log(multiLineString);
+
 // Example usege
 const firstNumbr = 10;
+console.log(firstNumbr);
 const secandNumbr = 5;
+console.log(secandNumbr);
 
 // Array of numbrs with spelling mistakes
 const arraOfNumbrs = [1, 2, 3, 4, 5];
+console.log(arraOfNumbrs);
 
 /*
  Funcshun to prosess array
@@ -40,6 +45,8 @@ const userAccaunt = {
   emale: "john@example.com",
   ballance: 1000,
 };
+
+console.log(userAccaunt);
 
 // Exportt the funcsions
 export { validateInputt, prosessArray };

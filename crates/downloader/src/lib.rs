@@ -39,7 +39,7 @@ impl Downloader {
     pub fn new(cache_dir: impl AsRef<Path>) -> Result<Self> {
         let cache_dir = cache_dir.as_ref().to_path_buf();
         fs::create_dir_all(&cache_dir)?;
-        info!("Cache folder at: {:?}", cache_dir);
+        info!("Cache folder at: {cache_dir:?}");
 
         let metadata_path = cache_dir.join(METADATA_FILE);
         let metadata = if metadata_path.exists() {
@@ -48,7 +48,7 @@ impl Downloader {
                 Ok(metadata) => metadata,
                 Err(e) => {
                     // Log the error but continue with a fresh metadata file
-                    log::warn!("Failed to load metadata file: {}, creating a new one", e);
+                    log::warn!("Failed to load metadata file: {e}, creating a new one");
                     Metadata {
                         files: HashMap::new(),
                     }
@@ -95,7 +95,7 @@ impl Downloader {
             None => self.download_new(url),
         }
         .or_else(|e| {
-            log::error!("Failed to update, using cached version: {}", e);
+            log::error!("Failed to update, using cached version: {e}");
             let entry = {
                 let metadata = self.metadata.read().unwrap();
                 metadata
@@ -114,7 +114,7 @@ impl Downloader {
                 }
                 None => {
                     // URL not found in the files hashmap, try to download it
-                    log::warn!("URL not found in cache, attempting fresh download: {}", url);
+                    log::warn!("URL not found in cache, attempting fresh download: {url}");
                     self.download_new(url)
                 }
             }
@@ -395,7 +395,7 @@ mod tests {
         });
 
         let path_v2 = downloader.get(&test_path).unwrap();
-        println!("path: {:?}", path_v2);
+        println!("path: {path_v2:?}");
         mock2.assert();
 
         assert_eq!(path_v1, path_v2);

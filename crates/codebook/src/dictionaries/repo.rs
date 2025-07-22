@@ -177,8 +177,7 @@ mod tests {
 
         assert!(
             duplicate_names.is_empty(),
-            "Found duplicate names across collections: {:?}",
-            duplicate_names
+            "Found duplicate names across collections: {duplicate_names:?}"
         );
 
         // Test that all names follow snake_case convention
@@ -196,8 +195,7 @@ mod tests {
 
         assert!(
             non_snake_case.is_empty(),
-            "Found names not in snake_case format: {:?}",
-            non_snake_case
+            "Found names not in snake_case format: {non_snake_case:?}"
         );
     }
 }

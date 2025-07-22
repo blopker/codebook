@@ -7,13 +7,13 @@ NUMBR = 42
 
 # Klass definition with misspellings
 class UserAccaunt:
-    def __init__(selff, usrrname, ballance, intrest_rate):
-        selff.usrrname = usrrname
-        selff.ballance = ballance
-        selff.intrest_rate = intrest_rate
+    def __init__(self, usrrname, ballance, intrest_rate):
+        self.usrrname = usrrname
+        self.ballance = ballance
+        self.intrest_rate = intrest_rate
 
-    def calculayt_intrest(selff):
-        return selff.ballance * selff.intrest_rate
+    def calculayt_intrest(self):
+        return self.ballance * self.intrest_rate
 
 
 # Enumm-like dictionary
@@ -65,12 +65,15 @@ def debugg_dekorator(funkshun):
 def mainee():
     # Listt comprehension with misspellings
     numbrs = [x for x in range(MAXSIZ)]
+    print(numbrs)
 
     # Dictionry comprehension
     squres = {x: x * x for x in range(10)}
+    print(squres)
 
     # Structur-like usage
     usrr1 = UserAccaunt(usrrname="JohnDoee", ballance=1000, intrest_rate=2.5)
+    print(usrr1)
 
     # Condishunals and loops
     resalt = calculatr(10, 5, "+")
@@ -92,6 +95,7 @@ def mainee():
     print(multiline_txt)
     # Generatr expression
     evenn_numbrs = (x for x in range(10) if x % 2 == 0)
+    print(list(evenn_numbrs))
 
     # Exeption handling
     try:
@@ -108,9 +112,9 @@ quikMath = lambda x: x * NUMBR
 
 # Claas inheritance
 class AdvancedAccaunt(UserAccaunt):
-    def __init__(selff, usrrname, ballance, intrest_rate, creditt_limit):
+    def __init__(self, usrrname, ballance, intrest_rate, creditt_limit):
         super().__init__(usrrname, ballance, intrest_rate)
-        selff.creditt_limit = creditt_limit
+        self.creditt_limit = creditt_limit
 
 
 if __name__ == "__maine__":

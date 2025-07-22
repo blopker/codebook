@@ -35,7 +35,7 @@ impl HunspellDictionary {
         let aff = std::fs::read_to_string(aff_path)?;
         let dic = std::fs::read_to_string(dic_path)?;
         let dict = spellbook::Dictionary::new(&aff, &dic)
-            .map_err(|e| format!("Dictionary parse error: {}", e))?;
+            .map_err(|e| format!("Dictionary parse error: {e}"))?;
 
         Ok(HunspellDictionary {
             dictionary: dict,
@@ -191,7 +191,7 @@ mod dictionary_tests {
     fn test_suggest() {
         let dict = get_dict();
         let suggestions = dict.suggest("wrld");
-        println!("{:?}", suggestions);
+        println!("{suggestions:?}");
         assert!(suggestions.contains(&"world".to_string()));
     }
 
@@ -201,7 +201,7 @@ mod dictionary_tests {
         let check = dict.check("alice");
         assert!(check);
         let suggestions = dict.suggest("alice");
-        println!("{:?}", suggestions);
+        println!("{suggestions:?}");
         assert!(suggestions.contains(&"alice".to_string()));
     }
 }

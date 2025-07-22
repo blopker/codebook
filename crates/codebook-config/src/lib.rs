@@ -99,7 +99,7 @@ impl CodebookConfig {
                         }
                     }
                     Err(e) => {
-                        debug!("Failed to load global config: {}", e);
+                        debug!("Failed to load global config: {e}");
                     }
                 }
             } else {
@@ -213,7 +213,7 @@ impl CodebookConfig {
             Err(e) => {
                 let err = io::Error::new(
                     ErrorKind::InvalidData,
-                    format!("Failed to parse config file {}: {}", path.display(), e),
+                    format!("Failed to parse config file {}: {e}", path.display()),
                 );
                 Err(err)
             }
@@ -241,7 +241,7 @@ impl CodebookConfig {
                         }
                     }
                     Err(e) => {
-                        debug!("Failed to read global config: {}", e);
+                        debug!("Failed to read global config: {e}");
                         // File might be deleted, clear the state
                         *self.global_config_state.write().unwrap() = None;
                     }
@@ -266,7 +266,7 @@ impl CodebookConfig {
                         }
                     }
                     Err(e) => {
-                        debug!("Failed to read project config: {}", e);
+                        debug!("Failed to read project config: {e}");
                         // Reset project settings to default if file can't be read
                         let mut project_settings = self.project_settings.write().unwrap();
                         if *project_settings != ConfigSettings::default() {
@@ -548,9 +548,7 @@ impl CodebookConfig {
         let path_str = dir_path.to_string_lossy();
         if !path_str.contains(CACHE_DIR) {
             log::error!(
-                "Cache directory path '{}' doesn't contain '{}', refusing to clean",
-                path_str,
-                CACHE_DIR
+                "Cache directory path '{path_str}' doesn't contain '{CACHE_DIR}', refusing to clean"
             );
             return;
         }

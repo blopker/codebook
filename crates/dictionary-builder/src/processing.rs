@@ -49,7 +49,7 @@ pub fn process_word_list(sources: &[impl AsRef<Path>], output: &Path) -> Result<
     // Write to output file
     let mut output_file = File::create(output)?;
     for word in sorted_words.iter() {
-        writeln!(output_file, "{}", word)?;
+        writeln!(output_file, "{word}")?;
     }
 
     info!(

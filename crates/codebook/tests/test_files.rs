@@ -7,7 +7,7 @@ mod utils;
 
 fn example_file_path(file: &str) -> String {
     // get root of the project through CARGO_MANIFEST_DIR
-    format!("tests/examples/{}", file)
+    format!("tests/examples/{file}")
 }
 
 #[test]

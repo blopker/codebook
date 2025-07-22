@@ -312,7 +312,7 @@ mod parser_tests {
     fn test_spell_checking() {
         let text = "HelloWorld calc_wrld";
         let results = find_locations(text, LanguageType::Text, |_| false, &[]);
-        println!("{:?}", results);
+        println!("{results:?}");
         assert_eq!(results.len(), 4);
     }
 
@@ -342,7 +342,7 @@ mod parser_tests {
         ];
         let processor = TextProcessor::new(text, &[]);
         let words = processor.extract_words();
-        println!("{:?}", words);
+        println!("{words:?}");
         for word in words {
             assert!(expected.contains(&(word.0.as_str(), word.1)));
         }
@@ -353,7 +353,7 @@ mod parser_tests {
         let text = "I'm a contraction, wouldn't you agree'?";
         let processor = TextProcessor::new(text, &[]);
         let words = processor.extract_words();
-        println!("{:?}", words);
+        println!("{words:?}");
         let expected = ["I'm", "a", "contraction", "wouldn't", "you", "agree"];
         for word in words {
             assert!(expected.contains(&word.0.as_str()));
@@ -385,7 +385,7 @@ mod parser_tests {
         let text = "©<div>badword</div>";
         let processor = TextProcessor::new(text, &[]);
         let words = processor.extract_words();
-        println!("{:?}", words);
+        println!("{words:?}");
 
         // Make sure "badword" is included and correctly positioned
         assert!(words.iter().any(|(word, _)| word == "badword"));

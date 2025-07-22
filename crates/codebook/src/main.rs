@@ -11,7 +11,7 @@ fn main() {
     let config = Arc::new(codebook_config::CodebookConfig::default());
     let processor = Codebook::new(config).unwrap();
 
-    println!("My path is {:?}", args);
+    println!("My path is {args:?}");
 
     // Check for benchmark flag
     if args.contains(&"--benchmark".to_string()) {
@@ -29,7 +29,7 @@ fn main() {
         "#;
 
         let misspelled = processor.spell_check(sample_text, Some(LanguageType::Rust), None);
-        println!("Misspelled words: {:?}", misspelled);
+        println!("Misspelled words: {misspelled:?}");
         return;
     }
 
@@ -39,7 +39,7 @@ fn main() {
         return;
     }
     let results = processor.spell_check_file(path.to_str().unwrap());
-    println!("Misspelled words: {:?}", results);
+    println!("Misspelled words: {results:?}");
     println!("Done");
 }
 
@@ -132,7 +132,7 @@ fn run_benchmark_iterations(
 
     for i in 1..=iterations {
         if i % 10 == 0 {
-            println!("{} iteration {}/{}", label, i, iterations);
+            println!("{label} iteration {i}/{iterations}");
         }
         let misspelled = processor.spell_check(content, Some(language), None);
 
@@ -148,9 +148,9 @@ fn run_benchmark_iterations(
 fn print_benchmark_results(name: &str, iterations: usize, duration: Duration) {
     let avg_time = duration.as_secs_f64() / iterations as f64;
 
-    println!("\nBenchmark Results ({}):", name);
-    println!("Total iterations: {}", iterations);
-    println!("Total time: {:.2?}", duration);
+    println!("\nBenchmark Results ({name}):");
+    println!("Total iterations: {iterations}");
+    println!("Total time: {duration:.2?}");
     println!(
         "Average time per iteration: {:.6?}",
         Duration::from_secs_f64(avg_time)

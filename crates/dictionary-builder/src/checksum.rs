@@ -27,6 +27,6 @@ pub fn calculate_sha256(path: &Path) -> Result<String> {
     let hash = hasher.finalize();
     let hash_str = format!("sha256:{:x}", hash);
 
-    debug!("Calculated checksum for {}: {}", path.display(), hash_str);
+    debug!("Calculated checksum for {}: {hash_str}", path.display());
     Ok(hash_str)
 }

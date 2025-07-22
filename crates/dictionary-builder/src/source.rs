@@ -7,8 +7,8 @@ use reqwest::blocking::Client;
 use tracing::{debug, info};
 use url::Url;
 
-use crate::error::Error;
 use crate::Result;
+use crate::error::Error;
 
 /// Fetcher for source files
 pub struct SourceFetcher {
@@ -108,7 +108,7 @@ impl SourceFetcher {
             // https://raw.githubusercontent.com/user/repo/main/path
 
             let url = Url::parse(repository)
-                .map_err(|e| Error::Fetch(format!("Invalid repository URL: {}", e)))?;
+                .map_err(|e| Error::Fetch(format!("Invalid repository URL: {e}")))?;
 
             let segments: Vec<_> = url
                 .path_segments()
@@ -117,8 +117,7 @@ impl SourceFetcher {
 
             if segments.len() < 2 {
                 return Err(Error::Fetch(format!(
-                    "Invalid GitHub repository URL: {}",
-                    repository
+                    "Invalid GitHub repository URL: {repository}"
                 )));
             }
 
@@ -129,12 +128,11 @@ impl SourceFetcher {
             let branch = "main";
 
             return Ok(format!(
-                "https://raw.githubusercontent.com/{}/{}/{}/{}",
-                user, repo, branch, path
+                "https://raw.githubusercontent.com/{user}/{repo}/{branch}/{path}"
             ));
         }
 
         // For other URLs, just join the path
-        Ok(format!("{}/{}", repository.trim_end_matches('/'), path))
+        Ok(format!("{}/{path}", repository.trim_end_matches('/')))
     }
 }
