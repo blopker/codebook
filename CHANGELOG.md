@@ -1,3 +1,7 @@
+[0.3.6]
+
+- Use rustls_platform_verifier to let Codebook use OS cert chain for users with proxies
+
 [0.3.5]
 
 - Add support for Java
