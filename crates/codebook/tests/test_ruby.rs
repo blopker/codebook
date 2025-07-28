@@ -15,6 +15,8 @@ fn test_ruby_simple() {
           # can be inented
           def bar
           end
+          def opttions
+          end
         end
 
         =begin
@@ -35,7 +37,7 @@ fn test_ruby_simple() {
         symbol = :hello
     "#;
     let expected = vec![
-        "comented", "helo", "inented", "lne", "lteral", "sepaate", "wors",
+        "comented", "helo", "inented", "lne", "lteral", "opttions", "sepaate", "wors",
     ];
     let binding = processor
         .spell_check(sample_text, Some(LanguageType::Ruby), None)
@@ -162,6 +164,14 @@ end
             }],
         ),
         WordLocation::new(
+            "notfication".to_string(),
+            vec![TextRange {
+                start_char: 9,
+                end_char: 20,
+                line: 1,
+            }],
+        ),
+        WordLocation::new(
             "Regads".to_string(),
             vec![TextRange {
                 start_char: 48,
@@ -202,7 +212,7 @@ end
             }],
         ),
     ];
-    let not_expected = vec!["finnished", "notfication"];
+    let not_expected = vec!["finnished"];
     let processor = utils::get_processor();
     let misspelled = processor
         .spell_check(sample_ruby_code, Some(LanguageType::Ruby), None)
