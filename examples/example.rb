@@ -3,6 +3,10 @@ class Foo # or at the end of the lne
   # can be inented
   def bar
   end
+  def opttions
+    # opttions
+    "opttions"
+  end
 end
 
 =begin
