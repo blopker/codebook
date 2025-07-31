@@ -1,3 +1,9 @@
+[0.3.6]
+
+- Use rustls_platform_verifier to let Codebook use OS cert chain for users with proxies
+- Add `pt_br` dictionary.
+- Add support for Rust's comment blocks
+
 [0.3.5]
 
 - Add support for Java

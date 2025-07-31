@@ -3,6 +3,8 @@ use chrono::{DateTime, Utc};
 use log::info;
 use reqwest::blocking::{Client, Response};
 use reqwest::header::{IF_MODIFIED_SINCE, LAST_MODIFIED};
+use rustls::ClientConfig;
+use rustls_platform_verifier::BuilderVerifierExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -60,10 +62,23 @@ impl Downloader {
             }
         };
 
+        // Set up rustls_platform_verifier to use OS cert chains (proxy support)
+        let arc_crypto_provider =
+            std::sync::Arc::new(rustls::crypto::aws_lc_rs::default_provider());
+        let config = ClientConfig::builder_with_provider(arc_crypto_provider)
+            .with_safe_default_protocol_versions()
+            .unwrap()
+            .with_platform_verifier()
+            .unwrap()
+            .with_no_client_auth();
+        let client = reqwest::blocking::Client::builder()
+            .use_preconfigured_tls(config)
+            .build()?;
+
         Ok(Self {
             cache_dir,
             metadata: RwLock::new(metadata),
-            client: Client::new(),
+            client,
         })
     }
 
