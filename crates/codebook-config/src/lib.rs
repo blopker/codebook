@@ -528,7 +528,13 @@ impl CodebookConfig {
         if regex_cache.is_none() {
             let regex_set = str_patterns
                 .into_iter()
-                .map(|pattern| Regex::new(&pattern).unwrap())
+                .filter_map(|pattern| match Regex::new(&pattern) {
+                    Ok(regex) => Some(regex),
+                    Err(e) => {
+                        log::error!("Ignoring invalid regex pattern '{pattern}': {e}");
+                        None
+                    }
+                })
                 .collect::<Vec<_>>();
             *regex_cache = Some(regex_set);
         }
