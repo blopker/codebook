@@ -3,6 +3,8 @@
 - Better error message for user-supplied regex
 - Improve Go support
 - Add query for Ruby method names
+- Add user-configurable min word length
+- Add common file extensions to default ignore list
 
 [0.3.6]
 
