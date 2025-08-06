@@ -542,6 +542,11 @@ impl CodebookConfig {
         regex_cache.clone()
     }
 
+    /// Get the minimum word length which should be checked
+    pub fn get_min_word_length(&self) -> usize {
+        self.effective_settings.read().unwrap().min_word_length
+    }
+
     /// Clean the cache directory
     pub fn clean_cache(&self) {
         let dir_path = self.cache_dir.clone();

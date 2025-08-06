@@ -27,6 +27,13 @@ pub struct ConfigSettings {
         skip_serializing_if = "is_default_use_global"
     )]
     pub use_global: bool,
+
+    /// Minimum word length to check (words shorter than this are ignored)
+    #[serde(
+        default = "default_min_word_length",
+        skip_serializing_if = "is_default_min_word_length"
+    )]
+    pub min_word_length: usize,
 }
 
 fn default_use_global() -> bool {
@@ -35,6 +42,14 @@ fn default_use_global() -> bool {
 
 fn is_default_use_global(value: &bool) -> bool {
     *value == default_use_global()
+}
+
+fn default_min_word_length() -> usize {
+    3
+}
+
+fn is_default_min_word_length(value: &usize) -> bool {
+    *value == default_min_word_length()
 }
 
 impl Default for ConfigSettings {
@@ -46,6 +61,7 @@ impl Default for ConfigSettings {
             ignore_paths: Vec::new(),
             ignore_patterns: Vec::new(),
             use_global: true,
+            min_word_length: default_min_word_length(),
         }
     }
 }
@@ -72,6 +88,8 @@ impl<'de> Deserialize<'de> for ConfigSettings {
             ignore_patterns: Vec<String>,
             #[serde(default = "default_use_global")]
             use_global: bool,
+            #[serde(default = "default_min_word_length")]
+            min_word_length: usize,
         }
 
         let helper = Helper::deserialize(deserializer)?;
@@ -82,6 +100,7 @@ impl<'de> Deserialize<'de> for ConfigSettings {
             ignore_paths: helper.ignore_paths,
             ignore_patterns: helper.ignore_patterns,
             use_global: helper.use_global,
+            min_word_length: helper.min_word_length,
         })
     }
 }
@@ -98,6 +117,11 @@ impl ConfigSettings {
 
         // The use_global setting from the other config is ignored during merging
         // as this is a per-config setting
+
+        // Override min_word_length if the other config has a non-default value
+        if other.min_word_length != default_min_word_length() {
+            self.min_word_length = other.min_word_length;
+        }
 
         // Sort and deduplicate each collection
         self.sort_and_dedup();
@@ -133,6 +157,7 @@ mod tests {
         assert_eq!(config.ignore_paths, Vec::<String>::new());
         assert_eq!(config.ignore_patterns, Vec::<String>::new());
         assert!(config.use_global);
+        assert_eq!(config.min_word_length, 3);
     }
 
     #[test]
@@ -162,6 +187,23 @@ mod tests {
     }
 
     #[test]
+    fn test_min_word_length_deserialization() {
+        // Test with explicit value
+        let toml_str = r#"
+        min_word_length = 2
+        "#;
+        let config: ConfigSettings = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.min_word_length, 2);
+
+        // Test with default value (when not specified)
+        let toml_str = r#"
+        dictionaries = ["en_us"]
+        "#;
+        let config: ConfigSettings = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.min_word_length, 3);
+    }
+
+    #[test]
     fn test_serialization() {
         let config = ConfigSettings {
             dictionaries: vec!["en_us".to_string()],
@@ -174,6 +216,7 @@ mod tests {
         assert!(serialized.contains("words = [\"rust\"]"));
         // Defaults should not be there
         assert!(!serialized.contains("use_global = true"));
+        assert!(!serialized.contains("min_word_length = 3"));
     }
 
     #[test]
@@ -185,6 +228,7 @@ mod tests {
             ignore_paths: vec!["**/*.md".to_string()],
             ignore_patterns: vec!["^```.*$".to_string()],
             use_global: true,
+            min_word_length: 3,
         };
 
         let other = ConfigSettings {
@@ -194,6 +238,7 @@ mod tests {
             ignore_paths: vec!["target/".to_string()],
             ignore_patterns: vec!["^//.*$".to_string()],
             use_global: false,
+            min_word_length: 2,
         };
 
         base.merge(other);
@@ -211,6 +256,28 @@ mod tests {
 
         // use_global from the base should be preserved
         assert!(base.use_global);
+        // min_word_length from other should override base (since it's non-default)
+        assert_eq!(base.min_word_length, 2);
+    }
+
+    #[test]
+    fn test_merge_min_word_length_default() {
+        let mut base = ConfigSettings {
+            dictionaries: vec!["en_us".to_string()],
+            min_word_length: 5,
+            ..Default::default()
+        };
+
+        let other = ConfigSettings {
+            dictionaries: vec!["en_gb".to_string()],
+            min_word_length: 3, // default value
+            ..Default::default()
+        };
+
+        base.merge(other);
+
+        // min_word_length from base should be preserved when other has default
+        assert_eq!(base.min_word_length, 5);
     }
 
     #[test]
@@ -238,6 +305,7 @@ mod tests {
                 "^//.*$".to_string(),
             ],
             use_global: true,
+            min_word_length: 3,
         };
 
         config.sort_and_dedup();

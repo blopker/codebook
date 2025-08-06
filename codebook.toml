@@ -22,3 +22,5 @@ ignore_paths = [
     ".git/**/*",
 ]
 ignore_patterns = ['\b[ATCG]+\b']
+
+min_word_length = 3

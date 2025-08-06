@@ -55,7 +55,7 @@ impl Codebook {
                 if self.config.should_flag_word(word) {
                     return false;
                 }
-                if word.len() < 3 {
+                if word.len() < self.config.get_min_word_length() {
                     return true;
                 }
                 if self.config.is_allowed_word(word) {

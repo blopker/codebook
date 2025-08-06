@@ -245,6 +245,12 @@ ignore_patterns = [
     "https?://[^\\s]+"           # URLs
 ]
 
+# Minimum word length to check (words shorter than this are ignored)
+# Default: 3
+# Set to 0 to check all words including single letters
+# Set to 2 to check words with 2 or more characters
+min_word_length = 3
+
 # Whether to use global configuration (project config only)
 # Set to false to completely ignore global settings
 # Default: true
