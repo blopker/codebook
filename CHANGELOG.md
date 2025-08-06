@@ -1,3 +1,9 @@
+[0.3.7]
+
+- Better error message for user-supplied regex
+- Improve Go support
+- Add query for Ruby method names
+
 [0.3.6]
 
 - Use rustls_platform_verifier to let Codebook use OS cert chain for users with proxies
