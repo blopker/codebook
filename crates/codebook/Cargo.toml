@@ -39,6 +39,7 @@ tree-sitter-haskell.workspace = true
 tree-sitter-html.workspace = true
 tree-sitter-java.workspace = true
 tree-sitter-javascript.workspace = true
+tree-sitter-lua.workspace = true
 tree-sitter-php.workspace = true
 tree-sitter-python.workspace = true
 tree-sitter-r.workspace = true

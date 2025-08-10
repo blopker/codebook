@@ -14,7 +14,7 @@ pub struct SplitRef<'a> {
     pub start_char: u32,
 }
 
-pub fn split(s: &str) -> Vec<SplitRef> {
+pub fn split(s: &str) -> Vec<SplitRef<'_>> {
     if s.is_empty() {
         return Vec::new();
     }

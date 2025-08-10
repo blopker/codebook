@@ -1,3 +1,7 @@
+[0.3.8]
+
+- Add support for Lua language
+
 [0.3.7]
 
 - Better error message for user-supplied regex

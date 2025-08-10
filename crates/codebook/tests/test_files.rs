@@ -138,6 +138,22 @@ fn test_example_files() {
                 "Accaunt", "Exportt", "Funcshun", "Funktion", "Inputt", "Numbr", "Numbrs",
             ],
         ),
+        (
+            "example.lua",
+            vec![
+                "exampl",
+                "Helo",
+                "Wrold",
+                "mesage",
+                "countr",
+                "Accont",
+                "calculat",
+                "intrest",
+                "calculatr",
+                "numbr",
+                "operashun",
+            ],
+        ),
     ];
     for mut file in files {
         let path = example_file_path(file.0);
@@ -152,7 +168,7 @@ fn test_example_files() {
         file.1.sort();
         println!("Misspelled words: {misspelled:?}");
         for word in &file.1 {
-            assert!(misspelled.contains(word));
+            assert!(misspelled.contains(word), "Word: {}", word);
         }
     }
 }
