@@ -620,7 +620,7 @@ dependencies = [
 
 [[package]]
 name = "codebook"
-version = "0.3.7"
+version = "0.3.8"
 dependencies = [
  "codebook_config",
  "codebook_downloader",
@@ -660,7 +660,7 @@ dependencies = [
 
 [[package]]
 name = "codebook-lsp"
-version = "0.3.7"
+version = "0.3.8"
 dependencies = [
  "cc",
  "clap",
@@ -680,7 +680,7 @@ dependencies = [
 
 [[package]]
 name = "codebook_config"
-version = "0.3.7"
+version = "0.3.8"
 dependencies = [
  "dirs",
  "glob",
@@ -693,7 +693,7 @@ dependencies = [
 
 [[package]]
 name = "codebook_downloader"
-version = "0.3.7"
+version = "0.3.8"
 dependencies = [
  "anyhow",
  "chrono",
@@ -814,7 +814,7 @@ dependencies = [
 
 [[package]]
 name = "dictionary-builder"
-version = "0.3.7"
+version = "0.3.8"
 dependencies = [
  "anyhow",
  "chrono",
