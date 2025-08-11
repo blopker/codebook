@@ -274,7 +274,6 @@ fx
 gallery
 gems
 gif
-github
 glyphicon
 glyphicons
 gradient
