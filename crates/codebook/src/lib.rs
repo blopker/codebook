@@ -141,12 +141,12 @@ fn collect_round_robin<T: Clone + PartialEq + Ord>(sources: &[Vec<T>], max_count
     let mut result = Vec::with_capacity(max_count);
     for i in 0..max_count {
         for source in sources {
-            if let Some(item) = source.get(i) {
-                if !result.contains(item) {
-                    result.push(item.clone());
-                    if result.len() >= max_count {
-                        return result;
-                    }
+            if let Some(item) = source.get(i)
+                && !result.contains(item)
+            {
+                result.push(item.clone());
+                if result.len() >= max_count {
+                    return result;
                 }
             }
         }

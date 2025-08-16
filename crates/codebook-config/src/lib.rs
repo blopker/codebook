@@ -88,14 +88,13 @@ impl CodebookConfig {
                         *config.effective_settings.write().unwrap() = global_settings;
 
                         // Initialize file state
-                        if let Ok(metadata) = fs::metadata(&global_path) {
-                            if let Ok(modified) = metadata.modified() {
-                                *config.global_config_state.write().unwrap() =
-                                    Some(ConfigFileState {
-                                        last_modified: modified,
-                                        last_size: metadata.len(),
-                                    });
-                            }
+                        if let Ok(metadata) = fs::metadata(&global_path)
+                            && let Ok(modified) = metadata.modified()
+                        {
+                            *config.global_config_state.write().unwrap() = Some(ConfigFileState {
+                                last_modified: modified,
+                                last_size: metadata.len(),
+                            });
                         }
                     }
                     Err(e) => {
@@ -115,13 +114,13 @@ impl CodebookConfig {
             *config.project_settings.write().unwrap() = project_settings.clone();
 
             // Initialize file state
-            if let Ok(metadata) = fs::metadata(&project_path) {
-                if let Ok(modified) = metadata.modified() {
-                    *config.project_config_state.write().unwrap() = Some(ConfigFileState {
-                        last_modified: modified,
-                        last_size: metadata.len(),
-                    });
-                }
+            if let Ok(metadata) = fs::metadata(&project_path)
+                && let Ok(modified) = metadata.modified()
+            {
+                *config.project_config_state.write().unwrap() = Some(ConfigFileState {
+                    last_modified: modified,
+                    last_size: metadata.len(),
+                });
             }
 
             // If use_global is true, merge global with project (project takes precedence)
@@ -166,10 +165,10 @@ impl CodebookConfig {
         }
 
         // On Windows, use dirs::config_dir() (typically %APPDATA%)
-        if cfg!(windows) {
-            if let Some(config_dir) = dirs::config_dir() {
-                return Some(config_dir.join("codebook").join(GLOBAL_CONFIG_FILE));
-            }
+        if cfg!(windows)
+            && let Some(config_dir) = dirs::config_dir()
+        {
+            return Some(config_dir.join("codebook").join(GLOBAL_CONFIG_FILE));
         }
 
         None
@@ -225,58 +224,58 @@ impl CodebookConfig {
         let mut changed = false;
 
         // Reload global config if it exists
-        if let Some(global_path) = &self.global_config_path {
-            if self.has_file_changed(global_path, &self.global_config_state)? {
-                match fs::read_to_string(global_path) {
-                    Ok(content) => {
-                        if let Ok(new_settings) = toml::from_str::<ConfigSettings>(&content) {
-                            let mut global_settings = self.global_settings.write().unwrap();
-                            if Some(&new_settings) != global_settings.as_ref() {
-                                *global_settings = Some(new_settings);
-                                changed = true;
-                            }
-
-                            // Update state cache
-                            self.update_file_state(global_path, &self.global_config_state)?;
+        if let Some(global_path) = &self.global_config_path
+            && self.has_file_changed(global_path, &self.global_config_state)?
+        {
+            match fs::read_to_string(global_path) {
+                Ok(content) => {
+                    if let Ok(new_settings) = toml::from_str::<ConfigSettings>(&content) {
+                        let mut global_settings = self.global_settings.write().unwrap();
+                        if Some(&new_settings) != global_settings.as_ref() {
+                            *global_settings = Some(new_settings);
+                            changed = true;
                         }
+
+                        // Update state cache
+                        self.update_file_state(global_path, &self.global_config_state)?;
                     }
-                    Err(e) => {
-                        debug!("Failed to read global config: {e}");
-                        // File might be deleted, clear the state
-                        *self.global_config_state.write().unwrap() = None;
-                    }
+                }
+                Err(e) => {
+                    debug!("Failed to read global config: {e}");
+                    // File might be deleted, clear the state
+                    *self.global_config_state.write().unwrap() = None;
                 }
             }
         }
 
         // Reload project config if it exists
-        if let Some(project_path) = &self.project_config_path {
-            if self.has_file_changed(project_path, &self.project_config_state)? {
-                match fs::read_to_string(project_path) {
-                    Ok(content) => {
-                        if let Ok(new_settings) = toml::from_str::<ConfigSettings>(&content) {
-                            let mut project_settings = self.project_settings.write().unwrap();
-                            if new_settings != *project_settings {
-                                *project_settings = new_settings;
-                                changed = true;
-                            }
-
-                            // Update state cache
-                            self.update_file_state(project_path, &self.project_config_state)?;
-                        }
-                    }
-                    Err(e) => {
-                        debug!("Failed to read project config: {e}");
-                        // Reset project settings to default if file can't be read
+        if let Some(project_path) = &self.project_config_path
+            && self.has_file_changed(project_path, &self.project_config_state)?
+        {
+            match fs::read_to_string(project_path) {
+                Ok(content) => {
+                    if let Ok(new_settings) = toml::from_str::<ConfigSettings>(&content) {
                         let mut project_settings = self.project_settings.write().unwrap();
-                        if *project_settings != ConfigSettings::default() {
-                            *project_settings = ConfigSettings::default();
+                        if new_settings != *project_settings {
+                            *project_settings = new_settings;
                             changed = true;
                         }
 
-                        // Clear the state
-                        *self.project_config_state.write().unwrap() = None;
+                        // Update state cache
+                        self.update_file_state(project_path, &self.project_config_state)?;
                     }
+                }
+                Err(e) => {
+                    debug!("Failed to read project config: {e}");
+                    // Reset project settings to default if file can't be read
+                    let mut project_settings = self.project_settings.write().unwrap();
+                    if *project_settings != ConfigSettings::default() {
+                        *project_settings = ConfigSettings::default();
+                        changed = true;
+                    }
+
+                    // Clear the state
+                    *self.project_config_state.write().unwrap() = None;
                 }
             }
         }

@@ -8,8 +8,8 @@ use codebook::{
 
 pub fn get_processor(words: Option<&[&str]>) -> Codebook {
     let config = Arc::new(codebook_config::CodebookConfig::default());
-    if words.is_some() {
-        for w in words.unwrap() {
+    if let Some(words) = words {
+        for w in words {
             let _ = config.add_word(w);
         }
     }
