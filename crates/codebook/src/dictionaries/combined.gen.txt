@@ -587,6 +587,7 @@ dbf
 dd
 ddd
 dddddd
+ddns
 de
 dead
 deb
@@ -673,6 +674,7 @@ distributed
 distribution
 div
 divider
+diy
 django
 djvu
 dl
@@ -680,6 +682,7 @@ dll
 dmg
 dng
 dngettext
+dns
 do
 doc
 docker
@@ -1044,6 +1047,7 @@ gif
 github
 gitignore
 gitkeep
+gitlab
 given
 gl
 global
@@ -1979,6 +1983,7 @@ prefs
 prelude
 prepend
 prerelease
+prerender
 present
 pressed
 prettify
@@ -2279,6 +2284,7 @@ semibold
 send
 sender
 sent
+seo
 separator
 sequence
 ser
@@ -2480,6 +2486,7 @@ submit
 subnav
 subnavlist
 subnet
+subnets
 subprocess
 subst
 substr
@@ -2501,6 +2508,8 @@ suppresswarnings
 sure
 sv
 svc
+sveltejs
+sveltekit
 svg
 svgz
 swc
@@ -2521,6 +2530,7 @@ syntax
 sys
 syscall
 system
+systemd
 systemexception
 tab
 tabend
@@ -2810,6 +2820,7 @@ vc
 vcd
 vcf
 vcproj
+vcs
 vcxproj
 vdi
 vdx
@@ -2841,6 +2852,7 @@ visible
 visit
 visited
 visitor
+vite
 vjs
 vmdk
 vmx
