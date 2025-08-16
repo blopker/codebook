@@ -113,17 +113,12 @@ impl LanguageServer for Backend {
         info!("Server ready!");
         info!(
             "Project config: {}",
-            self.config
-                .project_config_path
-                .clone()
-                .unwrap_or_default()
-                .display()
+            self.config.project_config_path().unwrap().display()
         );
         info!(
             "Global config: {}",
             self.config
-                .global_config_path
-                .clone()
+                .global_config_path()
                 .unwrap_or_default()
                 .display()
         );

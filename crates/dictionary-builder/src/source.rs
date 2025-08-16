@@ -20,10 +20,10 @@ impl SourceFetcher {
     /// Create a new source fetcher
     pub fn new(cache_dir: Option<PathBuf>) -> Self {
         // Create cache directory if it doesn't exist
-        if let Some(ref dir) = cache_dir {
-            if !dir.exists() {
-                fs::create_dir_all(dir).expect("Failed to create cache directory");
-            }
+        if let Some(ref dir) = cache_dir
+            && !dir.exists()
+        {
+            fs::create_dir_all(dir).expect("Failed to create cache directory");
         }
 
         Self {
@@ -35,12 +35,12 @@ impl SourceFetcher {
     /// Fetch a file from a source
     pub fn fetch_file(&self, repository: &str, path: &str, output: &Path) -> Result<()> {
         // Check cache first if enabled
-        if let Some(cached_path) = self.get_cached_path(repository, path) {
-            if cached_path.exists() {
-                debug!("Using cached file: {}", cached_path.display());
-                fs::copy(&cached_path, output)?;
-                return Ok(());
-            }
+        if let Some(cached_path) = self.get_cached_path(repository, path)
+            && cached_path.exists()
+        {
+            debug!("Using cached file: {}", cached_path.display());
+            fs::copy(&cached_path, output)?;
+            return Ok(());
         }
 
         // Not in cache, need to download
@@ -74,12 +74,12 @@ impl SourceFetcher {
 
     /// Clean the cache directory
     pub fn clean_cache(&self) -> Result<()> {
-        if let Some(ref dir) = self.cache_dir {
-            if dir.exists() {
-                fs::remove_dir_all(dir)?;
-                fs::create_dir_all(dir)?;
-                info!("Cleaned cache directory: {}", dir.display());
-            }
+        if let Some(ref dir) = self.cache_dir
+            && dir.exists()
+        {
+            fs::remove_dir_all(dir)?;
+            fs::create_dir_all(dir)?;
+            info!("Cleaned cache directory: {}", dir.display());
         }
         Ok(())
     }

@@ -1,5 +1,7 @@
 mod settings;
+mod watched_file;
 use crate::settings::ConfigSettings;
+use crate::watched_file::WatchedFile;
 use glob::Pattern;
 use log::debug;
 use log::info;
@@ -10,34 +12,21 @@ use std::io;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
-use std::time::SystemTime;
 
 static CACHE_DIR: &str = "codebook";
 static GLOBAL_CONFIG_FILE: &str = "codebook.toml";
 static USER_CONFIG_FILES: [&str; 2] = ["codebook.toml", ".codebook.toml"];
 
 #[derive(Debug)]
-struct ConfigFileState {
-    last_modified: SystemTime,
-    last_size: u64,
-}
-
-#[derive(Debug)]
 pub struct CodebookConfig {
-    /// Project-specific settings
-    project_settings: RwLock<ConfigSettings>,
-    /// Global settings (from user config directory)
-    global_settings: RwLock<Option<ConfigSettings>>,
+    /// Project-specific config file watcher
+    project_config: RwLock<WatchedFile<ConfigSettings>>,
+    /// Global config file watcher
+    global_config: RwLock<WatchedFile<ConfigSettings>>,
     /// Combined settings (global merged with project overrides)
     effective_settings: RwLock<ConfigSettings>,
     /// Compiled regex patterns for ignoring text
     regex_cache: RwLock<Option<Vec<Regex>>>,
-    /// Path to the project-specific config file
-    pub project_config_path: Option<PathBuf>,
-    project_config_state: RwLock<Option<ConfigFileState>>,
-    /// Path to the global config file
-    pub global_config_path: Option<PathBuf>,
-    global_config_state: RwLock<Option<ConfigFileState>>,
     /// Directory for caching
     pub cache_dir: PathBuf,
 }
@@ -45,14 +34,10 @@ pub struct CodebookConfig {
 impl Default for CodebookConfig {
     fn default() -> Self {
         Self {
-            project_settings: RwLock::new(ConfigSettings::default()),
-            global_settings: RwLock::new(None),
+            project_config: RwLock::new(WatchedFile::new(None)),
+            global_config: RwLock::new(WatchedFile::new(None)),
             effective_settings: RwLock::new(ConfigSettings::default()),
             regex_cache: RwLock::new(None),
-            project_config_path: None,
-            project_config_state: RwLock::new(None),
-            global_config_path: None,
-            global_config_state: RwLock::new(None),
             cache_dir: env::temp_dir().join(CACHE_DIR),
         }
     }
@@ -74,72 +59,72 @@ impl CodebookConfig {
 
     /// Load both global and project configuration
     fn load_configs(start_dir: &Path) -> Result<Self, io::Error> {
-        // Start with the default configuration
-        let mut config = Self::default();
+        let config = Self::default();
 
-        // Try to load global config first
+        // First, try to load global config
         if let Some(global_path) = Self::find_global_config_path() {
-            if global_path.exists() {
-                match Self::load_settings_from_file(&global_path) {
-                    Ok(global_settings) => {
-                        debug!("Loaded global config from {}", global_path.display());
-                        config.global_config_path = Some(global_path.clone());
-                        *config.global_settings.write().unwrap() = Some(global_settings.clone());
-                        *config.effective_settings.write().unwrap() = global_settings;
+            config
+                .global_config
+                .write()
+                .unwrap()
+                .set_path(Some(global_path.clone()));
 
-                        // Initialize file state
-                        if let Ok(metadata) = fs::metadata(&global_path)
-                            && let Ok(modified) = metadata.modified()
-                        {
-                            *config.global_config_state.write().unwrap() = Some(ConfigFileState {
-                                last_modified: modified,
-                                last_size: metadata.len(),
-                            });
-                        }
+            if global_path.exists() {
+                let global_config = config.global_config.read().unwrap();
+                let result = global_config.load(|path| {
+                    Self::load_settings_from_file(path)
+                        .map_err(|e| format!("Failed to load global config: {}", e))
+                });
+
+                match result {
+                    Ok(_) => {
+                        debug!("Loaded global config from {}", global_path.display());
                     }
                     Err(e) => {
-                        debug!("Failed to load global config: {e}");
+                        debug!("{}", e);
                     }
                 }
             } else {
                 info!("No global config found, using default");
-                config.global_config_path = Some(global_path);
             }
         }
 
         // Then try to find and load project config
-        if let Some((project_path, project_settings)) = Self::find_project_config(start_dir)? {
-            debug!("Loaded project config from {}", project_path.display());
-            config.project_config_path = Some(project_path.clone());
-            *config.project_settings.write().unwrap() = project_settings.clone();
+        if let Some(project_path) = Self::find_project_config(start_dir)? {
+            debug!("Found project config at {}", project_path.display());
+            config
+                .project_config
+                .write()
+                .unwrap()
+                .set_path(Some(project_path.clone()));
 
-            // Initialize file state
-            if let Ok(metadata) = fs::metadata(&project_path)
-                && let Ok(modified) = metadata.modified()
-            {
-                *config.project_config_state.write().unwrap() = Some(ConfigFileState {
-                    last_modified: modified,
-                    last_size: metadata.len(),
-                });
-            }
+            let project_config = config.project_config.read().unwrap();
+            let result = project_config.load(|path| {
+                Self::load_settings_from_file(path)
+                    .map_err(|e| format!("Failed to load project config: {}", e))
+            });
+            drop(project_config);
 
-            // If use_global is true, merge global with project (project takes precedence)
-            // Otherwise, just use project settings
-            if project_settings.use_global {
-                if let Some(global_settings) = config.global_settings.read().unwrap().as_ref() {
-                    let mut effective = global_settings.clone();
-                    effective.merge(project_settings);
-                    *config.effective_settings.write().unwrap() = effective;
-                } else {
-                    *config.effective_settings.write().unwrap() = project_settings;
+            match result {
+                Ok(_) => {
+                    debug!("Loaded project config from {}", project_path.display());
+
+                    // Recalculate effective settings
+                    config.recalculate_effective_settings();
                 }
-            } else {
-                *config.effective_settings.write().unwrap() = project_settings;
+                Err(e) => {
+                    debug!("{}", e);
+                }
             }
         } else {
             info!("No project config found, using default");
             // Set path to start_dir if no config is found
-            config.project_config_path = Some(start_dir.join(USER_CONFIG_FILES[0]));
+            let default_path = start_dir.join(USER_CONFIG_FILES[0]);
+            config
+                .project_config
+                .write()
+                .unwrap()
+                .set_path(Some(default_path));
         }
 
         Ok(config)
@@ -175,9 +160,7 @@ impl CodebookConfig {
     }
 
     /// Find project configuration by searching up from the current directory
-    fn find_project_config(
-        start_dir: &Path,
-    ) -> Result<Option<(PathBuf, ConfigSettings)>, io::Error> {
+    fn find_project_config(start_dir: &Path) -> Result<Option<PathBuf>, io::Error> {
         let config_files = USER_CONFIG_FILES;
 
         // Start from the given directory and walk up to root
@@ -188,10 +171,7 @@ impl CodebookConfig {
             for config_name in &config_files {
                 let config_path = dir.join(config_name);
                 if config_path.is_file() {
-                    match Self::load_settings_from_file(&config_path) {
-                        Ok(settings) => return Ok(Some((config_path, settings))),
-                        Err(e) => return Err(e),
-                    }
+                    return Ok(Some(config_path));
                 }
             }
 
@@ -223,61 +203,42 @@ impl CodebookConfig {
     pub fn reload(&self) -> Result<bool, io::Error> {
         let mut changed = false;
 
-        // Reload global config if it exists
-        if let Some(global_path) = &self.global_config_path
-            && self.has_file_changed(global_path, &self.global_config_state)?
-        {
-            match fs::read_to_string(global_path) {
-                Ok(content) => {
-                    if let Ok(new_settings) = toml::from_str::<ConfigSettings>(&content) {
-                        let mut global_settings = self.global_settings.write().unwrap();
-                        if Some(&new_settings) != global_settings.as_ref() {
-                            *global_settings = Some(new_settings);
-                            changed = true;
-                        }
+        // Reload global config if it has changed
+        let global_reload_result = {
+            let global_config = self.global_config.read().unwrap();
+            global_config.reload_if_changed(|path| {
+                Self::load_settings_from_file(path).map_err(|e| e.to_string())
+            })
+        };
 
-                        // Update state cache
-                        self.update_file_state(global_path, &self.global_config_state)?;
-                    }
-                }
-                Err(e) => {
-                    debug!("Failed to read global config: {e}");
-                    // File might be deleted, clear the state
-                    *self.global_config_state.write().unwrap() = None;
-                }
+        match global_reload_result {
+            Ok(true) => {
+                debug!("Global config reloaded");
+                changed = true;
             }
+            Err(e) => {
+                debug!("Failed to reload global config: {}", e);
+            }
+            _ => {}
         }
 
-        // Reload project config if it exists
-        if let Some(project_path) = &self.project_config_path
-            && self.has_file_changed(project_path, &self.project_config_state)?
-        {
-            match fs::read_to_string(project_path) {
-                Ok(content) => {
-                    if let Ok(new_settings) = toml::from_str::<ConfigSettings>(&content) {
-                        let mut project_settings = self.project_settings.write().unwrap();
-                        if new_settings != *project_settings {
-                            *project_settings = new_settings;
-                            changed = true;
-                        }
+        // Reload project config if it has changed
+        let project_reload_result = {
+            let project_config = self.project_config.read().unwrap();
+            project_config.reload_if_changed(|path| {
+                Self::load_settings_from_file(path).map_err(|e| e.to_string())
+            })
+        };
 
-                        // Update state cache
-                        self.update_file_state(project_path, &self.project_config_state)?;
-                    }
-                }
-                Err(e) => {
-                    debug!("Failed to read project config: {e}");
-                    // Reset project settings to default if file can't be read
-                    let mut project_settings = self.project_settings.write().unwrap();
-                    if *project_settings != ConfigSettings::default() {
-                        *project_settings = ConfigSettings::default();
-                        changed = true;
-                    }
-
-                    // Clear the state
-                    *self.project_config_state.write().unwrap() = None;
-                }
+        match project_reload_result {
+            Ok(true) => {
+                debug!("Project config reloaded");
+                changed = true;
             }
+            Err(e) => {
+                debug!("Failed to reload project config: {}", e);
+            }
+            _ => {}
         }
 
         // Recalculate effective settings if anything changed
@@ -288,63 +249,18 @@ impl CodebookConfig {
         Ok(changed)
     }
 
-    /// Update file state cache after successfully reading a file
-    fn update_file_state(
-        &self,
-        path: &Path,
-        state: &RwLock<Option<ConfigFileState>>,
-    ) -> Result<(), io::Error> {
-        if let Ok(metadata) = fs::metadata(path) {
-            let modified = metadata.modified()?;
-            let size = metadata.len();
-
-            *state.write().unwrap() = Some(ConfigFileState {
-                last_modified: modified,
-                last_size: size,
-            });
-        }
-        Ok(())
-    }
-
-    /// Check if a file has changed since we last read it
-    fn has_file_changed(
-        &self,
-        path: &Path,
-        state: &RwLock<Option<ConfigFileState>>,
-    ) -> Result<bool, io::Error> {
-        match fs::metadata(path) {
-            Ok(metadata) => {
-                let current_modified = metadata.modified()?;
-                let current_size = metadata.len();
-
-                let state_guard = state.read().unwrap();
-                if let Some(cached_state) = &*state_guard {
-                    // Check if file has been modified or size has changed
-                    if current_modified > cached_state.last_modified
-                        || current_size != cached_state.last_size
-                    {
-                        return Ok(true);
-                    }
-                    return Ok(false);
-                }
-                // No cached state means we need to read the file
-                Ok(true)
-            }
-            Err(_) => {
-                // File doesn't exist or can't be accessed
-                // If we previously had a state, the file has changed (likely deleted)
-                Ok(state.read().unwrap().is_some())
-            }
-        }
-    }
-
     /// Recalculate the effective settings based on global and project settings
     fn recalculate_effective_settings(&self) {
         let mut effective = self.effective_settings.write().unwrap();
-        let project = self.project_settings.read().unwrap();
+
+        // Get project settings from WatchedFile
+        let project_guard = self.project_config.read().unwrap();
+        let project = project_guard.content().unwrap_or_default();
 
         if project.use_global {
-            if let Some(global) = self.global_settings.read().unwrap().as_ref() {
+            // Get global settings from WatchedFile
+            let global_guard = self.global_config.read().unwrap();
+            if let Some(global) = global_guard.content() {
                 let mut new_effective = global.clone();
                 new_effective.merge(project.clone());
                 *effective = new_effective;
@@ -363,18 +279,24 @@ impl CodebookConfig {
     pub fn add_word(&self, word: &str) -> Result<bool, io::Error> {
         {
             let word = word.to_ascii_lowercase();
-            let mut project_settings = self.project_settings.write().unwrap();
+            let project_config = self.project_config.read().unwrap();
+
+            // Get current settings or default
+            let mut settings = project_config.content().unwrap_or_default();
 
             // Check if word already exists
-            if project_settings.words.contains(&word) {
+            if settings.words.contains(&word) {
                 return Ok(false);
             }
 
             // Add the word
-            project_settings.words.push(word);
+            settings.words.push(word);
             // Sort/dedup for consistency
-            project_settings.words.sort();
-            project_settings.words.dedup();
+            settings.words.sort();
+            settings.words.dedup();
+
+            // Update the content in WatchedFile
+            project_config.set_content(settings);
         }
         self.recalculate_effective_settings();
 
@@ -384,26 +306,24 @@ impl CodebookConfig {
     pub fn add_word_global(&self, word: &str) -> Result<bool, io::Error> {
         {
             let word = word.to_ascii_lowercase();
-            let mut global_settings = self.global_settings.write().unwrap();
+            let global_config = self.global_config.read().unwrap();
 
-            let global_config = match global_settings.as_mut() {
-                Some(config) => config,
-                None => {
-                    *global_settings = Some(ConfigSettings::default());
-                    global_settings.as_mut().unwrap()
-                }
-            };
+            // Get current settings or default
+            let mut settings = global_config.content().unwrap_or_default();
 
             // Check if word already exists
-            if global_config.words.contains(&word) {
+            if settings.words.contains(&word) {
                 return Ok(false);
             }
 
             // Add the word
-            global_config.words.push(word);
+            settings.words.push(word);
             // Sort/dedup for consistency
-            global_config.words.sort();
-            global_config.words.dedup();
+            settings.words.sort();
+            settings.words.dedup();
+
+            // Update the content in WatchedFile
+            global_config.set_content(settings);
         }
         self.recalculate_effective_settings();
 
@@ -413,18 +333,25 @@ impl CodebookConfig {
     /// Add a file to the ignore list
     pub fn add_ignore(&self, file: &str) -> Result<bool, io::Error> {
         {
-            let mut project_settings = self.project_settings.write().unwrap();
+            let project_config = self.project_config.read().unwrap();
+
+            // Get current settings or default
+            let mut settings = project_config.content().unwrap_or_default();
+
             let file = file.to_string();
             // Check if file already exists
-            if project_settings.ignore_paths.contains(&file) {
+            if settings.ignore_paths.contains(&file) {
                 return Ok(false);
             }
 
             // Add the file
-            project_settings.ignore_paths.push(file);
+            settings.ignore_paths.push(file);
             // Sort/dedup for consistency
-            project_settings.ignore_paths.sort();
-            project_settings.ignore_paths.dedup();
+            settings.ignore_paths.sort();
+            settings.ignore_paths.dedup();
+
+            // Update the content in WatchedFile
+            project_config.set_content(settings);
         }
         self.recalculate_effective_settings();
 
@@ -433,29 +360,41 @@ impl CodebookConfig {
 
     /// Save the project configuration to its file
     pub fn save(&self) -> Result<(), io::Error> {
-        let project_config_path = match self.project_config_path.as_ref() {
-            Some(c) => c,
+        let project_config = self.project_config.read().unwrap();
+
+        let project_config_path = match project_config.path() {
+            Some(path) => path,
             None => return Ok(()),
         };
 
-        let content = toml::to_string_pretty(&*self.project_settings.read().unwrap())
-            .map_err(io::Error::other)?;
+        let settings = match project_config.content() {
+            Some(settings) => settings,
+            None => return Ok(()),
+        };
+
+        let content = toml::to_string_pretty(&settings).map_err(io::Error::other)?;
         info!(
             "Saving project configuration to {}",
             project_config_path.display()
         );
-        fs::write(project_config_path, content)
+        fs::write(&project_config_path, content)
     }
 
     /// Save the global configuration to its file
     pub fn save_global(&self) -> Result<(), io::Error> {
-        let global_config_path = match self.global_config_path.as_ref() {
-            Some(c) => c,
+        let global_config = self.global_config.read().unwrap();
+
+        let global_config_path = match global_config.path() {
+            Some(path) => path,
             None => return Ok(()),
         };
 
-        let content = toml::to_string_pretty(&*self.global_settings.read().unwrap())
-            .map_err(io::Error::other)?;
+        let settings = match global_config.content() {
+            Some(settings) => settings,
+            None => return Ok(()),
+        };
+
+        let content = toml::to_string_pretty(&settings).map_err(io::Error::other)?;
         info!(
             "Saving global configuration to {}",
             global_config_path.display()
@@ -464,7 +403,7 @@ impl CodebookConfig {
         if let Some(parent) = global_config_path.parent() {
             fs::create_dir_all(parent)?;
         }
-        fs::write(global_config_path, content)
+        fs::write(&global_config_path, content)
     }
 
     /// Get dictionary IDs from effective configuration
@@ -578,6 +517,16 @@ impl CodebookConfig {
             }
         }
     }
+
+    /// Get path to project config if it exists
+    pub fn project_config_path(&self) -> Option<PathBuf> {
+        self.project_config.read().unwrap().path()
+    }
+
+    /// Get path to global config if it exists
+    pub fn global_config_path(&self) -> Option<PathBuf> {
+        self.global_config.read().unwrap().path()
+    }
 }
 
 #[cfg(test)]
@@ -598,20 +547,22 @@ mod tests {
         config_type: ConfigType,
         path: P,
     ) -> Result<CodebookConfig, io::Error> {
-        let mut config = CodebookConfig::default();
+        let config = CodebookConfig::default();
 
         match config_type {
             ConfigType::Project => {
                 if let Ok(settings) = CodebookConfig::load_settings_from_file(&path) {
-                    config.project_config_path = Some(path.as_ref().to_path_buf());
-                    *config.project_settings.write().unwrap() = settings.clone();
+                    let project_config = config.project_config.read().unwrap();
+                    project_config.set_path(Some(path.as_ref().to_path_buf()));
+                    project_config.set_content(settings.clone());
                     *config.effective_settings.write().unwrap() = settings;
                 }
             }
             ConfigType::Global => {
                 if let Ok(settings) = CodebookConfig::load_settings_from_file(&path) {
-                    config.global_config_path = Some(path.as_ref().to_path_buf());
-                    *config.global_settings.write().unwrap() = Some(settings.clone());
+                    let global_config = config.global_config.read().unwrap();
+                    global_config.set_path(Some(path.as_ref().to_path_buf()));
+                    global_config.set_content(settings.clone());
                     *config.effective_settings.write().unwrap() = settings;
                 }
             }
@@ -627,11 +578,13 @@ mod tests {
         let config_path = global_dir.join("codebook.toml");
 
         // Create config with a path that doesn't exist yet
-        let config = CodebookConfig {
-            global_config_path: Some(config_path.clone()),
-            global_settings: RwLock::new(Some(ConfigSettings::default())),
-            ..Default::default()
-        };
+        // Create a config with the global path set
+        let config = CodebookConfig::default();
+        {
+            let global_config = config.global_config.read().unwrap();
+            global_config.set_path(Some(config_path.clone()));
+            global_config.set_content(ConfigSettings::default());
+        }
 
         // Directory doesn't exist yet
         assert!(!global_dir.exists());
@@ -652,10 +605,12 @@ mod tests {
         let config_path = temp_dir.path().join("codebook.toml");
 
         // Create initial config
-        let config = CodebookConfig {
-            project_config_path: Some(config_path.clone()),
-            ..Default::default()
-        };
+        // Create a config with the project path set
+        let config = CodebookConfig::default();
+        {
+            let project_config = config.project_config.read().unwrap();
+            project_config.set_path(Some(config_path.clone()));
+        }
         config.save()?;
 
         // Add a word
@@ -675,11 +630,13 @@ mod tests {
         let config_path = temp_dir.path().join("codebook.toml");
 
         // Create initial config
-        let config = CodebookConfig {
-            global_config_path: Some(config_path.clone()),
-            global_settings: RwLock::new(Some(ConfigSettings::default())),
-            ..Default::default()
-        };
+        // Create a config with the global path set
+        let config = CodebookConfig::default();
+        {
+            let global_config = config.global_config.read().unwrap();
+            global_config.set_path(Some(config_path.clone()));
+            global_config.set_content(ConfigSettings::default());
+        }
         config.save_global()?;
 
         // Add a word
@@ -801,7 +758,7 @@ mod tests {
         );
 
         // Check that the config file path is stored
-        assert_eq!(config.project_config_path, Some(config_path));
+        assert_eq!(config.project_config_path(), Some(config_path));
         Ok(())
     }
 
@@ -825,10 +782,12 @@ mod tests {
         let config_path = temp_dir.path().join("codebook.toml");
 
         // Create initial config
-        let config = CodebookConfig {
-            project_config_path: Some(config_path.clone()),
-            ..Default::default()
-        };
+        // Create a config with the project path set
+        let config = CodebookConfig::default();
+        {
+            let project_config = config.project_config.read().unwrap();
+            project_config.set_path(Some(config_path.clone()));
+        }
         config.save()?;
 
         // Add a word to the toml file
@@ -853,10 +812,12 @@ mod tests {
         let config_path = temp_dir.path().join("codebook.toml");
 
         // Create initial config
-        let config = CodebookConfig {
-            project_config_path: Some(config_path.clone()),
-            ..Default::default()
-        };
+        // Create a config with the project path set
+        let config = CodebookConfig::default();
+        {
+            let project_config = config.project_config.read().unwrap();
+            project_config.set_path(Some(config_path.clone()));
+        }
         config.save()?;
 
         // Add a word to the toml file
@@ -888,10 +849,12 @@ mod tests {
         let config_path = temp_dir.path().join("codebook.toml");
 
         // Create initial config
-        let config = CodebookConfig {
-            project_config_path: Some(config_path.clone()),
-            ..Default::default()
-        };
+        // Create a config with the project path set
+        let config = CodebookConfig::default();
+        {
+            let project_config = config.project_config.read().unwrap();
+            project_config.set_path(Some(config_path.clone()));
+        }
         config.save()?;
 
         // Add a word with mixed case
@@ -913,11 +876,13 @@ mod tests {
         let config_path = temp_dir.path().join("codebook.toml");
 
         // Create initial config
-        let config = CodebookConfig {
-            global_config_path: Some(config_path.clone()),
-            global_settings: RwLock::new(Some(ConfigSettings::default())),
-            ..Default::default()
-        };
+        // Create a config with the global path set
+        let config = CodebookConfig::default();
+        {
+            let global_config = config.global_config.read().unwrap();
+            global_config.set_path(Some(config_path.clone()));
+            global_config.set_content(ConfigSettings::default());
+        }
         config.save_global()?;
 
         // Add a word with mixed case
@@ -968,37 +933,36 @@ mod tests {
         )?;
 
         // Create a mock config with our test paths
-        let config = CodebookConfig {
-            global_config_path: Some(global_config_path),
-            project_config_path: Some(project_config_path),
-            ..Default::default()
-        };
+        // Create a config with both paths
+        let config = CodebookConfig::default();
+        {
+            let global_config = config.global_config.read().unwrap();
+            global_config.set_path(Some(global_config_path.clone()));
+        }
+        {
+            let project_config = config.project_config.read().unwrap();
+            project_config.set_path(Some(project_config_path.clone()));
+        }
 
         // Manually load both configs to test merging
-        if let Ok(global_settings) =
-            CodebookConfig::load_settings_from_file(config.global_config_path.as_ref().unwrap())
+        if let Ok(global_settings) = CodebookConfig::load_settings_from_file(&global_config_path) {
+            config
+                .global_config
+                .write()
+                .unwrap()
+                .set_content(global_settings);
+        }
+        if let Ok(project_settings) = CodebookConfig::load_settings_from_file(&project_config_path)
         {
-            *config.global_settings.write().unwrap() = Some(global_settings);
+            config
+                .project_config
+                .write()
+                .unwrap()
+                .set_content(project_settings);
         }
 
-        if let Ok(project_settings) =
-            CodebookConfig::load_settings_from_file(config.project_config_path.as_ref().unwrap())
-        {
-            *config.project_settings.write().unwrap() = project_settings.clone();
-
-            // Merge settings
-            if project_settings.use_global {
-                if let Some(global_settings) = config.global_settings.read().unwrap().as_ref() {
-                    let mut effective = global_settings.clone();
-                    effective.merge(project_settings);
-                    *config.effective_settings.write().unwrap() = effective;
-                } else {
-                    *config.effective_settings.write().unwrap() = project_settings;
-                }
-            } else {
-                *config.effective_settings.write().unwrap() = project_settings;
-            }
-        }
+        // Recalculate effective settings after loading both configs
+        config.recalculate_effective_settings();
 
         // Verify merged results
         assert!(config.is_allowed_word("globalword1")); // From global
@@ -1013,7 +977,7 @@ mod tests {
         assert!(dictionaries.contains(&"fr_fr".to_string()));
 
         // Now test with use_global = false
-        let mut project_file = File::create(config.project_config_path.clone().unwrap())?;
+        let mut project_file = File::create(config.project_config_path().unwrap())?;
         write!(
             project_file,
             r#"
