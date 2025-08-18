@@ -11,33 +11,44 @@ use std::fs;
 use std::io;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 static CACHE_DIR: &str = "codebook";
 static GLOBAL_CONFIG_FILE: &str = "codebook.toml";
 static USER_CONFIG_FILES: [&str; 2] = ["codebook.toml", ".codebook.toml"];
 
+/// Internal mutable state
+#[derive(Debug)]
+struct ConfigInner {
+    /// Project-specific config file watcher
+    project_config: WatchedFile<ConfigSettings>,
+    /// Global config file watcher
+    global_config: WatchedFile<ConfigSettings>,
+    /// Current snapshot
+    snapshot: Arc<ConfigSettings>,
+    /// Compiled regex patterns cache
+    regex_cache: Option<Vec<Regex>>,
+}
+
 #[derive(Debug)]
 pub struct CodebookConfig {
-    /// Project-specific config file watcher
-    project_config: RwLock<WatchedFile<ConfigSettings>>,
-    /// Global config file watcher
-    global_config: RwLock<WatchedFile<ConfigSettings>>,
-    /// Combined settings (global merged with project overrides)
-    effective_settings: RwLock<ConfigSettings>,
-    /// Compiled regex patterns for ignoring text
-    regex_cache: RwLock<Option<Vec<Regex>>>,
+    /// Single lock protecting all mutable state
+    inner: RwLock<ConfigInner>,
     /// Directory for caching
     pub cache_dir: PathBuf,
 }
 
 impl Default for CodebookConfig {
     fn default() -> Self {
+        let inner = ConfigInner {
+            project_config: WatchedFile::new(None),
+            global_config: WatchedFile::new(None),
+            snapshot: Arc::new(ConfigSettings::default()),
+            regex_cache: None,
+        };
+
         Self {
-            project_config: RwLock::new(WatchedFile::new(None)),
-            global_config: RwLock::new(WatchedFile::new(None)),
-            effective_settings: RwLock::new(ConfigSettings::default()),
-            regex_cache: RwLock::new(None),
+            inner: RwLock::new(inner),
             cache_dir: env::temp_dir().join(CACHE_DIR),
         }
     }
@@ -60,73 +71,58 @@ impl CodebookConfig {
     /// Load both global and project configuration
     fn load_configs(start_dir: &Path) -> Result<Self, io::Error> {
         let config = Self::default();
+        let mut inner = config.inner.write().unwrap();
 
         // First, try to load global config
         if let Some(global_path) = Self::find_global_config_path() {
-            config
-                .global_config
-                .write()
-                .unwrap()
-                .set_path(Some(global_path.clone()));
+            let global_config = WatchedFile::new(Some(global_path.clone()));
 
             if global_path.exists() {
-                let global_config = config.global_config.read().unwrap();
-                let result = global_config.load(|path| {
-                    Self::load_settings_from_file(path)
-                        .map_err(|e| format!("Failed to load global config: {}", e))
-                });
-
-                match result {
-                    Ok(_) => {
-                        debug!("Loaded global config from {}", global_path.display());
-                    }
-                    Err(e) => {
+                inner.global_config = global_config
+                    .load(|path| {
+                        Self::load_settings_from_file(path)
+                            .map_err(|e| format!("Failed to load global config: {}", e))
+                    })
+                    .unwrap_or_else(|e| {
                         debug!("{}", e);
-                    }
-                }
+                        WatchedFile::new(Some(global_path.clone()))
+                    });
+                debug!("Loaded global config from {}", global_path.display());
             } else {
                 info!("No global config found, using default");
+                inner.global_config = global_config;
             }
         }
 
         // Then try to find and load project config
         if let Some(project_path) = Self::find_project_config(start_dir)? {
             debug!("Found project config at {}", project_path.display());
-            config
-                .project_config
-                .write()
-                .unwrap()
-                .set_path(Some(project_path.clone()));
+            let project_config = WatchedFile::new(Some(project_path.clone()));
 
-            let project_config = config.project_config.read().unwrap();
-            let result = project_config.load(|path| {
-                Self::load_settings_from_file(path)
-                    .map_err(|e| format!("Failed to load project config: {}", e))
-            });
-            drop(project_config);
-
-            match result {
-                Ok(_) => {
-                    debug!("Loaded project config from {}", project_path.display());
-
-                    // Recalculate effective settings
-                    config.recalculate_effective_settings();
-                }
-                Err(e) => {
+            inner.project_config = project_config
+                .load(|path| {
+                    Self::load_settings_from_file(path)
+                        .map_err(|e| format!("Failed to load project config: {}", e))
+                })
+                .unwrap_or_else(|e| {
                     debug!("{}", e);
-                }
-            }
+                    WatchedFile::new(Some(project_path.clone()))
+                });
+
+            debug!("Loaded project config from {}", project_path.display());
         } else {
             info!("No project config found, using default");
             // Set path to start_dir if no config is found
             let default_path = start_dir.join(USER_CONFIG_FILES[0]);
-            config
-                .project_config
-                .write()
-                .unwrap()
-                .set_path(Some(default_path));
+            inner.project_config = WatchedFile::new(Some(default_path));
         }
 
+        // Calculate initial effective settings
+        let effective =
+            Self::calculate_effective_settings(&inner.project_config, &inner.global_config);
+        inner.snapshot = Arc::new(effective);
+
+        drop(inner);
         Ok(config)
     }
     /// Find the platform-specific global config directory and file path
@@ -199,180 +195,205 @@ impl CodebookConfig {
         }
     }
 
+    /// Get current configuration snapshot (cheap to clone)
+    pub fn snapshot(&self) -> Arc<ConfigSettings> {
+        self.inner.read().unwrap().snapshot.clone()
+    }
+
     /// Reload both global and project configurations, only reading files if they've changed
     pub fn reload(&self) -> Result<bool, io::Error> {
+        let mut inner = self.inner.write().unwrap();
         let mut changed = false;
 
-        // Reload global config if it has changed
-        let global_reload_result = {
-            let global_config = self.global_config.read().unwrap();
-            global_config.reload_if_changed(|path| {
+        // Check and reload global config if changed
+        let (new_global, global_changed) = inner
+            .global_config
+            .clone()
+            .reload_if_changed(|path| {
                 Self::load_settings_from_file(path).map_err(|e| e.to_string())
             })
-        };
-
-        match global_reload_result {
-            Ok(true) => {
-                debug!("Global config reloaded");
-                changed = true;
-            }
-            Err(e) => {
+            .unwrap_or_else(|e| {
                 debug!("Failed to reload global config: {}", e);
-            }
-            _ => {}
+                (inner.global_config.clone(), false)
+            });
+
+        if global_changed {
+            debug!("Global config reloaded");
+            inner.global_config = new_global;
+            changed = true;
         }
 
-        // Reload project config if it has changed
-        let project_reload_result = {
-            let project_config = self.project_config.read().unwrap();
-            project_config.reload_if_changed(|path| {
+        // Check and reload project config if changed
+        let (new_project, project_changed) = inner
+            .project_config
+            .clone()
+            .reload_if_changed(|path| {
                 Self::load_settings_from_file(path).map_err(|e| e.to_string())
             })
-        };
-
-        match project_reload_result {
-            Ok(true) => {
-                debug!("Project config reloaded");
-                changed = true;
-            }
-            Err(e) => {
+            .unwrap_or_else(|e| {
                 debug!("Failed to reload project config: {}", e);
-            }
-            _ => {}
+                (inner.project_config.clone(), false)
+            });
+
+        if project_changed {
+            debug!("Project config reloaded");
+            inner.project_config = new_project;
+            changed = true;
         }
 
         // Recalculate effective settings if anything changed
         if changed {
-            self.recalculate_effective_settings();
+            let effective =
+                Self::calculate_effective_settings(&inner.project_config, &inner.global_config);
+            inner.snapshot = Arc::new(effective);
+            inner.regex_cache = None; // Invalidate regex cache
         }
 
         Ok(changed)
     }
 
-    /// Recalculate the effective settings based on global and project settings
-    fn recalculate_effective_settings(&self) {
-        let mut effective = self.effective_settings.write().unwrap();
-
-        // Get project settings from WatchedFile
-        let project_guard = self.project_config.read().unwrap();
-        let project = project_guard.content().unwrap_or_default();
+    /// Calculate the effective settings based on global and project settings
+    fn calculate_effective_settings(
+        project_config: &WatchedFile<ConfigSettings>,
+        global_config: &WatchedFile<ConfigSettings>,
+    ) -> ConfigSettings {
+        let project = project_config
+            .content()
+            .cloned()
+            .unwrap_or_else(ConfigSettings::default);
 
         if project.use_global {
-            // Get global settings from WatchedFile
-            let global_guard = self.global_config.read().unwrap();
-            if let Some(global) = global_guard.content() {
-                let mut new_effective = global.clone();
-                new_effective.merge(project.clone());
-                *effective = new_effective;
+            if let Some(global) = global_config.content() {
+                let mut effective = global.clone();
+                effective.merge(project);
+                effective
             } else {
-                *effective = project.clone();
+                project
             }
         } else {
-            *effective = project.clone();
+            project
         }
-
-        // Invalidate regex cache
-        *self.regex_cache.write().unwrap() = None;
     }
 
     /// Add a word to the project configs allowlist
     pub fn add_word(&self, word: &str) -> Result<bool, io::Error> {
-        {
-            let word = word.to_ascii_lowercase();
-            let project_config = self.project_config.read().unwrap();
+        let mut inner = self.inner.write().unwrap();
+        let word = word.to_ascii_lowercase();
 
-            // Get current settings or default
-            let mut settings = project_config.content().unwrap_or_default();
+        // Get current settings or default
+        let mut settings = inner
+            .project_config
+            .content()
+            .cloned()
+            .unwrap_or_else(ConfigSettings::default);
 
-            // Check if word already exists
-            if settings.words.contains(&word) {
-                return Ok(false);
-            }
-
-            // Add the word
-            settings.words.push(word);
-            // Sort/dedup for consistency
-            settings.words.sort();
-            settings.words.dedup();
-
-            // Update the content in WatchedFile
-            project_config.set_content(settings);
+        // Check if word already exists
+        if settings.words.contains(&word) {
+            return Ok(false);
         }
-        self.recalculate_effective_settings();
+
+        // Add the word
+        settings.words.push(word);
+        // Sort/dedup for consistency
+        settings.words.sort();
+        settings.words.dedup();
+
+        // Update the project config
+        inner.project_config = inner.project_config.clone().with_content_value(settings);
+
+        // Recalculate effective settings
+        let effective =
+            Self::calculate_effective_settings(&inner.project_config, &inner.global_config);
+        inner.snapshot = Arc::new(effective);
+        inner.regex_cache = None;
 
         Ok(true)
     }
     /// Add a word to the global configs allowlist
     pub fn add_word_global(&self, word: &str) -> Result<bool, io::Error> {
-        {
-            let word = word.to_ascii_lowercase();
-            let global_config = self.global_config.read().unwrap();
+        let mut inner = self.inner.write().unwrap();
+        let word = word.to_ascii_lowercase();
 
-            // Get current settings or default
-            let mut settings = global_config.content().unwrap_or_default();
+        // Get current settings or default
+        let mut settings = inner
+            .global_config
+            .content()
+            .cloned()
+            .unwrap_or_else(ConfigSettings::default);
 
-            // Check if word already exists
-            if settings.words.contains(&word) {
-                return Ok(false);
-            }
-
-            // Add the word
-            settings.words.push(word);
-            // Sort/dedup for consistency
-            settings.words.sort();
-            settings.words.dedup();
-
-            // Update the content in WatchedFile
-            global_config.set_content(settings);
+        // Check if word already exists
+        if settings.words.contains(&word) {
+            return Ok(false);
         }
-        self.recalculate_effective_settings();
+
+        // Add the word
+        settings.words.push(word);
+        // Sort/dedup for consistency
+        settings.words.sort();
+        settings.words.dedup();
+
+        // Update the global config
+        inner.global_config = inner.global_config.clone().with_content_value(settings);
+
+        // Recalculate effective settings
+        let effective =
+            Self::calculate_effective_settings(&inner.project_config, &inner.global_config);
+        inner.snapshot = Arc::new(effective);
+        inner.regex_cache = None;
 
         Ok(true)
     }
 
     /// Add a file to the ignore list
     pub fn add_ignore(&self, file: &str) -> Result<bool, io::Error> {
-        {
-            let project_config = self.project_config.read().unwrap();
+        let mut inner = self.inner.write().unwrap();
 
-            // Get current settings or default
-            let mut settings = project_config.content().unwrap_or_default();
+        // Get current settings or default
+        let mut settings = inner
+            .project_config
+            .content()
+            .cloned()
+            .unwrap_or_else(ConfigSettings::default);
 
-            let file = file.to_string();
-            // Check if file already exists
-            if settings.ignore_paths.contains(&file) {
-                return Ok(false);
-            }
-
-            // Add the file
-            settings.ignore_paths.push(file);
-            // Sort/dedup for consistency
-            settings.ignore_paths.sort();
-            settings.ignore_paths.dedup();
-
-            // Update the content in WatchedFile
-            project_config.set_content(settings);
+        let file = file.to_string();
+        // Check if file already exists
+        if settings.ignore_paths.contains(&file) {
+            return Ok(false);
         }
-        self.recalculate_effective_settings();
+
+        // Add the file
+        settings.ignore_paths.push(file);
+        // Sort/dedup for consistency
+        settings.ignore_paths.sort();
+        settings.ignore_paths.dedup();
+
+        // Update the project config
+        inner.project_config = inner.project_config.clone().with_content_value(settings);
+
+        // Recalculate effective settings
+        let effective =
+            Self::calculate_effective_settings(&inner.project_config, &inner.global_config);
+        inner.snapshot = Arc::new(effective);
+        inner.regex_cache = None;
 
         Ok(true)
     }
 
     /// Save the project configuration to its file
     pub fn save(&self) -> Result<(), io::Error> {
-        let project_config = self.project_config.read().unwrap();
+        let inner = self.inner.read().unwrap();
 
-        let project_config_path = match project_config.path() {
-            Some(path) => path,
+        let project_config_path = match inner.project_config.path() {
+            Some(path) => path.to_path_buf(),
             None => return Ok(()),
         };
 
-        let settings = match project_config.content() {
+        let settings = match inner.project_config.content() {
             Some(settings) => settings,
             None => return Ok(()),
         };
 
-        let content = toml::to_string_pretty(&settings).map_err(io::Error::other)?;
+        let content = toml::to_string_pretty(settings).map_err(io::Error::other)?;
         info!(
             "Saving project configuration to {}",
             project_config_path.display()
@@ -382,19 +403,19 @@ impl CodebookConfig {
 
     /// Save the global configuration to its file
     pub fn save_global(&self) -> Result<(), io::Error> {
-        let global_config = self.global_config.read().unwrap();
+        let inner = self.inner.read().unwrap();
 
-        let global_config_path = match global_config.path() {
-            Some(path) => path,
+        let global_config_path = match inner.global_config.path() {
+            Some(path) => path.to_path_buf(),
             None => return Ok(()),
         };
 
-        let settings = match global_config.content() {
+        let settings = match inner.global_config.content() {
             Some(settings) => settings,
             None => return Ok(()),
         };
 
-        let content = toml::to_string_pretty(&settings).map_err(io::Error::other)?;
+        let content = toml::to_string_pretty(settings).map_err(io::Error::other)?;
         info!(
             "Saving global configuration to {}",
             global_config_path.display()
@@ -408,7 +429,8 @@ impl CodebookConfig {
 
     /// Get dictionary IDs from effective configuration
     pub fn get_dictionary_ids(&self) -> Vec<String> {
-        let ids = self.effective_settings.read().unwrap().dictionaries.clone();
+        let snapshot = self.snapshot();
+        let ids = snapshot.dictionaries.clone();
         if ids.is_empty() {
             return vec!["en_us".to_string()];
         }
@@ -418,52 +440,35 @@ impl CodebookConfig {
     /// Check if a path should be ignored based on the effective configuration
     pub fn should_ignore_path<P: AsRef<Path>>(&self, path: P) -> bool {
         let path_str = path.as_ref().to_string_lossy();
-        self.effective_settings
-            .read()
-            .unwrap()
-            .ignore_paths
-            .iter()
-            .any(|pattern| {
-                Pattern::new(pattern)
-                    .map(|p| p.matches(&path_str))
-                    .unwrap_or(false)
-            })
+        let snapshot = self.snapshot();
+        snapshot.ignore_paths.iter().any(|pattern| {
+            Pattern::new(pattern)
+                .map(|p| p.matches(&path_str))
+                .unwrap_or(false)
+        })
     }
 
     /// Check if a word is in the effective allowlist
     pub fn is_allowed_word(&self, word: &str) -> bool {
         let word = word.to_ascii_lowercase();
-        self.effective_settings
-            .read()
-            .unwrap()
-            .words
-            .iter()
-            .any(|w| w == &word)
+        let snapshot = self.snapshot();
+        snapshot.words.iter().any(|w| w == &word)
     }
 
     /// Check if a word should be flagged according to effective configuration
     pub fn should_flag_word(&self, word: &str) -> bool {
         let word = word.to_ascii_lowercase();
-        self.effective_settings
-            .read()
-            .unwrap()
-            .flag_words
-            .iter()
-            .any(|w| w == &word)
+        let snapshot = self.snapshot();
+        snapshot.flag_words.iter().any(|w| w == &word)
     }
 
     /// Get the list of user-defined ignore patterns
     pub fn get_ignore_patterns(&self) -> Option<Vec<Regex>> {
-        let str_patterns = self
-            .effective_settings
-            .read()
-            .unwrap()
-            .ignore_patterns
-            .clone();
+        let mut inner = self.inner.write().unwrap();
+        let str_patterns = inner.snapshot.ignore_patterns.clone();
 
         // Lazily initialize the Regex cache
-        let mut regex_cache = self.regex_cache.write().unwrap();
-        if regex_cache.is_none() {
+        if inner.regex_cache.is_none() {
             let regex_set = str_patterns
                 .into_iter()
                 .filter_map(|pattern| match Regex::new(&pattern) {
@@ -474,15 +479,15 @@ impl CodebookConfig {
                     }
                 })
                 .collect::<Vec<_>>();
-            *regex_cache = Some(regex_set);
+            inner.regex_cache = Some(regex_set);
         }
 
-        regex_cache.clone()
+        inner.regex_cache.clone()
     }
 
     /// Get the minimum word length which should be checked
     pub fn get_min_word_length(&self) -> usize {
-        self.effective_settings.read().unwrap().min_word_length
+        self.snapshot().min_word_length
     }
 
     /// Clean the cache directory
@@ -520,12 +525,22 @@ impl CodebookConfig {
 
     /// Get path to project config if it exists
     pub fn project_config_path(&self) -> Option<PathBuf> {
-        self.project_config.read().unwrap().path()
+        self.inner
+            .read()
+            .unwrap()
+            .project_config
+            .path()
+            .map(|p| p.to_path_buf())
     }
 
     /// Get path to global config if it exists
     pub fn global_config_path(&self) -> Option<PathBuf> {
-        self.global_config.read().unwrap().path()
+        self.inner
+            .read()
+            .unwrap()
+            .global_config
+            .path()
+            .map(|p| p.to_path_buf())
     }
 }
 
@@ -548,26 +563,40 @@ mod tests {
         path: P,
     ) -> Result<CodebookConfig, io::Error> {
         let config = CodebookConfig::default();
+        let mut inner = config.inner.write().unwrap();
 
         match config_type {
             ConfigType::Project => {
                 if let Ok(settings) = CodebookConfig::load_settings_from_file(&path) {
-                    let project_config = config.project_config.read().unwrap();
-                    project_config.set_path(Some(path.as_ref().to_path_buf()));
-                    project_config.set_content(settings.clone());
-                    *config.effective_settings.write().unwrap() = settings;
+                    let mut project_config = WatchedFile::new(Some(path.as_ref().to_path_buf()));
+                    project_config = project_config.with_content_value(settings);
+                    inner.project_config = project_config;
+
+                    // Recalculate effective settings
+                    let effective = CodebookConfig::calculate_effective_settings(
+                        &inner.project_config,
+                        &inner.global_config,
+                    );
+                    inner.snapshot = Arc::new(effective);
                 }
             }
             ConfigType::Global => {
                 if let Ok(settings) = CodebookConfig::load_settings_from_file(&path) {
-                    let global_config = config.global_config.read().unwrap();
-                    global_config.set_path(Some(path.as_ref().to_path_buf()));
-                    global_config.set_content(settings.clone());
-                    *config.effective_settings.write().unwrap() = settings;
+                    let mut global_config = WatchedFile::new(Some(path.as_ref().to_path_buf()));
+                    global_config = global_config.with_content_value(settings);
+                    inner.global_config = global_config;
+
+                    // Recalculate effective settings
+                    let effective = CodebookConfig::calculate_effective_settings(
+                        &inner.project_config,
+                        &inner.global_config,
+                    );
+                    inner.snapshot = Arc::new(effective);
                 }
             }
         }
 
+        drop(inner);
         Ok(config)
     }
 
@@ -581,9 +610,10 @@ mod tests {
         // Create a config with the global path set
         let config = CodebookConfig::default();
         {
-            let global_config = config.global_config.read().unwrap();
-            global_config.set_path(Some(config_path.clone()));
-            global_config.set_content(ConfigSettings::default());
+            let mut inner = config.inner.write().unwrap();
+            let mut global_config = WatchedFile::new(Some(config_path.clone()));
+            global_config = global_config.with_content_value(ConfigSettings::default());
+            inner.global_config = global_config;
         }
 
         // Directory doesn't exist yet
@@ -608,8 +638,8 @@ mod tests {
         // Create a config with the project path set
         let config = CodebookConfig::default();
         {
-            let project_config = config.project_config.read().unwrap();
-            project_config.set_path(Some(config_path.clone()));
+            let mut inner = config.inner.write().unwrap();
+            inner.project_config = WatchedFile::new(Some(config_path.clone()));
         }
         config.save()?;
 
@@ -633,9 +663,9 @@ mod tests {
         // Create a config with the global path set
         let config = CodebookConfig::default();
         {
-            let global_config = config.global_config.read().unwrap();
-            global_config.set_path(Some(config_path.clone()));
-            global_config.set_content(ConfigSettings::default());
+            let mut inner = config.inner.write().unwrap();
+            let global_config = WatchedFile::new(Some(config_path.clone()));
+            inner.global_config = global_config.with_content_value(ConfigSettings::default());
         }
         config.save_global()?;
 
@@ -664,12 +694,7 @@ mod tests {
         file.write_all(a.as_bytes())?;
 
         let config = load_from_file(ConfigType::Project, &config_path)?;
-        let patterns = config
-            .effective_settings
-            .read()
-            .unwrap()
-            .ignore_patterns
-            .clone();
+        let patterns = config.snapshot().ignore_patterns.clone();
         assert!(patterns.contains(&String::from("^[ATCG]+$")));
         assert!(patterns.contains(&String::from("\\d{3}-\\d{2}-\\d{4}")));
         let reg = config.get_ignore_patterns();
@@ -748,14 +773,7 @@ mod tests {
         )?;
 
         let config = CodebookConfig::load_configs(&sub_sub_dir)?;
-        assert!(
-            config
-                .effective_settings
-                .read()
-                .unwrap()
-                .words
-                .contains(&"testword".to_string())
-        );
+        assert!(config.snapshot().words.contains(&"testword".to_string()));
 
         // Check that the config file path is stored
         assert_eq!(config.project_config_path(), Some(config_path));
@@ -765,12 +783,23 @@ mod tests {
     #[test]
     fn test_should_ignore_path() {
         let config = CodebookConfig::default();
-        config
-            .effective_settings
-            .write()
-            .unwrap()
-            .ignore_paths
-            .push("target/**/*".to_string());
+        {
+            let mut inner = config.inner.write().unwrap();
+            let mut settings = inner
+                .project_config
+                .content()
+                .cloned()
+                .unwrap_or_else(ConfigSettings::default);
+            settings.ignore_paths.push("target/**/*".to_string());
+            inner.project_config = inner.project_config.clone().with_content_value(settings);
+
+            // Recalculate effective settings
+            let effective = CodebookConfig::calculate_effective_settings(
+                &inner.project_config,
+                &inner.global_config,
+            );
+            inner.snapshot = Arc::new(effective);
+        }
 
         assert!(config.should_ignore_path("target/debug/build"));
         assert!(!config.should_ignore_path("src/main.rs"));
@@ -785,8 +814,8 @@ mod tests {
         // Create a config with the project path set
         let config = CodebookConfig::default();
         {
-            let project_config = config.project_config.read().unwrap();
-            project_config.set_path(Some(config_path.clone()));
+            let mut inner = config.inner.write().unwrap();
+            inner.project_config = WatchedFile::new(Some(config_path.clone()));
         }
         config.save()?;
 
@@ -815,8 +844,8 @@ mod tests {
         // Create a config with the project path set
         let config = CodebookConfig::default();
         {
-            let project_config = config.project_config.read().unwrap();
-            project_config.set_path(Some(config_path.clone()));
+            let mut inner = config.inner.write().unwrap();
+            inner.project_config = WatchedFile::new(Some(config_path.clone()));
         }
         config.save()?;
 
@@ -852,8 +881,8 @@ mod tests {
         // Create a config with the project path set
         let config = CodebookConfig::default();
         {
-            let project_config = config.project_config.read().unwrap();
-            project_config.set_path(Some(config_path.clone()));
+            let mut inner = config.inner.write().unwrap();
+            inner.project_config = WatchedFile::new(Some(config_path.clone()));
         }
         config.save()?;
 
@@ -879,9 +908,9 @@ mod tests {
         // Create a config with the global path set
         let config = CodebookConfig::default();
         {
-            let global_config = config.global_config.read().unwrap();
-            global_config.set_path(Some(config_path.clone()));
-            global_config.set_content(ConfigSettings::default());
+            let mut inner = config.inner.write().unwrap();
+            let global_config = WatchedFile::new(Some(config_path.clone()));
+            inner.global_config = global_config.with_content_value(ConfigSettings::default());
         }
         config.save_global()?;
 
@@ -936,33 +965,38 @@ mod tests {
         // Create a config with both paths
         let config = CodebookConfig::default();
         {
-            let global_config = config.global_config.read().unwrap();
-            global_config.set_path(Some(global_config_path.clone()));
-        }
-        {
-            let project_config = config.project_config.read().unwrap();
-            project_config.set_path(Some(project_config_path.clone()));
+            let mut inner = config.inner.write().unwrap();
+            inner.global_config = WatchedFile::new(Some(global_config_path.clone()));
+            inner.project_config = WatchedFile::new(Some(project_config_path.clone()));
         }
 
         // Manually load both configs to test merging
-        if let Ok(global_settings) = CodebookConfig::load_settings_from_file(&global_config_path) {
-            config
-                .global_config
-                .write()
-                .unwrap()
-                .set_content(global_settings);
-        }
-        if let Ok(project_settings) = CodebookConfig::load_settings_from_file(&project_config_path)
         {
-            config
-                .project_config
-                .write()
-                .unwrap()
-                .set_content(project_settings);
-        }
+            let mut inner = config.inner.write().unwrap();
+            if let Ok(global_settings) =
+                CodebookConfig::load_settings_from_file(&global_config_path)
+            {
+                inner.global_config = inner
+                    .global_config
+                    .clone()
+                    .with_content_value(global_settings);
+            }
+            if let Ok(project_settings) =
+                CodebookConfig::load_settings_from_file(&project_config_path)
+            {
+                inner.project_config = inner
+                    .project_config
+                    .clone()
+                    .with_content_value(project_settings);
+            }
 
-        // Recalculate effective settings after loading both configs
-        config.recalculate_effective_settings();
+            // Recalculate effective settings after loading both configs
+            let effective = CodebookConfig::calculate_effective_settings(
+                &inner.project_config,
+                &inner.global_config,
+            );
+            inner.snapshot = Arc::new(effective);
+        }
 
         // Verify merged results
         assert!(config.is_allowed_word("globalword1")); // From global

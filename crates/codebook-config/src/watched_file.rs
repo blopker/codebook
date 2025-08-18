@@ -1,47 +1,35 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::RwLock;
 use std::time::SystemTime;
 
-/// Generic file watcher that tracks changes and loads content on demand
-#[derive(Debug)]
-pub struct WatchedFile<T> {
-    path: RwLock<Option<PathBuf>>,
-    content: RwLock<Option<T>>,
-    last_modified: RwLock<Option<SystemTime>>,
-    last_size: RwLock<Option<u64>>,
+/// Simple immutable file watcher that tracks changes and loads content on demand
+#[derive(Debug, Clone)]
+pub struct WatchedFile<T: Clone> {
+    path: Option<PathBuf>,
+    content: Option<T>,
+    last_modified: Option<SystemTime>,
+    last_size: Option<u64>,
 }
 
-impl<T> WatchedFile<T> {
+impl<T: Clone> WatchedFile<T> {
     /// Create a new watched file with the given path
     pub fn new(path: Option<PathBuf>) -> Self {
         Self {
-            path: RwLock::new(path),
-            content: RwLock::new(None),
-            last_modified: RwLock::new(None),
-            last_size: RwLock::new(None),
+            path,
+            content: None,
+            last_modified: None,
+            last_size: None,
         }
     }
 
     /// Get the path of the watched file
-    pub fn path(&self) -> Option<PathBuf> {
-        self.path.read().unwrap().clone()
-    }
-
-    /// Set or update the path
-    pub fn set_path(&self, path: Option<PathBuf>) {
-        if *self.path.read().unwrap() != path {
-            *self.path.write().unwrap() = path;
-            *self.content.write().unwrap() = None;
-            *self.last_modified.write().unwrap() = None;
-            *self.last_size.write().unwrap() = None;
-        }
+    pub fn path(&self) -> Option<&Path> {
+        self.path.as_deref()
     }
 
     /// Check if the file has changed since last check
     pub fn has_changed(&self) -> bool {
-        let path_ref = self.path.read().unwrap();
-        let Some(path) = path_ref.as_ref() else {
+        let Some(path) = &self.path else {
             return false;
         };
 
@@ -50,120 +38,101 @@ impl<T> WatchedFile<T> {
                 let modified = metadata.modified().ok();
                 let size = metadata.len();
 
-                let last_modified = self.last_modified.read().unwrap();
-                let last_size = self.last_size.read().unwrap();
-
                 // If we have no previous state, consider it changed
-                if last_modified.is_none() && last_size.is_none() {
+                if self.last_modified.is_none() && self.last_size.is_none() {
                     return true;
                 }
 
-                modified != *last_modified || Some(size) != *last_size
+                modified != self.last_modified || Some(size) != self.last_size
             }
             Err(_) => {
                 // File doesn't exist or is inaccessible
                 // Consider it changed if we previously had content
-                self.last_modified.read().unwrap().is_some()
-                    || self.last_size.read().unwrap().is_some()
+                self.last_modified.is_some() || self.last_size.is_some()
             }
         }
     }
 
-    /// Load the file content using the provided loader function
-    /// Returns a reference to the loaded content
-    pub fn load<F>(&self, loader: F) -> Result<T, String>
+    /// Load the file content, returning a new instance with updated content
+    pub fn load<F>(self, loader: F) -> Result<Self, String>
     where
         F: FnOnce(&Path) -> Result<T, String>,
-        T: Clone,
     {
         let path = self
             .path
-            .read()
-            .unwrap()
             .as_ref()
-            .ok_or_else(|| "No path configured for watched file".to_string())?
-            .clone();
+            .ok_or_else(|| "No path configured for watched file".to_string())?;
 
-        if self.content.read().unwrap().is_none() || self.has_changed() {
-            *self.content.write().unwrap() = Some(loader(&path)?);
-            self.update_state();
+        if self.content.is_none() || self.has_changed() {
+            let content = loader(path)?;
+            Ok(self.with_content(content))
+        } else {
+            Ok(self)
         }
-
-        Ok(self.content.read().unwrap().as_ref().unwrap().clone())
     }
 
     /// Load the file content if it has changed
-    /// Returns true if reloaded (including when cleared due to deletion), false if unchanged
-    pub fn reload_if_changed<F>(&self, loader: F) -> Result<bool, String>
+    /// Returns (new_instance, was_changed)
+    pub fn reload_if_changed<F>(self, loader: F) -> Result<(Self, bool), String>
     where
         F: FnOnce(&Path) -> Result<T, String>,
-        T: Clone,
     {
         if !self.has_changed() {
-            return Ok(false);
+            return Ok((self, false));
         }
 
         let path = self
             .path
-            .read()
-            .unwrap()
             .as_ref()
-            .ok_or_else(|| "No path configured for watched file".to_string())?
-            .clone();
+            .ok_or_else(|| "No path configured for watched file".to_string())?;
 
         // Try to load the file
-        match loader(&path) {
-            Ok(content) => {
-                *self.content.write().unwrap() = Some(content);
-                self.update_state();
-                Ok(true)
-            }
+        match loader(path) {
+            Ok(content) => Ok((self.with_content(content), true)),
             Err(_) => {
                 // File might be deleted or unreadable, clear the content
-                *self.content.write().unwrap() = None;
-                *self.last_modified.write().unwrap() = None;
-                *self.last_size.write().unwrap() = None;
-                Ok(true) // Content changed (cleared)
+                Ok((self.cleared(), true))
             }
         }
     }
 
-    /// Get the current content without reloading
-    pub fn content(&self) -> Option<T>
-    where
-        T: Clone,
-    {
-        self.content.read().unwrap().clone()
+    /// Get the current content
+    pub fn content(&self) -> Option<&T> {
+        self.content.as_ref()
     }
 
     /// Replace the content without reloading from file
-    pub fn set_content(&self, content: T) {
-        *self.content.write().unwrap() = Some(content);
-        self.update_state();
+    pub fn with_content_value(self, content: T) -> Self {
+        self.with_content(content)
     }
 
-    /// Update the internal state to match the current file metadata
-    fn update_state(&self) {
-        if let Some(path) = self.path.read().unwrap().as_ref() {
+    /// Private: Create a new instance with updated content and file metadata
+    fn with_content(self, content: T) -> Self {
+        let (last_modified, last_size) = if let Some(path) = &self.path {
             if let Ok(metadata) = fs::metadata(path) {
-                *self.last_modified.write().unwrap() = metadata.modified().ok();
-                *self.last_size.write().unwrap() = Some(metadata.len());
+                (metadata.modified().ok(), Some(metadata.len()))
             } else {
-                // File doesn't exist
-                *self.last_modified.write().unwrap() = None;
-                *self.last_size.write().unwrap() = None;
+                (None, None)
             }
+        } else {
+            (None, None)
+        };
+
+        Self {
+            path: self.path,
+            content: Some(content),
+            last_modified,
+            last_size,
         }
     }
-}
 
-impl<T: Clone> Clone for WatchedFile<T> {
-    fn clone(&self) -> Self {
+    /// Private: Create a new instance with cleared content
+    fn cleared(self) -> Self {
         Self {
-            path: RwLock::new(self.path.read().unwrap().clone()),
-            content: RwLock::new(self.content.read().unwrap().clone()),
-            last_modified: RwLock::new(*self.last_modified.read().unwrap()),
-            last_size: RwLock::new(*self.last_size.read().unwrap()),
+            path: self.path,
+            content: None,
+            last_modified: None,
+            last_size: None,
         }
     }
 }
@@ -188,10 +157,10 @@ mod tests {
         let watched = WatchedFile::<String>::new(Some(file_path.clone()));
 
         // First load
-        let content = watched
+        let watched = watched
             .load(|path| fs::read_to_string(path).map_err(|e| e.to_string()))
             .unwrap();
-        assert_eq!(content.trim(), "initial content");
+        assert_eq!(watched.content().map(|s| s.trim()), Some("initial content"));
 
         // Check no change
         assert!(!watched.has_changed());
@@ -206,10 +175,13 @@ mod tests {
         assert!(watched.has_changed());
 
         // Reload
-        let content = watched
+        let watched = watched
             .load(|path| fs::read_to_string(path).map_err(|e| e.to_string()))
             .unwrap();
-        assert_eq!(content.trim(), "modified content");
+        assert_eq!(
+            watched.content().map(|s| s.trim()),
+            Some("modified content")
+        );
     }
 
     #[test]
@@ -220,10 +192,10 @@ mod tests {
         // Create and load file
         fs::write(&file_path, "content").unwrap();
         let watched = WatchedFile::<String>::new(Some(file_path.clone()));
-        let content = watched
+        let watched = watched
             .load(|path| fs::read_to_string(path).map_err(|e| e.to_string()))
             .unwrap();
-        assert_eq!(content.trim(), "content");
+        assert_eq!(watched.content().map(|s| s.trim()), Some("content"));
 
         // Delete file
         fs::remove_file(&file_path).unwrap();
@@ -232,7 +204,7 @@ mod tests {
         assert!(watched.has_changed());
 
         // Reload should clear the content
-        let changed = watched
+        let (watched, changed) = watched
             .reload_if_changed(|path| fs::read_to_string(path).map_err(|e| e.to_string()))
             .unwrap();
         assert!(changed);
