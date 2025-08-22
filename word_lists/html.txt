@@ -432,6 +432,7 @@ nobr
 node
 noframe
 none
+noreferrer
 normal
 noscript
 not

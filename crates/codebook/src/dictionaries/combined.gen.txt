@@ -1713,6 +1713,7 @@ nomethod
 non
 none
 noop
+noreferrer
 normal
 noscript
 not
