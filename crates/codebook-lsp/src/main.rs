@@ -4,8 +4,9 @@ mod lsp_logger;
 
 use clap::{Parser, Subcommand};
 use codebook_config::CodebookConfig;
-use log::info;
+use log::{LevelFilter, info};
 use lsp::Backend;
+use lsp_logger::LspLogger;
 use std::path::{Path, PathBuf};
 use tokio::task;
 use tower_lsp::{LspService, Server};
@@ -32,6 +33,10 @@ enum Commands {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
+    // Initialize logger early with stderr output and buffering
+    // Default to INFO level, will be adjusted when LSP client connects
+    LspLogger::init_early(LevelFilter::Info).expect("Failed to initialize early logger");
+
     let cli = Cli::parse();
 
     let root = match cli.root.as_deref() {
@@ -53,7 +58,7 @@ async fn main() {
 }
 
 async fn serve_lsp(root: &Path) {
-    eprintln!("Starting Codebook Language Server..");
+    info!("Starting Codebook Language Server..");
     let (stdin, stdout) = (tokio::io::stdin(), tokio::io::stdout());
     let inner_root = root.to_owned();
 

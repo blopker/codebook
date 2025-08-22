@@ -76,9 +76,13 @@ impl LanguageServer for Backend {
                 }
             })
             .unwrap_or(LevelFilter::Info);
-        lsp_logger::LspLogger::init(self.client.clone(), log_level)
-            .expect("Failed to initialize LSP logger");
-        info!("LSP logger initialized with log level: {}", log_level);
+
+        // Attach the LSP client to the logger and flush buffered logs
+        lsp_logger::LspLogger::attach_client(self.client.clone(), log_level);
+        info!(
+            "LSP logger attached to client with log level: {}",
+            log_level
+        );
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
