@@ -7,6 +7,7 @@ use codebook_config::CodebookConfig;
 use log::{LevelFilter, info};
 use lsp::Backend;
 use lsp_logger::LspLogger;
+use std::env;
 use std::path::{Path, PathBuf};
 use tokio::task;
 use tower_lsp::{LspService, Server};
@@ -35,7 +36,11 @@ enum Commands {
 async fn main() {
     // Initialize logger early with stderr output and buffering
     // Default to INFO level, will be adjusted when LSP client connects
-    LspLogger::init_early(LevelFilter::Info).expect("Failed to initialize early logger");
+    let log_level = match env::var("RUST_LOG").as_deref() {
+        Ok("debug") => LevelFilter::Debug,
+        _ => LevelFilter::Info,
+    };
+    LspLogger::init_early(log_level).expect("Failed to initialize early logger");
 
     let cli = Cli::parse();
 
