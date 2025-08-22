@@ -206,6 +206,8 @@ The global configuration applies to all projects by default. Location depends on
 
 Project-specific configuration is loaded from either `codebook.toml` or `.codebook.toml` in the project root. Codebook searches for this file starting from the current directory and moving up to parent directories.
 
+**Note:** Codebook picks which config to use on startup. If a config file is manually created or renamed (like switching between `codebook.toml` and `.codebook.toml`), restart your editor for the new file to be recognized.
+
 ### Configuration Options
 
 ```toml
