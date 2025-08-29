@@ -1,3 +1,9 @@
+[0.3.9]
+
+- Add words to default wordlist
+- Refactor to reduce locking, extract file watching logic, and improve logging
+- Log cache directory for easier debugging
+
 [0.3.8]
 
 - Add support for Lua language
