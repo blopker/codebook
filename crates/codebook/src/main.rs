@@ -6,6 +6,10 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use mimalloc::MiMalloc;
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let config = Arc::new(codebook_config::CodebookConfig::default());

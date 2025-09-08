@@ -12,6 +12,11 @@ use std::path::{Path, PathBuf};
 use tokio::task;
 use tower_lsp::{LspService, Server};
 
+use mimalloc::MiMalloc;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 #[derive(Parser)]
 #[command(version, about, long_about = None, arg_required_else_help = true)]
 struct Cli {
