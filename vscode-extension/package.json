@@ -2,7 +2,7 @@
   "name": "codebook",
   "displayName": "Codebook",
   "description": "A code-aware spell checker for VS Code",
-  "version": "0.3.8",
+  "version": "0.4.0",
   "publisher": "codebook",
   "icon": "icon.png",
   "license": "MIT",
@@ -11,7 +11,8 @@
     "url": "https://github.com/blopker/codebook"
   },
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.85.0",
+    "node": ">=18.0.0"
   },
   "categories": [
     "Linters",
@@ -85,8 +86,8 @@
         },
         "codebook.serverPath": {
           "type": "string",
-          "default": "codebook-lsp",
-          "description": "Path to the codebook-lsp executable"
+          "default": "",
+          "description": "Optional: Path to a custom codebook-lsp executable. If not specified, the extension will automatically download the appropriate binary for your platform."
         },
         "codebook.logLevel": {
           "type": "string",
@@ -196,11 +197,15 @@
     "publish": "vsce publish"
   },
   "dependencies": {
-    "vscode-languageclient": "^9.0.1"
+    "vscode-languageclient": "^9.0.1",
+    "tar": "^6.2.0",
+    "adm-zip": "^0.5.10"
   },
   "devDependencies": {
     "@types/vscode": "^1.85.0",
     "@types/node": "20.x",
+    "@types/tar": "^6.1.10",
+    "@types/adm-zip": "^0.5.5",
     "@typescript-eslint/eslint-plugin": "^6.15.0",
     "@typescript-eslint/parser": "^6.15.0",
     "eslint": "^8.56.0",

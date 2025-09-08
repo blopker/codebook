@@ -11,6 +11,8 @@ vsc-extension-quickstart.md
 **/.eslintrc.json
 node_modules/**
 !node_modules/vscode-languageclient/**
+!node_modules/tar/**
+!node_modules/adm-zip/**
 .github/**
 *.vsix
 out/test/**

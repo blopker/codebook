@@ -6,15 +6,28 @@
     "sourceType": "module",
     "project": "./tsconfig.json"
   },
-  "plugins": [
-    "@typescript-eslint"
-  ],
-  "extends": [
-    "eslint:recommended",
-    "plugin:@typescript-eslint/recommended"
-  ],
+  "plugins": ["@typescript-eslint"],
+  "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended"],
   "rules": {
-    "@typescript-eslint/naming-convention": "warn",
+    "@typescript-eslint/naming-convention": [
+      "warn",
+      {
+        "selector": "default",
+        "format": ["camelCase"]
+      },
+      {
+        "selector": "variable",
+        "format": ["camelCase", "UPPER_CASE", "PascalCase"]
+      },
+      {
+        "selector": "property",
+        "format": null
+      },
+      {
+        "selector": "typeLike",
+        "format": ["PascalCase"]
+      }
+    ],
     "@typescript-eslint/semi": "warn",
     "@typescript-eslint/no-unused-vars": [
       "warn",
@@ -38,11 +51,5 @@
       }
     ]
   },
-  "ignorePatterns": [
-    "out",
-    "dist",
-    "**/*.d.ts",
-    "node_modules",
-    ".vscode-test"
-  ]
+  "ignorePatterns": ["out", "dist", "**/*.d.ts", "node_modules", ".vscode-test"]
 }

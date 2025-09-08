@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Automatic Binary Download**: The extension now automatically downloads the appropriate `codebook-lsp` binary for your platform from GitHub releases on first use
+- Binary version management with automatic cleanup of old versions
+- Caching system for downloaded binaries to avoid re-downloading
+- Progress notifications during binary download
+- Support for multiple architectures (x86_64, aarch64) and platforms (macOS, Linux, Windows)
+- Fallback to locally installed binaries (cargo, PATH, or custom path)
+- Smart detection of development binaries for contributors
+
+### Changed
+- No longer requires manual installation of `codebook-lsp` - the extension handles this automatically
+- Improved error messages with helpful suggestions when binary issues occur
+- Better platform detection for selecting the correct binary artifact
+
 ## [0.1.0] - 2024-01-XX
 
 ### Added
@@ -23,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Ignore paths and patterns
   - Flag words
 - Quick fix code actions for misspelled words
-- Auto-detection of codebook-lsp in PATH and cargo installation directory
+- Auto-detection of codebook-lsp in PATH and cargo installation directory (fallback if auto-download is not used)
 - File watchers for configuration file changes (codebook.toml, .codebookrc, .codebook.toml)
 - Output channel for debugging and diagnostics
 - Command to restart the language server
@@ -39,7 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Technical Details
 - Built with TypeScript and vscode-languageclient
-- Requires codebook-lsp server (installable via cargo)
+- Automatically downloads codebook-lsp server or uses locally installed version
 - Uses stdio transport for LSP communication
 - Supports VS Code 1.85.0 and later
 

@@ -12,24 +12,27 @@ A VS Code extension for [Codebook](https://github.com/blopker/codebook) - a code
 
 ## Requirements
 
-### Install the Language Server
+The extension automatically downloads the appropriate `codebook-lsp` language server binary for your platform from GitHub releases on first use. No manual installation is required!
 
-The extension requires the `codebook-lsp` language server to be installed on your system.
+### Manual Installation (Optional)
 
-#### Option 1: Install via Cargo (Recommended)
+If you prefer to manage the language server yourself, you can:
+
+#### Option 1: Install via Cargo
 ```bash
 cargo install codebook-lsp
 ```
 
-#### Option 2: Download Pre-built Binary
-Download the latest release from [GitHub Releases](https://github.com/blopker/codebook/releases) and add it to your PATH.
+#### Option 2: Use a Custom Binary
+1. Download from [GitHub Releases](https://github.com/blopker/codebook/releases)
+2. Set the `codebook.serverPath` setting to point to your binary location
 
 ## Extension Settings
 
 This extension contributes the following settings:
 
 * `codebook.enable`: Enable/disable the spell checker
-* `codebook.serverPath`: Path to the codebook-lsp executable (default: `codebook-lsp`)
+* `codebook.serverPath`: Path to the codebook-lsp executable (default: auto-download from GitHub)
 * `codebook.logLevel`: Log level for the language server (`error`, `warn`, `info`, `debug`, `trace`)
 * `codebook.minWordLength`: Minimum word length to check (default: 3)
 * `codebook.dictionaries`: Additional dictionaries to use
@@ -91,13 +94,15 @@ When Codebook detects a spelling error, you can:
 
 ## Troubleshooting
 
-### Language Server Not Found
+### Language Server Issues
 
-If you get an error about the language server not being found:
+The extension automatically downloads the language server on first use. If you encounter issues:
 
-1. Ensure `codebook-lsp` is installed: `cargo install codebook-lsp`
-2. Check that it's in your PATH: `which codebook-lsp` (or `where codebook-lsp` on Windows)
-3. If installed in a custom location, set the `codebook.serverPath` setting to the full path
+1. **Automatic Download Failed**: Check your internet connection and GitHub access
+2. **Wrong Architecture**: The extension auto-detects your platform. If this fails, manually install the server
+3. **Using Custom Binary**: Set `codebook.serverPath` to the full path of your binary
+4. **Permission Issues**: On Unix systems, ensure the downloaded binary has execute permissions
+5. **Reinstall**: Delete the extension's global storage folder and restart VS Code to trigger a fresh download
 
 ### No Spell Checking
 
