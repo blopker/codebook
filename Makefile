@@ -5,6 +5,9 @@ export RUST_LOG=debug
 test:
 	cargo test --lib --bins --tests -- --test-threads=20
 
+test_queries:
+	cd crates/codebook && cargo test queries::tests::test_all_queries_are_valid
+
 build:
 	cd crates/codebook-lsp && cargo build --release
 
