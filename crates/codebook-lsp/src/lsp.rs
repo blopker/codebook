@@ -411,8 +411,10 @@ impl Backend {
         };
 
         if did_reload {
+            debug!("Config reloaded, rechecking all files.");
             self.recheck_all().await;
         } else {
+            debug!("Checking file: {uri:?}");
             self.publish_spellcheck_diagnostics(uri).await;
         }
     }
@@ -427,11 +429,9 @@ impl Backend {
         let file_path = doc.uri.to_file_path().unwrap_or_default();
         debug!("Spell-checking file: {file_path:?}");
         // 1) Perform spell-check.
-        let lang_type = doc
-            .language_id
-            .as_deref()
-            .and_then(|lang| LanguageType::from_str(lang).ok());
-
+        let lang = doc.language_id.as_deref();
+        let lang_type = lang.and_then(|lang| LanguageType::from_str(lang).ok());
+        debug!("Document identified as type {lang_type:?} from {lang:?}");
         let cb = self.codebook.clone();
         let fp = file_path.clone();
         let spell_results = task::spawn_blocking(move || {

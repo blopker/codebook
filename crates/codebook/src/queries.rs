@@ -6,6 +6,7 @@ use tree_sitter::Language;
 pub enum LanguageType {
     Bash,
     C,
+    Cpp,
     Css,
     Go,
     Haskell,
@@ -67,6 +68,13 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         dictionary_ids: &["c"],
         query: include_str!("queries/c.scm"),
         extensions: &["c", "h"],
+    },
+    LanguageSetting {
+        type_: LanguageType::Cpp,
+        ids: &["cpp", "c++"],
+        dictionary_ids: &["cpp"],
+        query: include_str!("queries/cpp.scm"),
+        extensions: &["cpp", "cc", "cxx", "hpp", "hh", "hxx"],
     },
     LanguageSetting {
         type_: LanguageType::Python,
@@ -184,6 +192,7 @@ impl LanguageSetting {
         match self.type_ {
             LanguageType::Bash => Some(tree_sitter_bash::LANGUAGE.into()),
             LanguageType::C => Some(tree_sitter_c::LANGUAGE.into()),
+            LanguageType::Cpp => Some(tree_sitter_cpp::LANGUAGE.into()),
             LanguageType::Css => Some(tree_sitter_css::LANGUAGE.into()),
             LanguageType::Go => Some(tree_sitter_go::LANGUAGE.into()),
             LanguageType::Haskell => Some(tree_sitter_haskell::LANGUAGE.into()),

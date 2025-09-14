@@ -123,6 +123,7 @@ Codebook is in active development. As better dictionaries are added, words that 
 | Language | Status |
 | --- | --- |
 | C | ✅ |
+| C++ | ⚠️ |
 | CSS | ⚠️ |
 | Go | ✅ |
 | HTML | ⚠️ |

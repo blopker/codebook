@@ -4,7 +4,7 @@ mod lsp_logger;
 
 use clap::{Parser, Subcommand};
 use codebook_config::CodebookConfig;
-use log::{LevelFilter, info};
+use log::{LevelFilter, debug, info};
 use lsp::Backend;
 use lsp_logger::LspLogger;
 use std::env;
@@ -41,7 +41,7 @@ async fn main() {
         _ => LevelFilter::Info,
     };
     LspLogger::init_early(log_level).expect("Failed to initialize early logger");
-
+    debug!("Logger initialized with log level: {log_level:?}");
     let cli = Cli::parse();
 
     let root = match cli.root.as_deref() {

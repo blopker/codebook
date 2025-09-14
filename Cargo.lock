@@ -627,11 +627,10 @@ dependencies = [
  "spellbook",
  "streaming-iterator",
  "tempfile",
- "tokio",
- "tower-lsp",
  "tree-sitter",
  "tree-sitter-bash",
  "tree-sitter-c",
+ "tree-sitter-cpp",
  "tree-sitter-css",
  "tree-sitter-go",
  "tree-sitter-haskell",
@@ -3324,6 +3323,16 @@ name = "tree-sitter-c"
 version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a3aad8f0129083a59fe8596157552d2bb7148c492d44c21558d68ca1c722707"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-cpp"
+version = "0.23.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df2196ea9d47b4ab4a31b9297eaa5a5d19a0b121dceb9f118f6790ad0ab94743"
 dependencies = [
  "cc",
  "tree-sitter-language",
