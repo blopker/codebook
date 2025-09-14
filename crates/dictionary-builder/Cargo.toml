@@ -1,6 +1,6 @@
 [package]
 name = "dictionary-builder"
-version = "0.3.9"
+version = "0.3.10"
 edition = "2024"
 description = "A tool for building and managing spell-checking dictionaries"
 
