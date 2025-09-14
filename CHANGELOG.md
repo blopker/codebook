@@ -1,3 +1,8 @@
+[0.3.10]
+
+- Add support for C++
+- Add support for Elixir
+
 [0.3.9]
 
 - Add words to default wordlist
