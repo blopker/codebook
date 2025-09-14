@@ -6,7 +6,7 @@
     "test": "bun test"
   },
   "devDependencies": {
-    "@types/bun": "^1.2.21"
+    "@types/bun": "^1.2.22"
   },
   "peerDependencies": {
     "typescript": "^5.9.2"
