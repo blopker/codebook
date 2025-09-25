@@ -28,6 +28,7 @@ macos
 msvc
 pbkdf
 pc
+postgre
 prerelease
 prerender
 pst
@@ -41,8 +42,8 @@ seo
 sha
 ssl
 subnets
-sveltekit
 sveltejs
+sveltekit
 systemd
 todo
 typescript
