@@ -1,6 +1,6 @@
 [package]
 name = "codebook_config"
-version = "0.3.10"
+version = "0.3.11"
 edition = "2024"
 description = "Configuration handling for the Codebook spell checker"
 authors = ["Codebook Contributors"]

@@ -1,3 +1,7 @@
+[0.3.11]
+
+- Update default word list
+
 [0.3.10]
 
 - Add support for C++
