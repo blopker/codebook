@@ -218,6 +218,7 @@ Project-specific configuration is loaded from either `codebook.toml` or `.codebo
 # Available dictionaries:
 #  - English: "en_us", "en_gb"
 #  - German: "de", "de_at", "de_ch"
+#  - Dutch: "nl_nl"
 #  - Spanish: "es"
 #  - French: "fr"
 #  - Italian: "it"
@@ -343,7 +344,45 @@ Codebook comes with a dictionary manager, which will automatically download and 
 
 Codebook uses a hierarchical configuration system with global (user-level) and project-specific settings, giving you flexibility to set defaults and override them as needed per project.
 
-## Adding a New Language
+## Adding a New Dictionary
+
+Dictionaries in Codebook are currently hardcoded in the dictionary repository file at `crates/codebook/src/dictionaries/repo.rs`.
+
+To add a new Hunspell-compatible dictionary:
+
+1. Open `crates/codebook/src/dictionaries/repo.rs`
+
+1. Locate the `HUNSPELL_DICTIONARIES` static vector (for Hunspell dictionaries) or `TEXT_DICTIONARIES` (for plain text word lists)
+
+1. Add a new entry using the appropriate constructor. For Hunspell dictionaries:
+   ```rs /dev/null/example.rs#L1-5
+   HunspellRepo::new(
+       "nl_nl",  // Dictionary name in snake_case
+       "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/nl/index.aff",
+       "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/nl/index.dic",
+   ),
+   ```
+
+1. Follow the naming convention:
+   - Use `snake_case` format (e.g., `en_us`, `nl_nl`, `pt_br`)
+   - Language codes should be lowercase
+   - Names must be unique across all dictionaries
+
+1. Find dictionary sources:
+   - [wooorm/dictionaries](https://github.com/wooorm/dictionaries) - Large collection of Hunspell dictionaries
+   - [streetsidesoftware/cspell-dicts](https://github.com/streetsidesoftware/cspell-dicts) - CSpell dictionary collection
+   - Both `.aff` (affix rules) and `.dic` (word list) files are required for Hunspell dictionaries
+
+1. (Optional) Run the tests to verify your addition:
+   ```bash
+   cargo test test_dictionary_names_unique_and_snake_case
+   ```
+   This test ensures dictionary names are unique and follow the snake_case convention.
+
+For plain text dictionaries, use `TextRepo::new()` instead and add to `TEXT_DICTIONARIES`.
+
+
+## Adding New Programming Language Support
 
 Codebook uses Tree-sitter support additional programming languages. Here's how to add support for a new language:
 
