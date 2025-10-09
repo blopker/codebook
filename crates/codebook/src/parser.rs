@@ -241,6 +241,7 @@ fn find_locations_code(
             let node_start = node.start_position();
             let current_line = node_start.row as u32;
             let current_column = node_start.column as u32;
+            // Create processor on just this part of the document
             let processor = TextProcessor::new(node_text, skip_patterns);
             let words = processor.extract_words();
             // debug!("Found Capture: {node_text:?}");
@@ -248,6 +249,7 @@ fn find_locations_code(
             // debug!("Column: {current_column}");
             // debug!("Line: {current_line}");
 
+            // check words and fix locations relative to whole document
             for word_pos in words {
                 if !check_function(&word_pos.word) {
                     for range in word_pos.locations {
