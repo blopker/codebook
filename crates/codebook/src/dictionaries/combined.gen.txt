@@ -800,6 +800,7 @@ encode
 encoder
 encodestring
 encoding
+encodings
 encsendcontainerstate
 end
 endblock

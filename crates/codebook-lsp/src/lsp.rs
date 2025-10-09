@@ -62,6 +62,7 @@ impl From<CodebookCommand> for String {
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> RpcResult<InitializeResult> {
+        // info!("Capabilities: {:?}", params.capabilities);
         // Get log level from initialization options
         let log_level = params
             .initialization_options
@@ -85,6 +86,7 @@ impl LanguageServer for Backend {
         );
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
+                position_encoding: Some(PositionEncodingKind::UTF16),
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
                     TextDocumentSyncKind::FULL,
                 )),
@@ -192,6 +194,7 @@ impl LanguageServer for Backend {
             let start_char = diag.range.start.character as usize;
             let end_char = diag.range.end.character as usize;
             let word = get_word_from_string(start_char, end_char, line);
+            // info!("Word to suggest: {}", word);
             if word.is_empty() || word.contains(" ") {
                 continue;
             }

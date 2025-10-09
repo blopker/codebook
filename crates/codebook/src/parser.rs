@@ -1,6 +1,7 @@
 use crate::splitter::{self};
 
 use crate::queries::{LanguageType, get_language_setting};
+use log::info;
 use regex::Regex;
 use std::collections::HashMap;
 use streaming_iterator::StreamingIterator;
@@ -149,21 +150,9 @@ impl TextProcessor {
             .collect()
     }
 
-    fn extract_words(&self) -> Vec<(String, (u32, u32))> {
+    fn extract_words(&self) -> Vec<WordLocation> {
         // Reuse the word collection logic by collecting all words (check always returns false)
-        let word_locations = self.process_words_with_check(|_| false);
-
-        // Convert WordLocation format to the expected tuple format
-        let mut result = Vec::new();
-        for word_location in word_locations {
-            for location in word_location.locations {
-                result.push((
-                    word_location.word.clone(),
-                    (location.start_char, location.line),
-                ));
-            }
-        }
-        result
+        self.process_words_with_check(|_| false)
     }
 
     fn collect_split_words<'a>(
@@ -258,24 +247,26 @@ fn find_locations_code(
             // debug!("Words: {words:?}");
             // debug!("Column: {current_column}");
             // debug!("Line: {current_line}");
-            for (word_text, (text_start_char, text_line)) in words {
-                // debug!("Checking: {:?}", word_text);
-                if !check_function(&word_text) {
-                    let offset = if text_line == 0 { current_column } else { 0 };
-                    let base_start_char = text_start_char + offset;
-                    let location = TextRange {
-                        start_char: base_start_char,
-                        end_char: base_start_char + word_text.chars().count() as u32,
-                        line: text_line + current_line,
-                    };
-                    if let Some(existing_result) = word_locations.get_mut(&word_text) {
-                        #[cfg(debug_assertions)]
-                        if existing_result.contains(&location) {
-                            panic!("Two of the same locations found. Make a better query.")
+
+            for word_pos in words {
+                if !check_function(&word_pos.word) {
+                    for range in word_pos.locations {
+                        let offset = if range.line == 0 { current_column } else { 0 };
+                        let base_start_char = range.start_char + offset;
+                        let location = TextRange {
+                            start_char: base_start_char,
+                            end_char: base_start_char + word_pos.word.chars().count() as u32,
+                            line: range.line + current_line,
+                        };
+                        if let Some(existing_result) = word_locations.get_mut(&word_pos.word) {
+                            #[cfg(debug_assertions)]
+                            if existing_result.contains(&location) {
+                                panic!("Two of the same locations found. Make a better query.")
+                            }
+                            existing_result.push(location);
+                        } else {
+                            word_locations.insert(word_pos.word.clone(), vec![location]);
                         }
-                        existing_result.push(location);
-                    } else {
-                        word_locations.insert(word_text.clone(), vec![location]);
                     }
                 }
             }
@@ -299,9 +290,15 @@ fn is_alphabetic(c: &str) -> bool {
     c.chars().any(|c| c.is_alphabetic())
 }
 
-/// Get a UTF-8 word from a string given the start and end indices.
-pub fn get_word_from_string(start: usize, end: usize, text: &str) -> String {
-    text.graphemes(true).skip(start).take(end - start).collect()
+/// Get a UTF-8 word from a string given the start and end bytes in utf16.
+pub fn get_word_from_string(start_utf16: usize, end_utf16: usize, text: &str) -> String {
+    let utf16_slice: Vec<u16> = text
+        .encode_utf16()
+        .skip(start_utf16)
+        .take(end_utf16 - start_utf16)
+        .collect();
+    info!("UTF-16 slice: {:?}", utf16_slice);
+    String::from_utf16_lossy(&utf16_slice)
 }
 
 #[cfg(test)]
@@ -344,7 +341,9 @@ mod parser_tests {
         let words = processor.extract_words();
         println!("{words:?}");
         for word in words {
-            assert!(expected.contains(&(word.0.as_str(), word.1)));
+            let loc = word.locations.first().unwrap();
+            let pos = (loc.start_char, loc.line);
+            assert!(expected.contains(&(word.word.as_str(), pos)));
         }
     }
 
@@ -356,7 +355,7 @@ mod parser_tests {
         println!("{words:?}");
         let expected = ["I'm", "a", "contraction", "wouldn't", "you", "agree"];
         for word in words {
-            assert!(expected.contains(&word.0.as_str()));
+            assert!(expected.contains(&word.word.as_str()));
         }
     }
 
@@ -377,7 +376,7 @@ mod parser_tests {
 
         // Test with emoji (which can be multi-codepoint)
         let emoji_text = "Hello 👨‍👩‍👧‍👦 World";
-        assert_eq!(get_word_from_string(6, 7, emoji_text), "👨‍👩‍👧‍👦");
+        assert_eq!(get_word_from_string(6, 17, emoji_text), "👨‍👩‍👧‍👦");
     }
     #[test]
     fn test_unicode_character_handling() {
@@ -388,16 +387,18 @@ mod parser_tests {
         println!("{words:?}");
 
         // Make sure "badword" is included and correctly positioned
-        assert!(words.iter().any(|(word, _)| word == "badword"));
+        assert!(words.iter().any(|word| word.word == "badword"));
 
         // If "badword" is found, verify its position
-        if let Some((_, (start_char, line))) = words.iter().find(|(word, _)| word == "badword") {
+        if let Some(pos) = words.iter().find(|word| word.word == "badword") {
             // The correct position should be 6 (after ©<div>)
+            let start_char = pos.locations.first().unwrap().start_char;
+            let line = pos.locations.first().unwrap().line;
             assert_eq!(
-                *start_char, 6,
+                start_char, 6,
                 "Expected 'badword' to start at character position 6"
             );
-            assert_eq!(*line, 0, "Expected 'badword' to be on line 0");
+            assert_eq!(line, 0, "Expected 'badword' to be on line 0");
         } else {
             panic!("Word 'badword' not found in the text");
         }
