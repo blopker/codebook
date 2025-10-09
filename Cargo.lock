@@ -665,6 +665,7 @@ dependencies = [
  "serde",
  "serde_json",
  "streaming-iterator",
+ "string-offsets",
  "tempfile",
  "tokio",
  "tower-lsp",
@@ -2857,6 +2858,12 @@ name = "streaming-iterator"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b2231b7c3057d5e4ad0156fb3dc807d900806020c5ffa3ee6ff2c8c76fb8520"
+
+[[package]]
+name = "string-offsets"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a651d1095b5b70f1a88e10dbcf58625e30140112b0f9f55f334e0f84ec2e3176"
 
 [[package]]
 name = "string_cache"

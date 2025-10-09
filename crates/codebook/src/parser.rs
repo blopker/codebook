@@ -10,27 +10,29 @@ use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Debug, Clone, Copy, PartialEq, Ord, Eq, PartialOrd)]
 pub struct TextRange {
-    pub start_char: u32,
-    pub end_char: u32,
-    pub line: u32,
+    /// Start position in utf-8 byte offset
+    pub start_byte: usize,
+    /// End position in utf-8 byte offset
+    pub end_byte: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct SkipRange {
-    start_char: usize, // Start position in grapheme clusters
-    end_char: usize,   // End position in grapheme clusters
+    /// Start position in utf-8 byte offset
+    start_byte: usize,
+    /// End position in utf-8 byte offset
+    end_byte: usize,
 }
 
 impl SkipRange {
     fn contains(&self, pos: usize) -> bool {
-        pos >= self.start_char && pos < self.end_char
+        pos >= self.start_byte && pos < self.end_byte
     }
 }
 
 /// Helper struct to handle all text position tracking in one place
 struct TextProcessor {
     text: String,
-    line_starts: Vec<usize>, // Absolute character positions where each line starts
     skip_ranges: Vec<SkipRange>,
 }
 
@@ -38,13 +40,8 @@ impl TextProcessor {
     fn new(text: &str, skip_patterns: &[Regex]) -> Self {
         let text = text.to_string();
         let skip_ranges = Self::find_skip_ranges(&text, skip_patterns);
-        let line_starts = Self::calculate_line_starts(&text);
 
-        Self {
-            text,
-            line_starts,
-            skip_ranges,
-        }
+        Self { text, skip_ranges }
     }
 
     fn find_skip_ranges(text: &str, patterns: &[Regex]) -> Vec<SkipRange> {
@@ -52,21 +49,15 @@ impl TextProcessor {
 
         for pattern in patterns {
             for regex_match in pattern.find_iter(text) {
-                // Convert byte positions to grapheme positions
-                let text_before_match = &text[..regex_match.start()];
-                let start_char = text_before_match.graphemes(true).count();
-                let match_str = regex_match.as_str();
-                let end_char = start_char + match_str.graphemes(true).count();
-
                 ranges.push(SkipRange {
-                    start_char,
-                    end_char,
+                    start_byte: regex_match.start(),
+                    end_byte: regex_match.end(),
                 });
             }
         }
 
         // Sort ranges by start position and merge overlapping ones
-        ranges.sort_by_key(|r| r.start_char);
+        ranges.sort_by_key(|r| r.start_byte);
         Self::merge_overlapping_ranges(ranges)
     }
 
@@ -79,9 +70,9 @@ impl TextProcessor {
         let mut current = ranges[0];
 
         for range in ranges.into_iter().skip(1) {
-            if range.start_char <= current.end_char {
+            if range.start_byte <= current.end_byte {
                 // Overlapping or adjacent ranges - merge them
-                current.end_char = current.end_char.max(range.end_char);
+                current.end_byte = current.end_byte.max(range.end_byte);
             } else {
                 merged.push(current);
                 current = range;
@@ -91,25 +82,11 @@ impl TextProcessor {
         merged
     }
 
-    fn calculate_line_starts(text: &str) -> Vec<usize> {
-        let mut line_starts = vec![0];
-        let mut pos = 0;
-
-        for line in text.lines() {
-            pos += line.graphemes(true).count() + 1; // +1 for newline
-            line_starts.push(pos);
-        }
-
-        line_starts
-    }
-
-    fn should_skip(&self, absolute_pos: usize, word_len: usize) -> bool {
-        let word_end = absolute_pos + word_len;
-        self.skip_ranges.iter().any(|range| {
-            range.contains(absolute_pos)
-                || range.contains(word_end.saturating_sub(1))
-                || (absolute_pos < range.start_char && word_end > range.end_char)
-        })
+    fn should_skip(&self, start_byte: usize, word_len: usize) -> bool {
+        let word_end = start_byte + word_len;
+        self.skip_ranges
+            .iter()
+            .any(|range| range.contains(start_byte) || range.contains(word_end))
     }
 
     fn process_words_with_check<F>(&self, mut check_function: F) -> Vec<WordLocation>
@@ -119,20 +96,9 @@ impl TextProcessor {
         // First pass: collect all unique words with their positions
         let mut word_positions: HashMap<&str, Vec<TextRange>> = HashMap::new();
 
-        for (line_number, line) in self.text.lines().enumerate() {
-            let line_start_abs = self.line_starts[line_number];
-            let mut column = 0;
-
-            for word in line.split_word_bounds() {
-                if is_alphabetic(word) {
-                    let absolute_pos = line_start_abs + column;
-                    let word_len = word.graphemes(true).count();
-
-                    if !self.should_skip(absolute_pos, word_len) {
-                        self.collect_split_words(word, column, line_number, &mut word_positions);
-                    }
-                }
-                column += word.graphemes(true).count();
+        for (offset, word) in self.text.split_word_bound_indices() {
+            if is_alphabetic(word) && !self.should_skip(offset, word.len()) {
+                self.collect_split_words(word, offset, &mut word_positions);
             }
         }
 
@@ -158,19 +124,17 @@ impl TextProcessor {
     fn collect_split_words<'a>(
         &self,
         word: &'a str,
-        column: usize,
-        line_number: usize,
+        offset: usize,
         word_positions: &mut HashMap<&'a str, Vec<TextRange>>,
     ) {
         if !word.is_empty() {
             let split = splitter::split(word);
             for split_word in split {
                 if !is_numeric(split_word.word) {
-                    let word_start_char = column as u32 + split_word.start_char;
+                    let word_start_byte = offset + split_word.start_byte;
                     let location = TextRange {
-                        start_char: word_start_char,
-                        end_char: word_start_char + split_word.word.chars().count() as u32,
-                        line: line_number as u32,
+                        start_byte: word_start_byte,
+                        end_byte: word_start_byte + split_word.word.len(),
                     };
                     let word_text = split_word.word;
                     word_positions.entry(word_text).or_default().push(location);
@@ -238,27 +202,18 @@ fn find_locations_code(
         for capture in match_.captures {
             let node = capture.node;
             let node_text = node.utf8_text(provider).unwrap();
-            let node_start = node.start_position();
-            let current_line = node_start.row as u32;
-            let current_column = node_start.column as u32;
+            let node_start_byte = node.start_byte();
             // Create processor on just this part of the document
             let processor = TextProcessor::new(node_text, skip_patterns);
             let words = processor.extract_words();
-            // debug!("Found Capture: {node_text:?}");
-            // debug!("Words: {words:?}");
-            // debug!("Column: {current_column}");
-            // debug!("Line: {current_line}");
 
             // check words and fix locations relative to whole document
             for word_pos in words {
                 if !check_function(&word_pos.word) {
                     for range in word_pos.locations {
-                        let offset = if range.line == 0 { current_column } else { 0 };
-                        let base_start_char = range.start_char + offset;
                         let location = TextRange {
-                            start_char: base_start_char,
-                            end_char: base_start_char + word_pos.word.chars().count() as u32,
-                            line: range.line + current_line,
+                            start_byte: range.start_byte + node_start_byte,
+                            end_byte: range.end_byte + node_start_byte,
                         };
                         if let Some(existing_result) = word_locations.get_mut(&word_pos.word) {
                             #[cfg(debug_assertions)]
@@ -344,7 +299,7 @@ mod parser_tests {
         println!("{words:?}");
         for word in words {
             let loc = word.locations.first().unwrap();
-            let pos = (loc.start_char, loc.line);
+            let pos = (loc.start_byte, loc.end_byte);
             assert!(expected.contains(&(word.word.as_str(), pos)));
         }
     }
@@ -394,13 +349,13 @@ mod parser_tests {
         // If "badword" is found, verify its position
         if let Some(pos) = words.iter().find(|word| word.word == "badword") {
             // The correct position should be 6 (after ©<div>)
-            let start_char = pos.locations.first().unwrap().start_char;
-            let line = pos.locations.first().unwrap().line;
+            let start_byte = pos.locations.first().unwrap().start_byte;
+            let end_byte = pos.locations.first().unwrap().end_byte;
             assert_eq!(
-                start_char, 6,
+                start_byte, 6,
                 "Expected 'badword' to start at character position 6"
             );
-            assert_eq!(line, 0, "Expected 'badword' to be on line 0");
+            assert_eq!(end_byte, 0, "Expected 'badword' to be on end_byte 0");
         } else {
             panic!("Word 'badword' not found in the text");
         }

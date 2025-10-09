@@ -30,6 +30,7 @@ log.workspace = true
 lru.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+string-offsets.workspace = true
 streaming-iterator.workspace = true
 tokio = { workspace = true, features = ["sync", "rt"] }
 tower-lsp.workspace = true
