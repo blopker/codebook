@@ -2,8 +2,9 @@ MAKEFLAGS += -j4
 .PHONY: *
 export RUST_LOG=debug
 
+# Use `cargo nextest` if it's around, much faster
 test:
-	cargo test --lib --bins --tests -- --test-threads=20
+	@cargo nextest --version >/dev/null 2>&1 && cargo nextest run --lib --bins --tests || cargo test --lib --bins --tests
 
 test_queries:
 	cd crates/codebook && cargo test queries::tests::test_all_queries_are_valid
