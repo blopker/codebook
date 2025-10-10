@@ -41,89 +41,78 @@ fn test_typescript_location() {
         WordLocation::new(
             "Proifle".to_string(),
             vec![TextRange {
-                start_char: 18,
-                end_char: 25,
-                line: 3,
+                start_byte: 18,
+                end_byte: 25,
             }],
         ),
         WordLocation::new(
             "Adress".to_string(),
             vec![TextRange {
-                start_char: 13,
-                end_char: 19,
-                line: 7,
+                start_byte: 13,
+                end_byte: 19,
             }],
         ),
         WordLocation::new(
             "Acttive".to_string(),
             vec![TextRange {
-                start_char: 10,
-                end_char: 17,
-                line: 8,
+                start_byte: 10,
+                end_byte: 17,
             }],
         ),
         WordLocation::new(
             "Managger".to_string(),
             vec![TextRange {
-                start_char: 14,
-                end_char: 22,
-                line: 11,
+                start_byte: 14,
+                end_byte: 22,
             }],
         ),
         WordLocation::new(
             "userz".to_string(),
             vec![TextRange {
-                start_char: 16,
-                end_char: 21,
-                line: 12,
+                start_byte: 16,
+                end_byte: 21,
             }],
         ),
         WordLocation::new(
             "Endpoont".to_string(),
             vec![TextRange {
-                start_char: 31,
-                end_char: 39,
-                line: 14,
+                start_byte: 31,
+                end_byte: 39,
             }],
         ),
         WordLocation::new(
             "Usars".to_string(),
             vec![TextRange {
-                start_char: 26,
-                end_char: 31,
-                line: 18,
+                start_byte: 26,
+                end_byte: 31,
             }],
         ),
         WordLocation::new(
             "respoonse".to_string(),
             vec![TextRange {
-                start_char: 22,
-                end_char: 31,
-                line: 20,
+                start_byte: 22,
+                end_byte: 31,
             }],
         ),
         WordLocation::new(
             "erorr".to_string(),
             vec![TextRange {
-                start_char: 21,
-                end_char: 26,
-                line: 22,
+                start_byte: 21,
+                end_byte: 26,
             }],
         ),
         WordLocation::new(
             "usars".to_string(),
             vec![TextRange {
-                start_char: 38,
-                end_char: 43,
-                line: 23,
+                start_byte: 38,
+                end_byte: 43,
             }],
         ),
         WordLocation::new(
             "failled".to_string(),
             vec![TextRange {
-                start_char: 44,
-                end_char: 51,
-                line: 23,
+                start_byte: 44,
+                end_byte: 51,
             }],
         ),
     ];

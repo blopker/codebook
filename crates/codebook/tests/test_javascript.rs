@@ -37,57 +37,50 @@ fn test_javascript_location() {
         WordLocation::new(
             "objectz".to_string(),
             vec![TextRange {
-                start_char: 8,
-                end_char: 15,
-                line: 3,
+                start_byte: 8,
+                end_byte: 15,
             }],
         ),
         WordLocation::new(
             "namee".to_string(),
             vec![TextRange {
-                start_char: 8,
-                end_char: 13,
-                line: 4,
+                start_byte: 8,
+                end_byte: 13,
             }],
         ),
         WordLocation::new(
             "calculaate".to_string(),
             vec![TextRange {
-                start_char: 13,
-                end_char: 23,
-                line: 9,
+                start_byte: 13,
+                end_byte: 23,
             }],
         ),
         WordLocation::new(
             "misspelleed".to_string(),
             vec![TextRange {
-                start_char: 14,
-                end_char: 25,
-                line: 10,
+                start_byte: 14,
+                end_byte: 25,
             }],
         ),
         WordLocation::new(
             "thhis".to_string(),
             vec![TextRange {
-                start_char: 29,
-                end_char: 34,
-                line: 10,
+                start_byte: 29,
+                end_byte: 34,
             }],
         ),
         WordLocation::new(
             "scoree".to_string(),
             vec![TextRange {
-                start_char: 12,
-                end_char: 18,
-                line: 11,
+                start_byte: 12,
+                end_byte: 18,
             }],
         ),
         WordLocation::new(
             "errorz".to_string(),
             vec![TextRange {
-                start_char: 17,
-                end_char: 23,
-                line: 19,
+                start_byte: 17,
+                end_byte: 23,
             }],
         ),
     ];

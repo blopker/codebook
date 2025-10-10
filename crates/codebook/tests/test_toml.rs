@@ -16,9 +16,8 @@ fn test_toml_location() {
     let expected = vec![WordLocation::new(
         "testx".to_string(),
         vec![TextRange {
-            start_char: 16,
-            end_char: 21,
-            line: 1,
+            start_byte: 16,
+            end_byte: 21,
         }],
     )];
     let not_expected = ["testz"];

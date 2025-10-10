@@ -37,9 +37,8 @@ fn test_rust_comment_location() {
     let expected = vec![WordLocation::new(
         "mment".to_string(),
         vec![TextRange {
-            start_char: 32,
-            end_char: 37,
-            line: 1,
+            start_byte: 32,
+            end_byte: 37,
         }],
     )];
     let processor = utils::get_processor();
@@ -72,33 +71,29 @@ fn test_rust_block_comments() {
         WordLocation::new(
             "mment".to_string(),
             vec![TextRange {
-                start_char: 51,
-                end_char: 56,
-                line: 1,
+                start_byte: 51,
+                end_byte: 56,
             }],
         ),
         WordLocation::new(
             "examle".to_string(),
             vec![TextRange {
-                start_char: 8,
-                end_char: 14,
-                line: 3,
+                start_byte: 8,
+                end_byte: 14,
             }],
         ),
         WordLocation::new(
             "testz".to_string(),
             vec![TextRange {
-                start_char: 37,
-                end_char: 42,
-                line: 6,
+                start_byte: 37,
+                end_byte: 42,
             }],
         ),
         WordLocation::new(
             "Eror".to_string(),
             vec![TextRange {
-                start_char: 8,
-                end_char: 12,
-                line: 11,
+                start_byte: 8,
+                end_byte: 12,
             }],
         ),
     ];
@@ -128,25 +123,22 @@ fn test_rust_struct() {
         WordLocation::new(
             "Speler".to_string(),
             vec![TextRange {
-                start_char: 22,
-                end_char: 28,
-                line: 1,
+                start_byte: 22,
+                end_byte: 28,
             }],
         ),
         WordLocation::new(
             "dwnloader".to_string(),
             vec![TextRange {
-                start_char: 35,
-                end_char: 44,
-                line: 2,
+                start_byte: 35,
+                end_byte: 44,
             }],
         ),
         WordLocation::new(
             "dataz".to_string(),
             vec![TextRange {
-                start_char: 16,
-                end_char: 21,
-                line: 3,
+                start_byte: 16,
+                end_byte: 21,
             }],
         ),
     ];

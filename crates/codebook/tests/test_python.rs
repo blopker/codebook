@@ -41,17 +41,15 @@ multi_line_comment = '''
         WordLocation::new(
             "mment".to_string(),
             vec![TextRange {
-                start_char: 46,
-                end_char: 51,
-                line: 2,
+                start_byte: 46,
+                end_byte: 51,
             }],
         ),
         WordLocation::new(
             "linet".to_string(),
             vec![TextRange {
-                start_char: 12,
-                end_char: 17,
-                line: 3,
+                start_byte: 12,
+                end_byte: 17,
             }],
         ),
     ];
@@ -86,33 +84,29 @@ def constructor():
         WordLocation::new(
             "Spelin".to_string(),
             vec![TextRange {
-                start_char: 9,
-                end_char: 15,
-                line: 1,
+                start_byte: 9,
+                end_byte: 15,
             }],
         ),
         WordLocation::new(
             "nospel".to_string(),
             vec![TextRange {
-                start_char: 8,
-                end_char: 14,
-                line: 2,
+                start_byte: 8,
+                end_byte: 14,
             }],
         ),
         WordLocation::new(
             "hardz".to_string(),
             vec![TextRange {
-                start_char: 28,
-                end_char: 33,
-                line: 5,
+                start_byte: 28,
+                end_byte: 33,
             }],
         ),
         WordLocation::new(
             "hardg".to_string(),
             vec![TextRange {
-                start_char: 45,
-                end_char: 50,
-                line: 9,
+                start_byte: 45,
+                end_byte: 50,
             }],
         ),
     ];
@@ -146,41 +140,36 @@ mesage = "Helllo Wolrd!"
         WordLocation::new(
             "Globul".to_string(),
             vec![TextRange {
-                start_char: 2,
-                end_char: 8,
-                line: 1,
+                start_byte: 2,
+                end_byte: 8,
             }],
         ),
         WordLocation::new(
             "Countr".to_string(),
             vec![TextRange {
-                start_char: 6,
-                end_char: 12,
-                line: 2,
+                start_byte: 6,
+                end_byte: 12,
             }],
         ),
         WordLocation::new(
             "mesage".to_string(),
             vec![TextRange {
-                start_char: 0,
-                end_char: 6,
-                line: 3,
+                start_byte: 0,
+                end_byte: 6,
             }],
         ),
         WordLocation::new(
             "Helllo".to_string(),
             vec![TextRange {
-                start_char: 10,
-                end_char: 16,
-                line: 3,
+                start_byte: 10,
+                end_byte: 16,
             }],
         ),
         WordLocation::new(
             "Wolrd".to_string(),
             vec![TextRange {
-                start_char: 17,
-                end_char: 22,
-                line: 3,
+                start_byte: 17,
+                end_byte: 22,
             }],
         ),
     ];

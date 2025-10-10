@@ -35,9 +35,8 @@ fn test_text_location() {
     let expected = vec![WordLocation::new(
         "regu".to_string(),
         vec![TextRange {
-            start_char: 14,
-            end_char: 18,
-            line: 0,
+            start_byte: 14,
+            end_byte: 18,
         }],
     )];
     let processor = utils::get_processor();

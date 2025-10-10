@@ -46,9 +46,8 @@ fn test_elixir_comment_location() {
     let expected = vec![WordLocation::new(
         "Structur".to_string(),
         vec![TextRange {
-            start_char: 10,
-            end_char: 18,
-            line: 1,
+            start_byte: 10,
+            end_byte: 18,
         }],
     )];
     let processor = utils::get_processor();
@@ -85,45 +84,39 @@ fn test_elixir_module() {
             "Accaunt".to_string(),
             vec![
                 TextRange {
-                    start_char: 22,
-                    end_char: 29,
-                    line: 1,
+                    start_byte: 22,
+                    end_byte: 29,
                 },
                 TextRange {
-                    start_char: 17,
-                    end_char: 24,
-                    line: 9,
+                    start_byte: 17,
+                    end_byte: 24,
                 },
             ],
         ),
         WordLocation::new(
             "handels".to_string(),
             vec![TextRange {
-                start_char: 22,
-                end_char: 29,
-                line: 3,
+                start_byte: 22,
+                end_byte: 29,
             }],
         ),
         WordLocation::new(
             "accaunts".to_string(),
             vec![TextRange {
-                start_char: 35,
-                end_char: 43,
-                line: 3,
+                start_byte: 35,
+                end_byte: 43,
             }],
         ),
         WordLocation::new(
             "usrrnamee".to_string(),
             vec![
                 TextRange {
-                    start_char: 22,
-                    end_char: 31,
-                    line: 6,
+                    start_byte: 22,
+                    end_byte: 31,
                 },
                 TextRange {
-                    start_char: 14,
-                    end_char: 23,
-                    line: 10,
+                    start_byte: 14,
+                    end_byte: 23,
                 },
             ],
         ),
@@ -131,14 +124,12 @@ fn test_elixir_module() {
             "ballancee".to_string(),
             vec![
                 TextRange {
-                    start_char: 34,
-                    end_char: 43,
-                    line: 6,
+                    start_byte: 34,
+                    end_byte: 43,
                 },
                 TextRange {
-                    start_char: 14,
-                    end_char: 23,
-                    line: 11,
+                    start_byte: 14,
+                    end_byte: 23,
                 },
             ],
         ),
@@ -146,23 +137,20 @@ fn test_elixir_module() {
             "intrest".to_string(),
             vec![
                 TextRange {
-                    start_char: 46,
-                    end_char: 53,
-                    line: 6,
+                    start_byte: 46,
+                    end_byte: 53,
                 },
                 TextRange {
-                    start_char: 14,
-                    end_char: 21,
-                    line: 12,
+                    start_byte: 14,
+                    end_byte: 21,
                 },
             ],
         ),
         WordLocation::new(
             "accaunt".to_string(),
             vec![TextRange {
-                start_char: 21,
-                end_char: 28,
-                line: 8,
+                start_byte: 21,
+                end_byte: 28,
             }],
         ),
     ];

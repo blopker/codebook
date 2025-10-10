@@ -287,7 +287,7 @@ mod parser_tests {
             ("contraction", (18, 2)),
             ("don't", (31, 2)),
             ("ignore", (37, 2)),
-            ("me", (44, 2)),
+            ("me", (78, 80)),
             ("this", (12, 3)),
             ("is", (17, 3)),
             ("a", (20, 3)),
@@ -300,7 +300,12 @@ mod parser_tests {
         for word in words {
             let loc = word.locations.first().unwrap();
             let pos = (loc.start_byte, loc.end_byte);
-            assert!(expected.contains(&(word.word.as_str(), pos)));
+            assert!(
+                expected.contains(&(word.word.as_str(), pos)),
+                "Expected word '{}' to be at position {:?}",
+                word.word,
+                pos
+            );
         }
     }
 
@@ -352,10 +357,10 @@ mod parser_tests {
             let start_byte = pos.locations.first().unwrap().start_byte;
             let end_byte = pos.locations.first().unwrap().end_byte;
             assert_eq!(
-                start_byte, 6,
-                "Expected 'badword' to start at character position 6"
+                start_byte, 7,
+                "Expected 'badword' to start at character position 7"
             );
-            assert_eq!(end_byte, 0, "Expected 'badword' to be on end_byte 0");
+            assert_eq!(end_byte, 14, "Expected 'badword' to be on end_byte 14");
         } else {
             panic!("Word 'badword' not found in the text");
         }
