@@ -93,7 +93,9 @@ impl TextProcessor {
         F: FnMut(&str) -> bool,
     {
         // First pass: collect all unique words with their positions
-        let mut word_positions: HashMap<&str, Vec<TextRange>> = HashMap::new();
+        let estimated_words = (self.text.len() as f64 / 6.0).ceil() as usize;
+        let mut word_positions: HashMap<&str, Vec<TextRange>> =
+            HashMap::with_capacity(estimated_words);
 
         for (offset, word) in self.text.split_word_bound_indices() {
             if is_alphabetic(word) && !self.should_skip(offset, word.len()) {
