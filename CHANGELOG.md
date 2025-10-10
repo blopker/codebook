@@ -1,3 +1,13 @@
+[0.3.13]
+
+- Add server version to logs on startup
+- Remove extra logging that was added on accident 😬
+
+[0.3.12]
+
+- Added Dutch dictionary (nl_nl)
+- Fixed Unicode handling by properly sending diagnostic indexes in UTF16
+
 [0.3.11]
 
 - Update default word list
