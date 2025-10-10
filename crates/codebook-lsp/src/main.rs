@@ -63,7 +63,13 @@ async fn main() {
 }
 
 async fn serve_lsp(root: &Path) {
-    info!("Starting Codebook Language Server..");
+    let version = env!("CARGO_PKG_VERSION");
+    let build_profile = if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    };
+    info!("Starting Codebook Language Server v{version}-{build_profile}...");
     let (stdin, stdout) = (tokio::io::stdin(), tokio::io::stdout());
     let inner_root = root.to_owned();
 

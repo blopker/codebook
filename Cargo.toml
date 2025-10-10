@@ -78,6 +78,7 @@ lto = "thin"
 
 [profile.fast-release]
 inherits = "release"
+debug-assertions = true
 opt-level = 0
 lto = false
 panic = 'unwind'

@@ -1,7 +1,6 @@
 use crate::splitter::{self};
 
 use crate::queries::{LanguageType, get_language_setting};
-use log::info;
 use regex::Regex;
 use std::collections::HashMap;
 use streaming_iterator::StreamingIterator;
@@ -254,7 +253,6 @@ pub fn get_word_from_string(start_utf16: usize, end_utf16: usize, text: &str) ->
         .skip(start_utf16)
         .take(end_utf16 - start_utf16)
         .collect();
-    info!("UTF-16 slice: {:?}", utf16_slice);
     String::from_utf16_lossy(&utf16_slice)
 }
 
