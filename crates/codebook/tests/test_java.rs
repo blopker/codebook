@@ -40,88 +40,77 @@ fn test_java_location() {
         WordLocation::new(
             "Singl".to_string(),
             vec![TextRange {
-                start_char: 7,
-                end_char: 12,
-                line: 1,
+                start_byte: 8,
+                end_byte: 13,
             }],
         ),
         WordLocation::new(
             "Blck".to_string(),
             vec![TextRange {
-                start_char: 7,
-                end_char: 11,
-                line: 2,
+                start_byte: 34,
+                end_byte: 38,
             }],
         ),
         WordLocation::new(
             "Exampl".to_string(),
             vec![TextRange {
-                start_char: 14,
-                end_char: 20,
-                line: 4,
+                start_byte: 65,
+                end_byte: 71,
             }],
         ),
         WordLocation::new(
             "Somethng".to_string(),
             vec![
                 TextRange {
-                    start_char: 15,
-                    end_char: 23,
-                    line: 5,
+                    start_byte: 98,
+                    end_byte: 106,
                 },
                 TextRange {
-                    start_char: 22,
-                    end_char: 30,
-                    line: 14,
+                    start_byte: 261,
+                    end_byte: 269,
                 },
             ],
         ),
         WordLocation::new(
             "Statuss".to_string(),
             vec![TextRange {
-                start_char: 9,
-                end_char: 16,
-                line: 8,
+                start_byte: 126,
+                end_byte: 133,
             }],
         ),
         WordLocation::new(
             "ACTIV".to_string(),
             vec![TextRange {
-                start_char: 19,
-                end_char: 24,
-                line: 8,
+                start_byte: 136,
+                end_byte: 141,
             }],
         ),
         WordLocation::new(
             "Soem".to_string(),
             vec![TextRange {
-                start_char: 17,
-                end_char: 21,
-                line: 10,
+                start_byte: 162,
+                end_byte: 166,
             }],
         ),
         WordLocation::new(
             "messag".to_string(),
             vec![TextRange {
-                start_char: 15,
-                end_char: 21,
-                line: 12,
+                start_byte: 220,
+                end_byte: 226,
             }],
         ),
         WordLocation::new(
             "smth".to_string(),
             vec![TextRange {
-                start_char: 38,
-                end_char: 42,
-                line: 14,
+                start_byte: 277,
+                end_byte: 281,
             }],
         ),
         WordLocation::new(
             "errorr".to_string(),
             vec![TextRange {
-                start_char: 41,
-                end_char: 47,
-                line: 21,
+                start_byte: 492,
+                end_byte: 498,
             }],
         ),
     ];

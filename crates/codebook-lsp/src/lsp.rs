@@ -3,10 +3,11 @@ use std::path::Path;
 use std::str::FromStr as _;
 use std::sync::Arc;
 
-use codebook::parser::TextRange;
-use codebook::parser::WordLocation;
 use codebook::parser::get_word_from_string;
 use codebook::queries::LanguageType;
+use string_offsets::AllConfig;
+use string_offsets::Pos;
+use string_offsets::StringOffsets;
 
 use log::LevelFilter;
 use log::error;
@@ -62,6 +63,7 @@ impl From<CodebookCommand> for String {
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> RpcResult<InitializeResult> {
+        // info!("Capabilities: {:?}", params.capabilities);
         // Get log level from initialization options
         let log_level = params
             .initialization_options
@@ -85,6 +87,7 @@ impl LanguageServer for Backend {
         );
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
+                position_encoding: Some(PositionEncodingKind::UTF16),
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
                     TextDocumentSyncKind::FULL,
                 )),
@@ -192,6 +195,7 @@ impl LanguageServer for Backend {
             let start_char = diag.range.start.character as usize;
             let end_char = diag.range.end.character as usize;
             let word = get_word_from_string(start_char, end_char, line);
+            // info!("Word to suggest: {}", word);
             if word.is_empty() || word.contains(" ") {
                 continue;
             }
@@ -307,17 +311,17 @@ impl Backend {
             document_cache: TextDocumentCache::default(),
         }
     }
-    fn make_diagnostic(&self, result: &WordLocation, range: &TextRange) -> Diagnostic {
-        let message = format!("Possible spelling issue '{word}'.", word = result.word);
+    fn make_diagnostic(&self, word: &str, start_pos: &Pos, end_pos: &Pos) -> Diagnostic {
+        let message = format!("Possible spelling issue '{word}'.");
         Diagnostic {
             range: Range {
                 start: Position {
-                    line: range.line,
-                    character: range.start_char,
+                    line: start_pos.line as u32,
+                    character: start_pos.col as u32,
                 },
                 end: Position {
-                    line: range.line,
-                    character: range.end_char,
+                    line: end_pos.line as u32,
+                    character: end_pos.col as u32,
                 },
             },
             severity: Some(DiagnosticSeverity::INFORMATION),
@@ -428,7 +432,11 @@ impl Backend {
         // Convert the file URI to a local file path.
         let file_path = doc.uri.to_file_path().unwrap_or_default();
         debug!("Spell-checking file: {file_path:?}");
-        // 1) Perform spell-check.
+
+        // Convert utf8 byte offsets to utf16
+        let offsets = StringOffsets::<AllConfig>::new(&doc.text);
+
+        // Perform spell-check.
         let lang = doc.language_id.as_deref();
         let lang_type = lang.and_then(|lang| LanguageType::from_str(lang).ok());
         debug!("Document identified as type {lang_type:?} from {lang:?}");
@@ -447,14 +455,16 @@ impl Backend {
             }
         };
 
-        // 2) Convert the results to LSP diagnostics.
+        // Convert the results to LSP diagnostics.
         let diagnostics: Vec<Diagnostic> = spell_results
             .into_iter()
             .flat_map(|res| {
                 // For each misspelling, create a diagnostic for each location.
                 let mut new_locations = vec![];
                 for loc in &res.locations {
-                    let diagnostic = self.make_diagnostic(&res, loc);
+                    let start_pos = offsets.utf8_to_utf16_pos(loc.start_byte);
+                    let end_pos = offsets.utf8_to_utf16_pos(loc.end_byte);
+                    let diagnostic = self.make_diagnostic(&res.word, &start_pos, &end_pos);
                     new_locations.push(diagnostic);
                 }
                 new_locations
@@ -462,7 +472,7 @@ impl Backend {
             .collect();
 
         // debug!("Diagnostics: {:?}", diagnostics);
-        // 3) Send the diagnostics to the client.
+        // Send the diagnostics to the client.
         self.client
             .publish_diagnostics(doc.uri, diagnostics, None)
             .await;

@@ -46,201 +46,193 @@ fn test_go_location() {
         WordLocation::new(
             "pacagename".to_string(),
             vec![TextRange {
-                start_char: 12,
-                end_char: 22,
-                line: 1,
+                start_byte: 13,
+                end_byte: 23,
             }],
         ),
         WordLocation::new(
             "alicz".to_string(),
             vec![TextRange {
-                start_char: 12,
-                end_char: 17,
-                line: 16,
+                start_byte: 427,
+                end_byte: 432,
             }],
         ),
         WordLocation::new(
             "myfmt".to_string(),
             vec![TextRange {
-                start_char: 11,
-                end_char: 16,
-                line: 2,
+                start_byte: 35,
+                end_byte: 40,
             }],
         ),
         WordLocation::new(
             "Userr".to_string(),
+            vec![
+                TextRange {
+                    start_byte: 56,
+                    end_byte: 61,
+                },
+                TextRange {
+                    start_byte: 158,
+                    end_byte: 163,
+                },
+                TextRange {
+                    start_byte: 175,
+                    end_byte: 180,
+                },
+                TextRange {
+                    start_byte: 229,
+                    end_byte: 234,
+                },
+                TextRange {
+                    start_byte: 239,
+                    end_byte: 244,
+                },
+                TextRange {
+                    start_byte: 261,
+                    end_byte: 266,
+                },
+                TextRange {
+                    start_byte: 284,
+                    end_byte: 289,
+                },
+            ],
+        ),
+        WordLocation::new(
+            "prefixx".to_string(),
             vec![TextRange {
-                start_char: 9,
-                end_char: 14,
-                line: 3,
-            }, TextRange {
-                start_char: 11,
-                end_char: 16,
-                line: 7,
-            }, TextRange {
-                start_char: 28,
-                end_char: 33,
-                line: 7,
-            }, TextRange {
-                start_char: 13,
-                end_char: 18,
-                line: 10,
-            }, TextRange {
-                start_char: 23,
-                end_char: 28,
-                line: 10,
-            }, TextRange {
-                start_char: 45,
-                end_char: 50,
-                line: 10,
-            }, TextRange {
-                start_char: 15,
-                end_char: 20,
-                line: 11,
+                start_byte: 245,
+                end_byte: 252,
             }],
         ),
         WordLocation::new(
             "Namee".to_string(),
-            vec![TextRange {
-                start_char: 8,
-                end_char: 13,
-                line: 4,
-            }, TextRange {
-                start_char: 13,
-                end_char: 18,
-                line: 9,
-            }],
+            vec![
+                TextRange {
+                    start_byte: 79,
+                    end_byte: 84,
+                },
+                TextRange {
+                    start_byte: 200,
+                    end_byte: 205,
+                },
+            ],
         ),
         WordLocation::new(
             "Servicce".to_string(),
             vec![TextRange {
-                start_char: 13,
-                end_char: 21,
-                line: 6,
+                start_byte: 126,
+                end_byte: 134,
             }],
         ),
         WordLocation::new(
             "namme".to_string(),
             vec![TextRange {
-                start_char: 28,
-                end_char: 33,
-                line: 4,
+                start_byte: 99,
+                end_byte: 104,
             }],
         ),
         WordLocation::new(
             "outerr".to_string(),
-            vec![TextRange {
-                start_char: 4,
-                end_char: 10,
-                line: 22,
-            }, TextRange {
-                start_char: 22,
-                end_char: 28,
-                line: 25,
-            }],
+            vec![
+                TextRange {
+                    start_byte: 634,
+                    end_byte: 640,
+                },
+                TextRange {
+                    start_byte: 738,
+                    end_byte: 744,
+                },
+            ],
         ),
         WordLocation::new(
             "itemns".to_string(),
             vec![TextRange {
-                start_char: 8,
-                end_char: 14,
-                line: 28,
+                start_byte: 777,
+                end_byte: 783,
             }],
         ),
         WordLocation::new(
             "indexx".to_string(),
             vec![TextRange {
-                start_char: 12,
-                end_char: 18,
-                line: 29,
+                start_byte: 838,
+                end_byte: 844,
             }],
         ),
         WordLocation::new(
             "cokbookkk".to_string(),
             vec![TextRange {
-                start_char: 8,
-                end_char: 17,
-                line: 20,
+                start_byte: 559,
+                end_byte: 568,
             }],
         ),
         WordLocation::new(
             "valie".to_string(),
             vec![TextRange {
-                start_char: 27,
-                end_char: 32,
-                line: 20,
+                start_byte: 578,
+                end_byte: 583,
             }],
         ),
         WordLocation::new(
             "Wolrd".to_string(),
             vec![TextRange {
-                start_char: 30,
-                end_char: 35,
-                line: 15,
+                start_byte: 406,
+                end_byte: 411,
             }],
         ),
         WordLocation::new(
             "Alicz".to_string(),
             vec![TextRange {
-                start_char: 21,
-                end_char: 26,
-                line: 16,
+                start_byte: 436,
+                end_byte: 441,
             }],
         ),
         WordLocation::new(
             "speling".to_string(),
             vec![TextRange {
-                start_char: 22,
-                end_char: 29,
-                line: 14,
+                start_byte: 362,
+                end_byte: 369,
             }],
         ),
         WordLocation::new(
             "Hellol".to_string(),
             vec![TextRange {
-                start_char: 23,
-                end_char: 29,
-                line: 17,
+                start_byte: 466,
+                end_byte: 472,
             }],
         ),
         WordLocation::new(
             "imdex".to_string(),
             vec![TextRange {
-                start_char: 12,
-                end_char: 17,
-                line: 23,
+                start_byte: 654,
+                end_byte: 659,
             }],
         ),
         WordLocation::new(
             "firstt".to_string(),
             vec![TextRange {
-                start_char: 28,
-                end_char: 34,
-                line: 28,
+                start_byte: 797,
+                end_byte: 803,
             }],
         ),
         WordLocation::new(
             "seconnd".to_string(),
             vec![TextRange {
-                start_char: 38,
-                end_char: 45,
-                line: 28,
+                start_byte: 807,
+                end_byte: 814,
             }],
         ),
         WordLocation::new(
             "tihrd".to_string(),
             vec![TextRange {
-                start_char: 49,
-                end_char: 54,
-                line: 28,
+                start_byte: 818,
+                end_byte: 823,
             }],
         ),
         WordLocation::new(
             "valuue".to_string(),
             vec![TextRange {
-                start_char: 20,
-                end_char: 26,
-                line: 29,
+                start_byte: 846,
+                end_byte: 852,
             }],
         ),
     ];

@@ -12,6 +12,7 @@ dirs
 diy
 dns
 downloader
+encodings
 etag
 filesystem
 fixme

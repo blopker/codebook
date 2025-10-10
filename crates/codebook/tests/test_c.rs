@@ -45,9 +45,8 @@ fn test_c_comment_location() {
     let expected = vec![WordLocation::new(
         "Structur".to_string(),
         vec![TextRange {
-            start_char: 11,
-            end_char: 19,
-            line: 1,
+            start_byte: 12,
+            end_byte: 20,
         }],
     )];
     let processor = utils::get_processor();
@@ -73,33 +72,29 @@ fn test_c_struct() {
         WordLocation::new(
             "Accaunt".to_string(),
             vec![TextRange {
-                start_char: 19,
-                end_char: 26,
-                line: 1,
+                start_byte: 20,
+                end_byte: 27,
             }],
         ),
         WordLocation::new(
             "usrrnamee".to_string(),
             vec![TextRange {
-                start_char: 18,
-                end_char: 27,
-                line: 2,
+                start_byte: 48,
+                end_byte: 57,
             }],
         ),
         WordLocation::new(
             "ballancee".to_string(),
             vec![TextRange {
-                start_char: 16,
-                end_char: 25,
-                line: 3,
+                start_byte: 75,
+                end_byte: 84,
             }],
         ),
         WordLocation::new(
             "intrest".to_string(),
             vec![TextRange {
-                start_char: 18,
-                end_char: 25,
-                line: 4,
+                start_byte: 104,
+                end_byte: 111,
             }],
         ),
     ];

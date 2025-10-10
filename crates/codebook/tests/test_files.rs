@@ -27,9 +27,8 @@ fn test_example_files_word_locations() {
             vec![WordLocation::new(
                 "Pthon".to_string(),
                 vec![TextRange {
-                    start_char: 10,
-                    end_char: 15,
-                    line: 0,
+                    start_byte: 10,
+                    end_byte: 15,
                 }],
             )],
         ),
@@ -38,9 +37,8 @@ fn test_example_files_word_locations() {
             vec![WordLocation::new(
                 "mistkes".to_string(),
                 vec![TextRange {
-                    start_char: 19,
-                    end_char: 26,
-                    line: 12,
+                    start_byte: 315,
+                    end_byte: 322,
                 }],
             )],
         ),
@@ -50,9 +48,8 @@ fn test_example_files_word_locations() {
             vec![WordLocation {
                 word: "Splellin".to_string(),
                 locations: vec![TextRange {
-                    start_char: 10,
-                    end_char: 18,
-                    line: 0,
+                    start_byte: 10,
+                    end_byte: 18,
                 }],
             }],
         ),
@@ -62,25 +59,22 @@ fn test_example_files_word_locations() {
                 WordLocation {
                     word: "wolrd".to_string(),
                     locations: vec![TextRange {
-                        start_char: 26,
-                        end_char: 31,
-                        line: 0,
+                        start_byte: 26,
+                        end_byte: 31,
                     }],
                 },
                 WordLocation {
                     word: "Wolrd".to_string(),
                     locations: vec![TextRange {
-                        start_char: 20,
-                        end_char: 25,
-                        line: 0,
+                        start_byte: 20,
+                        end_byte: 25,
                     }],
                 },
                 WordLocation {
                     word: "regulr".to_string(),
                     locations: vec![TextRange {
-                        start_char: 6,
-                        end_char: 12,
-                        line: 1,
+                        start_byte: 38,
+                        end_byte: 44,
                     }],
                 },
             ],

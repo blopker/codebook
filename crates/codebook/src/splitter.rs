@@ -11,7 +11,7 @@ enum CharType {
 #[derive(Debug, PartialEq)]
 pub struct SplitRef<'a> {
     pub word: &'a str,
-    pub start_char: u32,
+    pub start_byte: usize,
 }
 
 pub fn split(s: &str) -> Vec<SplitRef<'_>> {
@@ -21,11 +21,9 @@ pub fn split(s: &str) -> Vec<SplitRef<'_>> {
 
     let mut result = Vec::new();
     let mut word_start_byte = 0;
-    let mut word_start_char = 0;
     let mut prev_char_type = None;
 
     let mut char_iter = s.char_indices().peekable();
-    let mut i = 0;
 
     while let Some((byte_pos, c)) = char_iter.next() {
         assert!(
@@ -65,11 +63,10 @@ pub fn split(s: &str) -> Vec<SplitRef<'_>> {
             if !word_slice.is_empty() && !word_slice.chars().all(|c| matches!(c, '_' | '.' | ':')) {
                 result.push(SplitRef {
                     word: word_slice,
-                    start_char: word_start_char as u32,
+                    start_byte: word_start_byte,
                 });
             }
             word_start_byte = byte_pos;
-            word_start_char = i;
         }
 
         if matches!(
@@ -78,15 +75,12 @@ pub fn split(s: &str) -> Vec<SplitRef<'_>> {
         ) {
             if let Some((next_byte_pos, _)) = char_iter.peek() {
                 word_start_byte = *next_byte_pos;
-                word_start_char = i + 1;
             } else {
                 word_start_byte = s.len();
-                word_start_char = i + 1;
             }
         }
 
         prev_char_type = Some(char_type);
-        i += 1;
     }
 
     // Handle final word
@@ -95,7 +89,7 @@ pub fn split(s: &str) -> Vec<SplitRef<'_>> {
         if !word_slice.is_empty() && !word_slice.chars().all(|c| matches!(c, '_' | '.' | ':')) {
             result.push(SplitRef {
                 word: word_slice,
-                start_char: word_start_char as u32,
+                start_byte: word_start_byte,
             });
         }
     }
@@ -124,19 +118,19 @@ mod tests {
             vec![
                 SplitRef {
                     word: "calculate",
-                    start_char: 0
+                    start_byte: 0
                 },
                 SplitRef {
                     word: "User",
-                    start_char: 9
+                    start_byte: 9
                 },
                 SplitRef {
                     word: "Age",
-                    start_char: 14
+                    start_byte: 14
                 },
                 SplitRef {
                     word: "word",
-                    start_char: 21
+                    start_byte: 21
                 }
             ]
         );
@@ -150,19 +144,19 @@ mod tests {
             vec![
                 SplitRef {
                     word: "calculate",
-                    start_char: 0
+                    start_byte: 0
                 },
                 SplitRef {
                     word: "User",
-                    start_char: 9
+                    start_byte: 9
                 },
                 SplitRef {
                     word: "Age",
-                    start_char: 14
+                    start_byte: 14
                 },
                 SplitRef {
                     word: "word",
-                    start_char: 21
+                    start_byte: 21
                 }
             ]
         );
@@ -176,19 +170,19 @@ mod tests {
             vec![
                 SplitRef {
                     word: "calculate",
-                    start_char: 0
+                    start_byte: 0
                 },
                 SplitRef {
                     word: "User",
-                    start_char: 9
+                    start_byte: 9
                 },
                 SplitRef {
                     word: "Age",
-                    start_char: 14
+                    start_byte: 14
                 },
                 SplitRef {
                     word: "word",
-                    start_char: 21
+                    start_byte: 21
                 }
             ]
         );
@@ -202,15 +196,15 @@ mod tests {
             vec![
                 SplitRef {
                     word: "XML",
-                    start_char: 0
+                    start_byte: 0
                 },
                 SplitRef {
                     word: "Http",
-                    start_char: 3
+                    start_byte: 3
                 },
                 SplitRef {
                     word: "Request",
-                    start_char: 7
+                    start_byte: 7
                 }
             ]
         );
@@ -248,15 +242,15 @@ mod tests {
             vec![
                 SplitRef {
                     word: "calculate",
-                    start_char: 0
+                    start_byte: 0
                 },
                 SplitRef {
                     word: "User",
-                    start_char: 9
+                    start_byte: 9
                 },
                 SplitRef {
                     word: "Age",
-                    start_char: 13
+                    start_byte: 13
                 }
             ]
         );
@@ -270,19 +264,19 @@ mod tests {
             vec![
                 SplitRef {
                     word: "calculate",
-                    start_char: 0
+                    start_byte: 0
                 },
                 SplitRef {
                     word: "User",
-                    start_char: 9
+                    start_byte: 9
                 },
                 SplitRef {
                     word: "Age",
-                    start_char: 14
+                    start_byte: 14
                 },
                 SplitRef {
                     word: "word",
-                    start_char: 19
+                    start_byte: 19
                 }
             ]
         );
@@ -296,15 +290,15 @@ mod tests {
             vec![
                 SplitRef {
                     word: "XML",
-                    start_char: 0
+                    start_byte: 0
                 },
                 SplitRef {
                     word: "Http",
-                    start_char: 3
+                    start_byte: 3
                 },
                 SplitRef {
                     word: "Request",
-                    start_char: 7
+                    start_byte: 7
                 }
             ]
         );

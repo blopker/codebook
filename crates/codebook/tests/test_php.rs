@@ -64,39 +64,34 @@ $userDetails = $userr->getUserDeetails();
         WordLocation::new(
             "Servicez".to_string(),
             vec![TextRange {
-                start_char: 14,
-                end_char: 22,
-                line: 2,
+                start_byte: 49,
+                end_byte: 57,
             }],
         ),
         WordLocation::new(
             "Servicce".to_string(),
             vec![TextRange {
-                start_char: 10,
-                end_char: 18,
-                line: 7,
+                start_byte: 112,
+                end_byte: 120,
             }],
         ),
         WordLocation::new(
             "ACTIVVE".to_string(),
             vec![TextRange {
-                start_char: 17,
-                end_char: 24,
-                line: 9,
+                start_byte: 163,
+                end_byte: 170,
             }],
         ),
         WordLocation::new(
             "Idd".to_string(),
             vec![
                 TextRange {
-                    start_char: 17,
-                    end_char: 20,
-                    line: 12,
+                    start_byte: 219,
+                    end_byte: 222,
                 },
                 TextRange {
-                    start_char: 37,
-                    end_char: 40,
-                    line: 16,
+                    start_byte: 307,
+                    end_byte: 310,
                 },
             ],
         ),
@@ -104,87 +99,76 @@ $userDetails = $userr->getUserDeetails();
             "databaase".to_string(),
             vec![
                 TextRange {
-                    start_char: 15,
-                    end_char: 24,
-                    line: 13,
+                    start_byte: 239,
+                    end_byte: 248,
                 },
                 TextRange {
-                    start_char: 43,
-                    end_char: 52,
-                    line: 16,
+                    start_byte: 313,
+                    end_byte: 322,
                 },
             ],
         ),
         WordLocation::new(
             "Deetails".to_string(),
             vec![TextRange {
-                start_char: 27,
-                end_char: 35,
-                line: 22,
+                start_byte: 473,
+                end_byte: 481,
             }],
         ),
         WordLocation::new(
             "querry".to_string(),
             vec![TextRange {
-                start_char: 9,
-                end_char: 15,
-                line: 23,
+                start_byte: 495,
+                end_byte: 501,
             }],
         ),
         WordLocation::new(
             "foundd".to_string(),
             vec![TextRange {
-                start_char: 42,
-                end_char: 48,
-                line: 26,
+                start_byte: 630,
+                end_byte: 636,
             }],
         ),
         WordLocation::new(
             "formatt".to_string(),
             vec![TextRange {
-                start_char: 9,
-                end_char: 16,
-                line: 34,
+                start_byte: 722,
+                end_byte: 729,
             }],
         ),
         WordLocation::new(
             "amountt".to_string(),
             vec![TextRange {
-                start_char: 26,
-                end_char: 33,
-                line: 34,
+                start_byte: 739,
+                end_byte: 746,
             }],
         ),
         WordLocation::new(
             "symboll".to_string(),
             vec![TextRange {
-                start_char: 5,
-                end_char: 12,
-                line: 35,
+                start_byte: 774,
+                end_byte: 781,
             }],
         ),
         WordLocation::new(
             "formattted".to_string(),
             vec![TextRange {
-                start_char: 9,
-                end_char: 19,
-                line: 39,
+                start_byte: 855,
+                end_byte: 865,
             }],
         ),
         WordLocation::new(
             "errr".to_string(),
             vec![TextRange {
-                start_char: 23,
-                end_char: 27,
-                line: 40,
+                start_byte: 930,
+                end_byte: 934,
             }],
         ),
         WordLocation::new(
             "userr".to_string(),
             vec![TextRange {
-                start_char: 1,
-                end_char: 6,
-                line: 48,
+                start_byte: 1019,
+                end_byte: 1024,
             }],
         ),
     ];

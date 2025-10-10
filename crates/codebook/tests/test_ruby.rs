@@ -76,41 +76,36 @@ HTML
         WordLocation::new(
             "Clickk".to_string(),
             vec![TextRange {
-                start_char: 5,
-                end_char: 11,
-                line: 2,
+                start_byte: 25,
+                end_byte: 31,
             }],
         ),
         WordLocation::new(
             "documantation".to_string(),
             vec![TextRange {
-                start_char: 6,
-                end_char: 19,
-                line: 6,
+                start_byte: 91,
+                end_byte: 104,
             }],
         ),
         WordLocation::new(
             "profesional".to_string(),
             vec![TextRange {
-                start_char: 40,
-                end_char: 51,
-                line: 6,
+                start_byte: 125,
+                end_byte: 136,
             }],
         ),
         WordLocation::new(
             "importent".to_string(),
             vec![TextRange {
-                start_char: 10,
-                end_char: 19,
-                line: 10,
+                start_byte: 175,
+                end_byte: 184,
             }],
         ),
         WordLocation::new(
             "Wellcome".to_string(),
             vec![TextRange {
-                start_char: 6,
-                end_char: 14,
-                line: 14,
+                start_byte: 261,
+                end_byte: 269,
             }],
         ),
     ];
@@ -150,65 +145,57 @@ end
         WordLocation::new(
             "potentialy".to_string(),
             vec![TextRange {
-                start_char: 36,
-                end_char: 46,
-                line: 2,
+                start_byte: 84,
+                end_byte: 94,
             }],
         ),
         WordLocation::new(
             "compleet".to_string(),
             vec![TextRange {
-                start_char: 48,
-                end_char: 56,
-                line: 11,
+                start_byte: 329,
+                end_byte: 337,
             }],
         ),
         WordLocation::new(
             "notfication".to_string(),
             vec![TextRange {
-                start_char: 9,
-                end_char: 20,
-                line: 1,
+                start_byte: 10,
+                end_byte: 21,
             }],
         ),
         WordLocation::new(
             "Regads".to_string(),
             vec![TextRange {
-                start_char: 48,
-                end_char: 54,
-                line: 6,
+                start_byte: 237,
+                end_byte: 243,
             }],
         ),
         WordLocation::new(
             "complette".to_string(),
             vec![TextRange {
-                start_char: 14,
-                end_char: 23,
-                line: 11,
+                start_byte: 295,
+                end_byte: 304,
             }],
         ),
         WordLocation::new(
             "custommer".to_string(),
             vec![TextRange {
-                start_char: 23,
-                end_char: 32,
-                line: 6,
+                start_byte: 212,
+                end_byte: 221,
             }],
         ),
         WordLocation::new(
             "Suport".to_string(),
             vec![TextRange {
-                start_char: 57,
-                end_char: 63,
-                line: 6,
+                start_byte: 246,
+                end_byte: 252,
             }],
         ),
         WordLocation::new(
             "partialy".to_string(),
             vec![TextRange {
-                start_char: 39,
-                end_char: 47,
-                line: 11,
+                start_byte: 320,
+                end_byte: 328,
             }],
         ),
     ];

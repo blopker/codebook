@@ -463,7 +463,7 @@ Run test with `make test` after cloning. Integration tests are also available wi
 - Spellbook: https://github.com/helix-editor/spellbook
 - cSpell for VSCode: https://marketplace.visualstudio.com/items?itemName=streetsidesoftware.code-spell-checker
 - Vale: https://github.com/errata-ai/vale-ls
-- TreeSitter Visualizer: https://intmainreturn0.com/ts-visualizer/
+- Tree-sitter Visualizer: https://intmainreturn0.com/ts-visualizer/
 - common-words: https://github.com/anvaka/common-words
 - Hunspell dictionaries in UTF-8: https://github.com/wooorm/dictionaries
 
