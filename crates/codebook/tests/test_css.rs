@@ -19,8 +19,8 @@ fn test_css_location() {
     let expected = vec![WordLocation::new(
         "testz".to_string(),
         vec![TextRange {
-            start_byte: 9,
-            end_byte: 14,
+            start_byte: 60,
+            end_byte: 65,
         }],
     )];
     let processor = utils::get_processor();

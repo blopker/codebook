@@ -278,21 +278,21 @@ mod parser_tests {
             this is a 3rd line.
             "#;
         let expected = vec![
-            ("Hello", (12, 1)),
-            ("World", (17, 1)),
-            ("calc", (23, 1)),
-            ("wrld", (28, 1)),
-            ("I'm", (12, 2)),
-            ("a", (16, 2)),
-            ("contraction", (18, 2)),
-            ("don't", (31, 2)),
-            ("ignore", (37, 2)),
+            ("Hello", (13, 18)),
+            ("World", (18, 23)),
+            ("calc", (24, 28)),
+            ("wrld", (29, 33)),
+            ("I'm", (46, 49)),
+            ("a", (50, 51)),
+            ("contraction", (52, 63)),
+            ("don't", (65, 70)),
+            ("ignore", (71, 77)),
             ("me", (78, 80)),
-            ("this", (12, 3)),
-            ("is", (17, 3)),
-            ("a", (20, 3)),
-            ("rd", (23, 3)),
-            ("line", (26, 3)),
+            ("this", (93, 97)),
+            ("is", (98, 100)),
+            ("a", (101, 102)),
+            ("rd", (104, 106)),
+            ("line", (107, 111)),
         ];
         let processor = TextProcessor::new(text, &[]);
         let words = processor.extract_words();

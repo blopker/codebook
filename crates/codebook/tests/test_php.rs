@@ -64,34 +64,34 @@ $userDetails = $userr->getUserDeetails();
         WordLocation::new(
             "Servicez".to_string(),
             vec![TextRange {
-                start_byte: 14,
-                end_byte: 22,
+                start_byte: 49,
+                end_byte: 57,
             }],
         ),
         WordLocation::new(
             "Servicce".to_string(),
             vec![TextRange {
-                start_byte: 10,
-                end_byte: 18,
+                start_byte: 112,
+                end_byte: 120,
             }],
         ),
         WordLocation::new(
             "ACTIVVE".to_string(),
             vec![TextRange {
-                start_byte: 17,
-                end_byte: 24,
+                start_byte: 163,
+                end_byte: 170,
             }],
         ),
         WordLocation::new(
             "Idd".to_string(),
             vec![
                 TextRange {
-                    start_byte: 17,
-                    end_byte: 20,
+                    start_byte: 219,
+                    end_byte: 222,
                 },
                 TextRange {
-                    start_byte: 37,
-                    end_byte: 40,
+                    start_byte: 307,
+                    end_byte: 310,
                 },
             ],
         ),
@@ -99,76 +99,76 @@ $userDetails = $userr->getUserDeetails();
             "databaase".to_string(),
             vec![
                 TextRange {
-                    start_byte: 15,
-                    end_byte: 24,
+                    start_byte: 239,
+                    end_byte: 248,
                 },
                 TextRange {
-                    start_byte: 43,
-                    end_byte: 52,
+                    start_byte: 313,
+                    end_byte: 322,
                 },
             ],
         ),
         WordLocation::new(
             "Deetails".to_string(),
             vec![TextRange {
-                start_byte: 27,
-                end_byte: 35,
+                start_byte: 473,
+                end_byte: 481,
             }],
         ),
         WordLocation::new(
             "querry".to_string(),
             vec![TextRange {
-                start_byte: 9,
-                end_byte: 15,
+                start_byte: 495,
+                end_byte: 501,
             }],
         ),
         WordLocation::new(
             "foundd".to_string(),
             vec![TextRange {
-                start_byte: 42,
-                end_byte: 48,
+                start_byte: 630,
+                end_byte: 636,
             }],
         ),
         WordLocation::new(
             "formatt".to_string(),
             vec![TextRange {
-                start_byte: 9,
-                end_byte: 16,
+                start_byte: 722,
+                end_byte: 729,
             }],
         ),
         WordLocation::new(
             "amountt".to_string(),
             vec![TextRange {
-                start_byte: 26,
-                end_byte: 33,
+                start_byte: 739,
+                end_byte: 746,
             }],
         ),
         WordLocation::new(
             "symboll".to_string(),
             vec![TextRange {
-                start_byte: 5,
-                end_byte: 12,
+                start_byte: 774,
+                end_byte: 781,
             }],
         ),
         WordLocation::new(
             "formattted".to_string(),
             vec![TextRange {
-                start_byte: 9,
-                end_byte: 19,
+                start_byte: 855,
+                end_byte: 865,
             }],
         ),
         WordLocation::new(
             "errr".to_string(),
             vec![TextRange {
-                start_byte: 23,
-                end_byte: 27,
+                start_byte: 930,
+                end_byte: 934,
             }],
         ),
         WordLocation::new(
             "userr".to_string(),
             vec![TextRange {
-                start_byte: 1,
-                end_byte: 6,
+                start_byte: 1019,
+                end_byte: 1024,
             }],
         ),
     ];

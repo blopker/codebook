@@ -27,8 +27,8 @@ fn test_custom_words() {
     let expected = vec![WordLocation::new(
         "actualbad".to_string(),
         vec![TextRange {
-            start_byte: 8,
-            end_byte: 17,
+            start_byte: 62,
+            end_byte: 71,
         }],
     )];
     let not_expected = ["testword"];

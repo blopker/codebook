@@ -37,8 +37,8 @@ fn test_rust_comment_location() {
     let expected = vec![WordLocation::new(
         "mment".to_string(),
         vec![TextRange {
-            start_byte: 32,
-            end_byte: 37,
+            start_byte: 33,
+            end_byte: 38,
         }],
     )];
     let processor = utils::get_processor();
@@ -71,29 +71,29 @@ fn test_rust_block_comments() {
         WordLocation::new(
             "mment".to_string(),
             vec![TextRange {
-                start_byte: 51,
-                end_byte: 56,
+                start_byte: 52,
+                end_byte: 57,
             }],
         ),
         WordLocation::new(
             "examle".to_string(),
             vec![TextRange {
-                start_byte: 8,
-                end_byte: 14,
+                start_byte: 67,
+                end_byte: 73,
             }],
         ),
         WordLocation::new(
             "testz".to_string(),
             vec![TextRange {
-                start_byte: 37,
-                end_byte: 42,
+                start_byte: 123,
+                end_byte: 128,
             }],
         ),
         WordLocation::new(
             "Eror".to_string(),
             vec![TextRange {
-                start_byte: 8,
-                end_byte: 12,
+                start_byte: 187,
+                end_byte: 191,
             }],
         ),
     ];
@@ -123,22 +123,22 @@ fn test_rust_struct() {
         WordLocation::new(
             "Speler".to_string(),
             vec![TextRange {
-                start_byte: 22,
-                end_byte: 28,
+                start_byte: 23,
+                end_byte: 29,
             }],
         ),
         WordLocation::new(
             "dwnloader".to_string(),
             vec![TextRange {
-                start_byte: 35,
-                end_byte: 44,
+                start_byte: 67,
+                end_byte: 76,
             }],
         ),
         WordLocation::new(
             "dataz".to_string(),
             vec![TextRange {
-                start_byte: 16,
-                end_byte: 21,
+                start_byte: 93,
+                end_byte: 98,
             }],
         ),
     ];

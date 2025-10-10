@@ -37,8 +37,8 @@ fn test_example_files_word_locations() {
             vec![WordLocation::new(
                 "mistkes".to_string(),
                 vec![TextRange {
-                    start_byte: 19,
-                    end_byte: 26,
+                    start_byte: 315,
+                    end_byte: 322,
                 }],
             )],
         ),
@@ -73,8 +73,8 @@ fn test_example_files_word_locations() {
                 WordLocation {
                     word: "regulr".to_string(),
                     locations: vec![TextRange {
-                        start_byte: 6,
-                        end_byte: 12,
+                        start_byte: 38,
+                        end_byte: 44,
                     }],
                 },
             ],
