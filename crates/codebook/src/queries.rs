@@ -23,6 +23,7 @@ pub enum LanguageType {
     TOML,
     Text,
     Typescript,
+    Zig,
 }
 
 impl FromStr for LanguageType {
@@ -183,6 +184,13 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         query: include_str!("queries/r.scm"),
         extensions: &["r", "R"],
     },
+    LanguageSetting {
+        type_: LanguageType::Zig,
+        ids: &["zig"],
+        dictionary_ids: &["zig"],
+        query: include_str!("queries/zig.scm"),
+        extensions: &["zig"],
+    },
 ];
 
 #[derive(Debug)]
@@ -217,6 +225,7 @@ impl LanguageSetting {
             LanguageType::TOML => Some(tree_sitter_toml_ng::LANGUAGE.into()),
             LanguageType::Text => None,
             LanguageType::Typescript => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
+            LanguageType::Zig => Some(tree_sitter_zig::LANGUAGE.into()),
         }
     }
 }
