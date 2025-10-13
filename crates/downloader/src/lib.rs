@@ -457,7 +457,7 @@ mod tests {
 
         let downloader = Downloader::new(temp_dir.path()).unwrap();
         downloader.get(&server.url("/test.txt")).unwrap();
-        mock.assert_hits(1);
+        mock.assert_calls(1);
 
         // Subsequent call within two weeks
         let mock2 = server.mock(|when, then| {
@@ -465,7 +465,7 @@ mod tests {
             then.status(200);
         });
         downloader.get(&server.url("/test.txt")).unwrap();
-        mock2.assert_hits(0); // Should not make any new requests
+        mock2.assert_calls(0); // Should not make any new requests
     }
 
     #[test]

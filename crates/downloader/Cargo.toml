@@ -13,7 +13,7 @@ keywords = ["download", "dictionary", "spell-checker"]
 categories = ["development-tools", "text-processing"]
 
 [dev-dependencies]
-httpmock = "0.7.0"
+httpmock.workspace = true
 
 [dependencies]
 anyhow.workspace = true
