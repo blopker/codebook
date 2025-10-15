@@ -1,46 +1,73 @@
-\documentclass[12pt]{article}
-\usepackage{lingmacros}
-\usepackage{tree-dvips}
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{graphicx}
+
+\title{A Sampel Document with Speling Erors}
+\author{John Doe}
+\date{\today}
+
 \begin{document}
 
-\section*{Notes for My Paper}
+\maketitle
 
-Don't forget to include examples of topicalization.
-They look like this:
+% This is a coment with a typo: calcuate
+% Another commnet with wrng spellingg
 
-{\small
-\enumsentence{Topicalization from sentential subject:\\
-\shortex{7}{a John$_i$ [a & kltukl & [el &
-  {\bf l-}oltoir & er & ngii$_i$ & a Mary]]}
-{ & {\bf R-}clear & {\sc comp} &
-  {\bf IR}.{\sc 3s}-love   & P & him & }
-{John, (it's) clear that Mary loves (him).}}
-}
+\section{Introducton}
 
-\subsection*{How to handle topicalization}
+This is an exampl of a LaTeX document with intentinal spelling errors.
+The purpse of this docment is to test the spel checker functionality.
 
-I'll just assume a tree structure like (\ex{1}).
+\subsection{Bakground}
 
-{\small
-\enumsentence{Structure of A$'$ Projections:\\ [2ex]
-\begin{tabular}[t]{cccc}
-    & \node{i}{CP}\\ [2ex]
-    \node{ii}{Spec} &   &\node{iii}{C$'$}\\ [2ex]
-        &\node{iv}{C} & & \node{v}{SAgrP}
-\end{tabular}
-\nodeconnect{i}{ii}
-\nodeconnect{i}{iii}
-\nodeconnect{iii}{iv}
-\nodeconnect{iii}{v}
-}
-}
+In this secion, we will discuss some importnt concepts.
+The folowing list contains severl items:
 
-\subsection*{Mood}
+\begin{itemize}
+    \item First itm with a typo: algoritm
+    \item Second itm about mathmatical formulas
+    \item Third itm discussing resarch methods
+\end{itemize}
 
-Mood changes when there is a topic, as well as when
-there is WH-movement.  \emph{Irrealis} is the mood when
-there is a non-subject topic or WH-phrase in Comp.
-\emph{Realis} is the mood when there is a subject topic
-or WH-phrase.
+\section{Methology}
+
+The methology section describs the approach used in this reserch.
+We will demonstate several techniqes for procesing data.
+
+\subsection{Data Colection}
+
+Data was colected from varous sources including:
+\begin{enumerate}
+    \item Primry sources
+    \item Secondry sources
+    \item Teriary references
+\end{enumerate}
+
+\section{Resuts}
+
+The resuts show that our aproach is efective.
+We can see this in the folowing equation:
+
+\begin{equation}
+    E = mc^2 \label{eq:enrgy}
+\end{equation}
+
+As shown in Equation~\ref{eq:enrgy}, the relatioship is clear.
+
+\subsection{Analyss}
+
+The analyss reveals severl interesting paternzs.
+These paterns suggest that our hypothsis was corect.
+
+% Comment: More detals needed here
+
+\section{Concluson}
+
+In concluson, this docment demonstrates variuos spelling errors
+that should be detectd by the spell checker. The implimentation
+should be able to identfy errors in text, coments, and labels.
+
+\bibliographystyle{plain}
+\bibliography{refereces}
 
 \end{document}

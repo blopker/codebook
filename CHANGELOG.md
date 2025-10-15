@@ -1,3 +1,7 @@
+[0.3.14]
+
+- Add Zig support
+
 [0.3.13]
 
 - Add server version to logs on startup

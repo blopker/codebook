@@ -131,6 +131,7 @@ Codebook is in active development. As better dictionaries are added, words that 
 | Haskell | ⚠️ |
 | Java | ✅ |
 | JavaScript | ✅ |
+| LaTeX | ⚠️ |
 | Lua | ✅ |
 | Markdown | ✅ |
 | PHP | ⚠️ |
@@ -140,6 +141,7 @@ Codebook is in active development. As better dictionaries are added, words that 
 | Rust | ✅ |
 | TOML | ✅ |
 | TypeScript | ✅ |
+| Zig | ✅ |
 
 ✅ = Good to go.
 ⚠️ = Supported, but needs more testing. Help us improve!

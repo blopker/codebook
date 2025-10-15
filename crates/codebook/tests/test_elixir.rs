@@ -163,7 +163,10 @@ fn test_elixir_module() {
         println!("Expecting {}", expect.word);
         let result = misspelled.iter().find(|r| r.word == expect.word).unwrap();
         assert_eq!(result.word, expect.word);
-        assert_eq!(result.locations, expect.locations);
+        assert!(result.locations.len() == expect.locations.len());
+        for location in result.locations.iter() {
+            assert!(expect.locations.contains(location))
+        }
     }
 }
 

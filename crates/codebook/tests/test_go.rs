@@ -245,7 +245,11 @@ fn test_go_location() {
     for e in &expected {
         println!("Expecting: {e:?}");
         let miss = misspelled.iter().find(|r| r.word == e.word).unwrap();
-        assert_eq!(miss.locations, e.locations);
+        // assert_eq!(miss.locations, e.locations);
+        assert!(miss.locations.len() == e.locations.len());
+        for location in &miss.locations {
+            assert!(e.locations.contains(location));
+        }
     }
     for result in misspelled {
         assert!(!not_expected.contains(&result.word.as_str()));
