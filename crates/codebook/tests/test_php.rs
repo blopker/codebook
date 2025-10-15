@@ -204,7 +204,10 @@ $userDetails = $userr->getUserDeetails();
             .iter()
             .find(|r| r.word == e.word)
             .expect("Word not found");
-        assert_eq!(miss.locations, e.locations);
+        assert!(miss.locations.len() == e.locations.len());
+        for location in &miss.locations {
+            assert!(e.locations.contains(location));
+        }
     }
 
     for result in misspelled {

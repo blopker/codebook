@@ -414,6 +414,7 @@ dependencies = [
 name = "codebook"
 version = "0.3.13"
 dependencies = [
+ "codebook-tree-sitter-latex",
  "codebook_config",
  "codebook_downloader",
  "env_logger",
@@ -470,6 +471,16 @@ dependencies = [
  "tempfile",
  "tokio",
  "tower-lsp",
+]
+
+[[package]]
+name = "codebook-tree-sitter-latex"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b1ee613183ae5dd1f992921539d573f9b0c38a7cefbde8e97092c3824ba2fb1"
+dependencies = [
+ "cc",
+ "tree-sitter",
 ]
 
 [[package]]

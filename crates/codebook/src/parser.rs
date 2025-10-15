@@ -2,12 +2,12 @@ use crate::splitter::{self};
 
 use crate::queries::{LanguageType, get_language_setting};
 use regex::Regex;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
 use unicode_segmentation::UnicodeSegmentation;
 
-#[derive(Debug, Clone, Copy, PartialEq, Ord, Eq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, Ord, Eq, PartialOrd, Hash)]
 pub struct TextRange {
     /// Start position in utf-8 byte offset
     pub start_byte: usize,
@@ -195,7 +195,7 @@ fn find_locations_code(
 
     let query = Query::new(&language, language_setting.query).unwrap();
     let mut cursor = QueryCursor::new();
-    let mut word_locations: HashMap<String, Vec<TextRange>> = HashMap::new();
+    let mut word_locations: HashMap<String, HashSet<TextRange>> = HashMap::new();
     let provider = text.as_bytes();
     let mut matches_query = cursor.matches(&query, root_node, provider);
 
@@ -217,13 +217,18 @@ fn find_locations_code(
                             end_byte: range.end_byte + node_start_byte,
                         };
                         if let Some(existing_result) = word_locations.get_mut(&word_pos.word) {
+                            let added = existing_result.insert(location);
                             #[cfg(debug_assertions)]
-                            if existing_result.contains(&location) {
-                                panic!("Two of the same locations found. Make a better query.")
+                            if !added {
+                                let word = word_pos.word.clone();
+                                panic!(
+                                    "Two of the same locations found. Make a better query. Word: {word}, Location: {location:?}"
+                                )
                             }
-                            existing_result.push(location);
                         } else {
-                            word_locations.insert(word_pos.word.clone(), vec![location]);
+                            let mut set = HashSet::new();
+                            set.insert(location);
+                            word_locations.insert(word_pos.word.clone(), set);
                         }
                     }
                 }
@@ -235,7 +240,12 @@ fn find_locations_code(
         .keys()
         .map(|word| WordLocation {
             word: word.clone(),
-            locations: word_locations.get(word).cloned().unwrap_or_default(),
+            locations: word_locations
+                .get(word)
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .collect(),
         })
         .collect()
 }

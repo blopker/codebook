@@ -204,7 +204,7 @@ fn test_yourlanguage_location() {
 // Your sample code with misspellings
 const speling = "error";
 "#;
-    
+
     let expected = vec![
         WordLocation::new(
             "speling".to_string(),
@@ -215,22 +215,22 @@ const speling = "error";
         ),
         // Add more expected misspellings
     ];
-    
+
     let not_expected = ["const", "std"];  // Keywords that should NOT be flagged
-    
+
     let processor = utils::get_processor();
     let misspelled = processor
         .spell_check(sample_text, Some(LanguageType::YourLanguage), None)
         .to_vec();
-    
+
     println!("Misspelled words: {misspelled:?}");
-    
+
     for e in &expected {
         println!("Expecting: {e:?}");
         let miss = misspelled.iter().find(|r| r.word == e.word).unwrap();
         assert_eq!(miss.locations, e.locations);
     }
-    
+
     for result in misspelled {
         assert!(!not_expected.contains(&result.word.as_str()));
     }
@@ -259,6 +259,10 @@ cargo test -p codebook
 ```
 
 ## Common Issues and Solutions
+
+### Issue: CamelCase words are getting split
+
+- Codebook processing splits words based on common word boundaries in programming like CamelCase and snake_case. Expect that when making tests.
 
 ### Issue: Invalid query error with node type
 
