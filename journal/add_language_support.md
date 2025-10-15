@@ -228,7 +228,11 @@ const speling = "error";
     for e in &expected {
         println!("Expecting: {e:?}");
         let miss = misspelled.iter().find(|r| r.word == e.word).unwrap();
-        assert_eq!(miss.locations, e.locations);
+        // locations may be in different orders since they are deduplicated using a HashSet
+        assert!(miss.locations.len() == e.locations.len());
+        for location in &miss.locations {
+            assert!(e.locations.contains(location));
+        }
     }
 
     for result in misspelled {
