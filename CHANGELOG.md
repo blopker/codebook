@@ -1,6 +1,7 @@
 [0.3.14]
 
 - Add Zig support
+- Add LaTeX support
 
 [0.3.13]
 
