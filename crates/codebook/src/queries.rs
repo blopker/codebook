@@ -25,6 +25,7 @@ pub enum LanguageType {
     Text,
     Typescript,
     Zig,
+    CSharp
 }
 
 impl FromStr for LanguageType {
@@ -199,6 +200,13 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         query: include_str!("queries/zig.scm"),
         extensions: &["zig"],
     },
+    LanguageSetting {
+        type_: LanguageType::CSharp,
+        ids: &["csharp"],
+        dictionary_ids: &["csharp"],
+        query: include_str!("queries/csharp.scm"),
+        extensions: &["cs"],
+    },
 ];
 
 #[derive(Debug)]
@@ -235,6 +243,7 @@ impl LanguageSetting {
             LanguageType::Text => None,
             LanguageType::Typescript => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
             LanguageType::Zig => Some(tree_sitter_zig::LANGUAGE.into()),
+            LanguageType::CSharp=> Some(tree_sitter_c_sharp::LANGUAGE.into()),
         }
     }
 }

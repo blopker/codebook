@@ -142,6 +142,7 @@ Codebook is in active development. As better dictionaries are added, words that 
 | TOML | ✅ |
 | TypeScript | ✅ |
 | Zig | ✅ |
+| C# | ⚠️ |
 
 ✅ = Good to go.
 ⚠️ = Supported, but needs more testing. Help us improve!
