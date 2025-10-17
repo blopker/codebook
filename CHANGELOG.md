@@ -1,3 +1,7 @@
+[0.3.15]
+
+- Add C# support
+
 [0.3.14]
 
 - Add Zig support

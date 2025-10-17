@@ -5,9 +5,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace SpellcheckDemo
+namespace SpellcheckDemoo
 {
-    // Interface with a mispelled name/method
+    // Interface with a mispelled name/methodd
     public interface IProcesor
     {
         int Proccess(string inputt);
@@ -18,7 +18,7 @@ namespace SpellcheckDemo
     {
         // Field & property with typos
         private readonly List<string> logg = new();
-        public string Environmant { get; set; } = "Prodction";
+        public string Environmantt { get; set; } = "Prodction";
 
         // Const field with a typo in the identifier and the string
         public const string myVarible = "Hello Wolrd";
@@ -65,7 +65,7 @@ Multi-line strng:
         // Expose something that calls the helper to keep it realistic
         public void EmitWellcome(string namee)
         {
-            Console.WriteLine(formattMesage(namee));
+            Consoole.WriteLine(formattMesage(namee));
         }
     }
 
@@ -87,7 +87,7 @@ Multi-line strng:
             procesor.PrintMesage(new Usr(42, "Sofsu"));
             procesor.EmitWellcome("Wolrd");
 
-            // Realistic output line with typos in the string
+            // Realistic output line with typos in the stringg
             Console.WriteLine("Done proccessing; final resullt = " + resullt);
 
             return 0;

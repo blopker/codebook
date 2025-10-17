@@ -6,12 +6,13 @@ use tree_sitter::Language;
 pub enum LanguageType {
     Bash,
     C,
+    CSharp,
     Cpp,
     Css,
     Elixir,
     Go,
-    Haskell,
     HTML,
+    Haskell,
     Java,
     Javascript,
     Latex,
@@ -25,7 +26,6 @@ pub enum LanguageType {
     Text,
     Typescript,
     Zig,
-    CSharp
 }
 
 impl FromStr for LanguageType {
@@ -224,12 +224,13 @@ impl LanguageSetting {
         match self.type_ {
             LanguageType::Bash => Some(tree_sitter_bash::LANGUAGE.into()),
             LanguageType::C => Some(tree_sitter_c::LANGUAGE.into()),
+            LanguageType::CSharp => Some(tree_sitter_c_sharp::LANGUAGE.into()),
             LanguageType::Cpp => Some(tree_sitter_cpp::LANGUAGE.into()),
             LanguageType::Css => Some(tree_sitter_css::LANGUAGE.into()),
             LanguageType::Elixir => Some(tree_sitter_elixir::LANGUAGE.into()),
             LanguageType::Go => Some(tree_sitter_go::LANGUAGE.into()),
-            LanguageType::Haskell => Some(tree_sitter_haskell::LANGUAGE.into()),
             LanguageType::HTML => Some(tree_sitter_html::LANGUAGE.into()),
+            LanguageType::Haskell => Some(tree_sitter_haskell::LANGUAGE.into()),
             LanguageType::Java => Some(tree_sitter_java::LANGUAGE.into()),
             LanguageType::Javascript => Some(tree_sitter_javascript::LANGUAGE.into()),
             LanguageType::Latex => Some(codebook_tree_sitter_latex::language()),
@@ -243,7 +244,6 @@ impl LanguageSetting {
             LanguageType::Text => None,
             LanguageType::Typescript => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
             LanguageType::Zig => Some(tree_sitter_zig::LANGUAGE.into()),
-            LanguageType::CSharp=> Some(tree_sitter_c_sharp::LANGUAGE.into()),
         }
     }
 }
