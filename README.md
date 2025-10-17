@@ -224,6 +224,7 @@ Project-specific configuration is loaded from either `codebook.toml` or `.codebo
 #  - Spanish: "es"
 #  - French: "fr"
 #  - Italian: "it"
+#  - Portuguese (Brazil): "pt_br"
 #  - Russian: "ru"
 #  - Swedish: "sv"
 dictionaries = ["en_us", "en_gb"]
