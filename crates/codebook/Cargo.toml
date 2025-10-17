@@ -1,6 +1,6 @@
 [package]
 name = "codebook"
-version = "0.3.14"
+version = "0.3.15"
 edition = "2024"
 description = "A code-aware spell checker library (dependency for codebook-lsp)"
 authors = ["Codebook Contributors"]
