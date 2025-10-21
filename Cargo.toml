@@ -61,6 +61,7 @@ tree-sitter-ruby = "0.23.1"
 tree-sitter-rust = "<0.25.0"
 tree-sitter-toml-ng = "<0.8.0"
 tree-sitter-typescript = "0.23.2"
+tree-sitter-typst = { git =  "https://github.com/VasanthakumarV/tree-sitter-typst.git" }
 tree-sitter-zig = "<2"
 tree-sitter-c-sharp= "<0.24.0"
 codebook-tree-sitter-latex = "<0.7.0"

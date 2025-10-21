@@ -448,6 +448,7 @@ dependencies = [
  "tree-sitter-rust",
  "tree-sitter-toml-ng",
  "tree-sitter-typescript",
+ "tree-sitter-typst",
  "tree-sitter-zig",
  "unicode-segmentation",
 ]
@@ -3088,6 +3089,15 @@ checksum = "6c5f76ed8d947a75cc446d5fccd8b602ebf0cde64ccf2ffa434d873d7a575eff"
 dependencies = [
  "cc",
  "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-typst"
+version = "0.0.1"
+source = "git+https://github.com/VasanthakumarV/tree-sitter-typst.git#2f9fa20ec09bd7e65f00fa8201e2b03c53227de2"
+dependencies = [
+ "cc",
+ "tree-sitter",
 ]
 
 [[package]]
