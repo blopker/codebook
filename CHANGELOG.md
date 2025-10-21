@@ -1,3 +1,7 @@
+[0.3.16]
+
+- Add Typst support
+
 [0.3.15]
 
 - Add C# support
