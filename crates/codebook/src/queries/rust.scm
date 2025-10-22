@@ -11,4 +11,3 @@
 (block_comment) @comment
 (line_comment) @comment
 (string_content) @string
-(char_literal) @string

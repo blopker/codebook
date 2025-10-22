@@ -1,4 +1,9 @@
 [0.3.15]
+Unreleased
+
+- Rust: remove char_literal query
+
+[0.3.15]
 
 - Add C# support
 
