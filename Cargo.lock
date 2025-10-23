@@ -414,6 +414,7 @@ name = "codebook"
 version = "0.3.15"
 dependencies = [
  "codebook-tree-sitter-latex",
+ "codebook-tree-sitter-typst",
  "codebook_config",
  "codebook_downloader",
  "env_logger",
@@ -448,7 +449,6 @@ dependencies = [
  "tree-sitter-rust",
  "tree-sitter-toml-ng",
  "tree-sitter-typescript",
- "tree-sitter-typst",
  "tree-sitter-zig",
  "unicode-segmentation",
 ]
@@ -479,6 +479,15 @@ name = "codebook-tree-sitter-latex"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b1ee613183ae5dd1f992921539d573f9b0c38a7cefbde8e97092c3824ba2fb1"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "codebook-tree-sitter-typst"
+version = "0.0.1"
+source = "git+https://github.com/VasanthakumarV/tree-sitter-typst.git#5f3cdb854cdad72f7cec859c065e878a24df39b4"
 dependencies = [
  "cc",
  "tree-sitter",
@@ -3089,15 +3098,6 @@ checksum = "6c5f76ed8d947a75cc446d5fccd8b602ebf0cde64ccf2ffa434d873d7a575eff"
 dependencies = [
  "cc",
  "tree-sitter-language",
-]
-
-[[package]]
-name = "tree-sitter-typst"
-version = "0.0.1"
-source = "git+https://github.com/VasanthakumarV/tree-sitter-typst.git#2f9fa20ec09bd7e65f00fa8201e2b03c53227de2"
-dependencies = [
- "cc",
- "tree-sitter",
 ]
 
 [[package]]

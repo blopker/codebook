@@ -251,7 +251,7 @@ impl LanguageSetting {
             LanguageType::TOML => Some(tree_sitter_toml_ng::LANGUAGE.into()),
             LanguageType::Text => None,
             LanguageType::Typescript => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
-            LanguageType::Typst => Some(tree_sitter_typst::language()),
+            LanguageType::Typst => Some(codebook_tree_sitter_typst::language()),
             LanguageType::Zig => Some(tree_sitter_zig::LANGUAGE.into()),
         }
     }
