@@ -5,7 +5,8 @@ pub mod queries;
 pub mod regexes;
 mod splitter;
 
-use regexes::get_default_skip_patterns;
+use crate::regexes::get_default_skip_patterns;
+use std::path::Path;
 use std::sync::Arc;
 
 use codebook_config::CodebookConfig;
@@ -15,7 +16,7 @@ use log::debug;
 use parser::WordLocation;
 
 pub struct Codebook {
-    config: Arc<CodebookConfig>,
+    config: Arc<dyn CodebookConfig>,
     manager: DictionaryManager,
 }
 
@@ -23,8 +24,8 @@ pub struct Codebook {
 static DEFAULT_DICTIONARIES: &[&str; 3] = &["codebook", "software_terms", "computing_acronyms"];
 
 impl Codebook {
-    pub fn new(config: Arc<CodebookConfig>) -> Result<Self, Box<dyn std::error::Error>> {
-        let manager = DictionaryManager::new(&config.cache_dir);
+    pub fn new(config: Arc<dyn CodebookConfig>) -> Result<Self, Box<dyn std::error::Error>> {
+        let manager = DictionaryManager::new(&config.cache_dir().to_path_buf());
         Ok(Self { config, manager })
     }
 
@@ -36,7 +37,9 @@ impl Codebook {
         language: Option<queries::LanguageType>,
         file_path: Option<&str>,
     ) -> Vec<parser::WordLocation> {
-        if file_path.is_some() && self.config.should_ignore_path(file_path.unwrap()) {
+        if let Some(file_path) = file_path
+            && self.config.should_ignore_path(Path::new(file_path))
+        {
             return Vec::new();
         }
         // get needed dictionary names

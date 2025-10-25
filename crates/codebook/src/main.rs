@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let config = Arc::new(codebook_config::CodebookConfig::default());
+    let config = Arc::new(codebook_config::CodebookConfigFile::load(None).unwrap());
     let processor = Codebook::new(config).unwrap();
 
     println!("My path is {args:?}");
