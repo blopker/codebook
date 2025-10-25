@@ -2,6 +2,8 @@
 Unreleased
 
 - Rust: remove char_literal query
+- Add the Danish dictionary (`da`)
+- Move to blopker fork of wrooom dictionaries
 
 [0.3.15]
 
