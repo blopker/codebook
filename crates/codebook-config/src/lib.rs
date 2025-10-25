@@ -572,10 +572,19 @@ impl CodebookConfig for CodebookConfigFile {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct CodebookConfigMemory {
     settings: RwLock<ConfigSettings>,
     cache_dir: PathBuf,
+}
+
+impl Default for CodebookConfigMemory {
+    fn default() -> Self {
+        Self {
+            settings: RwLock::new(ConfigSettings::default()),
+            cache_dir: env::temp_dir().join(CACHE_DIR),
+        }
+    }
 }
 
 impl CodebookConfigMemory {
