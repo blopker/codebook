@@ -20,22 +20,15 @@ static USER_CONFIG_FILES: [&str; 2] = ["codebook.toml", ".codebook.toml"];
 
 /// The main trait for Codebook configuration.
 pub trait CodebookConfig: Sync + Send + Debug {
-    fn snapshot(&self) -> Arc<ConfigSettings>;
-    fn reload(&self) -> Result<bool, io::Error>;
     fn add_word(&self, word: &str) -> Result<bool, io::Error>;
     fn add_word_global(&self, word: &str) -> Result<bool, io::Error>;
     fn add_ignore(&self, file: &str) -> Result<bool, io::Error>;
-    fn save(&self) -> Result<(), io::Error>;
-    fn save_global(&self) -> Result<(), io::Error>;
     fn get_dictionary_ids(&self) -> Vec<String>;
     fn should_ignore_path(&self, path: &Path) -> bool;
     fn is_allowed_word(&self, word: &str) -> bool;
     fn should_flag_word(&self, word: &str) -> bool;
     fn get_ignore_patterns(&self) -> Option<Vec<Regex>>;
     fn get_min_word_length(&self) -> usize;
-    fn clean_cache(&self);
-    fn project_config_path(&self) -> Option<PathBuf>;
-    fn global_config_path(&self) -> Option<PathBuf>;
     fn cache_dir(&self) -> &Path;
 }
 
@@ -241,14 +234,14 @@ impl CodebookConfigFile {
     }
 }
 
-impl CodebookConfig for CodebookConfigFile {
+impl CodebookConfigFile {
     /// Get current configuration snapshot (cheap to clone)
     fn snapshot(&self) -> Arc<ConfigSettings> {
         self.inner.read().unwrap().snapshot.clone()
     }
 
     /// Reload both global and project configurations, only reading files if they've changed
-    fn reload(&self) -> Result<bool, io::Error> {
+    pub fn reload(&self) -> Result<bool, io::Error> {
         let mut inner = self.inner.write().unwrap();
         let mut changed = false;
 
@@ -299,6 +292,108 @@ impl CodebookConfig for CodebookConfigFile {
         Ok(changed)
     }
 
+    /// Save the project configuration to its file
+    pub fn save(&self) -> Result<(), io::Error> {
+        let inner = self.inner.read().unwrap();
+
+        let project_config_path = match inner.project_config.path() {
+            Some(path) => path.to_path_buf(),
+            None => return Ok(()),
+        };
+
+        let settings = match inner.project_config.content() {
+            Some(settings) => settings,
+            None => return Ok(()),
+        };
+
+        let content = toml::to_string_pretty(settings).map_err(io::Error::other)?;
+        info!(
+            "Saving project configuration to {}",
+            project_config_path.display()
+        );
+        fs::write(&project_config_path, content)
+    }
+
+    /// Save the global configuration to its file
+    pub fn save_global(&self) -> Result<(), io::Error> {
+        let inner = self.inner.read().unwrap();
+
+        let global_config_path = match inner.global_config.path() {
+            Some(path) => path.to_path_buf(),
+            None => return Ok(()),
+        };
+
+        let settings = match inner.global_config.content() {
+            Some(settings) => settings,
+            None => return Ok(()),
+        };
+
+        let content = toml::to_string_pretty(settings).map_err(io::Error::other)?;
+        info!(
+            "Saving global configuration to {}",
+            global_config_path.display()
+        );
+        // Create parent directories if they don't exist
+        if let Some(parent) = global_config_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(&global_config_path, content)
+    }
+    /// Clean the cache directory
+    pub fn clean_cache(&self) {
+        let dir_path = self.cache_dir.clone();
+        // Check if the path exists and is a directory
+        if !dir_path.is_dir() {
+            return;
+        }
+
+        // Safety check: Ensure CACHE_DIR is in the path
+        let path_str = dir_path.to_string_lossy();
+        if !path_str.contains(CACHE_DIR) {
+            log::error!(
+                "Cache directory path '{path_str}' doesn't contain '{CACHE_DIR}', refusing to clean"
+            );
+            return;
+        }
+
+        // Read directory entries
+        if let Ok(entries) = fs::read_dir(dir_path) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+
+                if path.is_dir() {
+                    // If it's a directory, recursively remove it
+                    let _ = fs::remove_dir_all(path);
+                } else {
+                    // If it's a file, remove it
+                    let _ = fs::remove_file(path);
+                }
+            }
+        }
+    }
+
+    /// Get path to project config if it exists
+    pub fn project_config_path(&self) -> Option<PathBuf> {
+        self.inner
+            .read()
+            .unwrap()
+            .project_config
+            .path()
+            .map(|p| p.to_path_buf())
+    }
+
+    /// Get path to global config if it exists
+    pub fn global_config_path(&self) -> Option<PathBuf> {
+        self.inner
+            .read()
+            .unwrap()
+            .global_config
+            .path()
+            .map(|p| p.to_path_buf())
+    }
+}
+
+impl CodebookConfig for CodebookConfigFile {
     /// Add a word to the project configs allowlist
     fn add_word(&self, word: &str) -> Result<bool, io::Error> {
         let mut inner = self.inner.write().unwrap();
@@ -403,54 +498,6 @@ impl CodebookConfig for CodebookConfigFile {
         Ok(true)
     }
 
-    /// Save the project configuration to its file
-    fn save(&self) -> Result<(), io::Error> {
-        let inner = self.inner.read().unwrap();
-
-        let project_config_path = match inner.project_config.path() {
-            Some(path) => path.to_path_buf(),
-            None => return Ok(()),
-        };
-
-        let settings = match inner.project_config.content() {
-            Some(settings) => settings,
-            None => return Ok(()),
-        };
-
-        let content = toml::to_string_pretty(settings).map_err(io::Error::other)?;
-        info!(
-            "Saving project configuration to {}",
-            project_config_path.display()
-        );
-        fs::write(&project_config_path, content)
-    }
-
-    /// Save the global configuration to its file
-    fn save_global(&self) -> Result<(), io::Error> {
-        let inner = self.inner.read().unwrap();
-
-        let global_config_path = match inner.global_config.path() {
-            Some(path) => path.to_path_buf(),
-            None => return Ok(()),
-        };
-
-        let settings = match inner.global_config.content() {
-            Some(settings) => settings,
-            None => return Ok(()),
-        };
-
-        let content = toml::to_string_pretty(settings).map_err(io::Error::other)?;
-        info!(
-            "Saving global configuration to {}",
-            global_config_path.display()
-        );
-        // Create parent directories if they don't exist
-        if let Some(parent) = global_config_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        fs::write(&global_config_path, content)
-    }
-
     /// Get dictionary IDs from effective configuration
     fn get_dictionary_ids(&self) -> Vec<String> {
         let snapshot = self.snapshot();
@@ -514,59 +561,6 @@ impl CodebookConfig for CodebookConfigFile {
         self.snapshot().min_word_length
     }
 
-    /// Clean the cache directory
-    fn clean_cache(&self) {
-        let dir_path = self.cache_dir.clone();
-        // Check if the path exists and is a directory
-        if !dir_path.is_dir() {
-            return;
-        }
-
-        // Safety check: Ensure CACHE_DIR is in the path
-        let path_str = dir_path.to_string_lossy();
-        if !path_str.contains(CACHE_DIR) {
-            log::error!(
-                "Cache directory path '{path_str}' doesn't contain '{CACHE_DIR}', refusing to clean"
-            );
-            return;
-        }
-
-        // Read directory entries
-        if let Ok(entries) = fs::read_dir(dir_path) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-
-                if path.is_dir() {
-                    // If it's a directory, recursively remove it
-                    let _ = fs::remove_dir_all(path);
-                } else {
-                    // If it's a file, remove it
-                    let _ = fs::remove_file(path);
-                }
-            }
-        }
-    }
-
-    /// Get path to project config if it exists
-    fn project_config_path(&self) -> Option<PathBuf> {
-        self.inner
-            .read()
-            .unwrap()
-            .project_config
-            .path()
-            .map(|p| p.to_path_buf())
-    }
-
-    /// Get path to global config if it exists
-    fn global_config_path(&self) -> Option<PathBuf> {
-        self.inner
-            .read()
-            .unwrap()
-            .global_config
-            .path()
-            .map(|p| p.to_path_buf())
-    }
-
     fn cache_dir(&self) -> &Path {
         &self.cache_dir
     }
@@ -596,15 +590,14 @@ impl CodebookConfigMemory {
     }
 }
 
-impl CodebookConfig for CodebookConfigMemory {
+impl CodebookConfigMemory {
+    /// Get current configuration snapshot (cheap to clone)
     fn snapshot(&self) -> Arc<ConfigSettings> {
         Arc::new(self.settings.read().unwrap().clone())
     }
+}
 
-    fn reload(&self) -> Result<bool, io::Error> {
-        Ok(false)
-    }
-
+impl CodebookConfig for CodebookConfigMemory {
     fn add_word(&self, word: &str) -> Result<bool, io::Error> {
         let mut settings = self.settings.write().unwrap();
         let word = word.to_ascii_lowercase();
@@ -631,14 +624,6 @@ impl CodebookConfig for CodebookConfigMemory {
         settings.ignore_paths.sort();
         settings.ignore_paths.dedup();
         Ok(true)
-    }
-
-    fn save(&self) -> Result<(), io::Error> {
-        Ok(())
-    }
-
-    fn save_global(&self) -> Result<(), io::Error> {
-        Ok(())
     }
 
     fn get_dictionary_ids(&self) -> Vec<String> {
@@ -690,16 +675,6 @@ impl CodebookConfig for CodebookConfigMemory {
 
     fn get_min_word_length(&self) -> usize {
         self.snapshot().min_word_length
-    }
-
-    fn clean_cache(&self) {}
-
-    fn project_config_path(&self) -> Option<PathBuf> {
-        None
-    }
-
-    fn global_config_path(&self) -> Option<PathBuf> {
-        None
     }
 
     fn cache_dir(&self) -> &Path {

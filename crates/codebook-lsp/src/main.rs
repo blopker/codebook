@@ -3,7 +3,7 @@ mod lsp;
 mod lsp_logger;
 
 use clap::{Parser, Subcommand};
-use codebook_config::{CodebookConfig, CodebookConfigFile};
+use codebook_config::CodebookConfigFile;
 use log::{LevelFilter, debug, info};
 use lsp::Backend;
 use lsp_logger::LspLogger;

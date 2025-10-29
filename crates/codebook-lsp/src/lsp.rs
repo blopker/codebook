@@ -30,7 +30,7 @@ pub struct Backend {
     pub client: Client,
     // Wrap every call to codebook in spawn_blocking, it's not async
     pub codebook: Arc<Codebook>,
-    pub config: Arc<dyn CodebookConfig>,
+    pub config: Arc<CodebookConfigFile>,
     pub document_cache: TextDocumentCache,
 }
 
@@ -300,7 +300,7 @@ impl LanguageServer for Backend {
 impl Backend {
     pub fn new(client: Client, workspace_dir: &Path) -> Self {
         let config = CodebookConfigFile::load(Some(workspace_dir)).expect("Unable to make config.");
-        let config_arc: Arc<dyn CodebookConfig> = Arc::new(config);
+        let config_arc: Arc<CodebookConfigFile> = Arc::new(config);
         let cb_config = Arc::clone(&config_arc);
         let codebook = Arc::new(Codebook::new(cb_config).expect("Unable to make codebook"));
 
