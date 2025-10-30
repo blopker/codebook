@@ -232,9 +232,7 @@ impl CodebookConfigFile {
             project
         }
     }
-}
 
-impl CodebookConfigFile {
     /// Get current configuration snapshot (cheap to clone)
     fn snapshot(&self) -> Arc<ConfigSettings> {
         self.inner.read().unwrap().snapshot.clone()
