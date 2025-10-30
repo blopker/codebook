@@ -1,8 +1,8 @@
+mod helpers;
 mod settings;
 mod watched_file;
 use crate::settings::ConfigSettings;
 use crate::watched_file::WatchedFile;
-use glob::Pattern;
 use log::debug;
 use log::info;
 use regex::Regex;
@@ -391,165 +391,99 @@ impl CodebookConfigFile {
             .path()
             .map(|p| p.to_path_buf())
     }
-}
 
-impl CodebookConfig for CodebookConfigFile {
-    /// Add a word to the project configs allowlist
-    fn add_word(&self, word: &str) -> Result<bool, io::Error> {
+    fn rebuild_snapshot(inner: &mut ConfigInner) {
+        let effective =
+            Self::calculate_effective_settings(&inner.project_config, &inner.global_config);
+        inner.snapshot = Arc::new(effective);
+        inner.regex_cache = None;
+    }
+
+    fn update_project_settings<F>(&self, update: F) -> bool
+    where
+        F: FnOnce(&mut ConfigSettings) -> bool,
+    {
         let mut inner = self.inner.write().unwrap();
-        let word = word.to_ascii_lowercase();
-
-        // Get current settings or default
         let mut settings = inner
             .project_config
             .content()
             .cloned()
             .unwrap_or_else(ConfigSettings::default);
 
-        // Check if word already exists
-        if settings.words.contains(&word) {
-            return Ok(false);
+        if !update(&mut settings) {
+            return false;
         }
 
-        // Add the word
-        settings.words.push(word);
-        // Sort/dedup for consistency
-        settings.words.sort();
-        settings.words.dedup();
-
-        // Update the project config
         inner.project_config = inner.project_config.clone().with_content_value(settings);
-
-        // Recalculate effective settings
-        let effective =
-            Self::calculate_effective_settings(&inner.project_config, &inner.global_config);
-        inner.snapshot = Arc::new(effective);
-        inner.regex_cache = None;
-
-        Ok(true)
+        Self::rebuild_snapshot(&mut inner);
+        true
     }
-    /// Add a word to the global configs allowlist
-    fn add_word_global(&self, word: &str) -> Result<bool, io::Error> {
-        let mut inner = self.inner.write().unwrap();
-        let word = word.to_ascii_lowercase();
 
-        // Get current settings or default
+    fn update_global_settings<F>(&self, update: F) -> bool
+    where
+        F: FnOnce(&mut ConfigSettings) -> bool,
+    {
+        let mut inner = self.inner.write().unwrap();
         let mut settings = inner
             .global_config
             .content()
             .cloned()
             .unwrap_or_else(ConfigSettings::default);
 
-        // Check if word already exists
-        if settings.words.contains(&word) {
-            return Ok(false);
+        if !update(&mut settings) {
+            return false;
         }
 
-        // Add the word
-        settings.words.push(word);
-        // Sort/dedup for consistency
-        settings.words.sort();
-        settings.words.dedup();
-
-        // Update the global config
         inner.global_config = inner.global_config.clone().with_content_value(settings);
+        Self::rebuild_snapshot(&mut inner);
+        true
+    }
+}
 
-        // Recalculate effective settings
-        let effective =
-            Self::calculate_effective_settings(&inner.project_config, &inner.global_config);
-        inner.snapshot = Arc::new(effective);
-        inner.regex_cache = None;
-
-        Ok(true)
+impl CodebookConfig for CodebookConfigFile {
+    /// Add a word to the project configs allowlist
+    fn add_word(&self, word: &str) -> Result<bool, io::Error> {
+        Ok(self.update_project_settings(|settings| helpers::insert_word(settings, word)))
+    }
+    /// Add a word to the global configs allowlist
+    fn add_word_global(&self, word: &str) -> Result<bool, io::Error> {
+        Ok(self.update_global_settings(|settings| helpers::insert_word(settings, word)))
     }
 
     /// Add a file to the ignore list
     fn add_ignore(&self, file: &str) -> Result<bool, io::Error> {
-        let mut inner = self.inner.write().unwrap();
-
-        // Get current settings or default
-        let mut settings = inner
-            .project_config
-            .content()
-            .cloned()
-            .unwrap_or_else(ConfigSettings::default);
-
-        let file = file.to_string();
-        // Check if file already exists
-        if settings.ignore_paths.contains(&file) {
-            return Ok(false);
-        }
-
-        // Add the file
-        settings.ignore_paths.push(file);
-        // Sort/dedup for consistency
-        settings.ignore_paths.sort();
-        settings.ignore_paths.dedup();
-
-        // Update the project config
-        inner.project_config = inner.project_config.clone().with_content_value(settings);
-
-        // Recalculate effective settings
-        let effective =
-            Self::calculate_effective_settings(&inner.project_config, &inner.global_config);
-        inner.snapshot = Arc::new(effective);
-        inner.regex_cache = None;
-
-        Ok(true)
+        Ok(self.update_project_settings(|settings| helpers::insert_ignore(settings, file)))
     }
 
     /// Get dictionary IDs from effective configuration
     fn get_dictionary_ids(&self) -> Vec<String> {
         let snapshot = self.snapshot();
-        let ids = snapshot.dictionaries.clone();
-        if ids.is_empty() {
-            return vec!["en_us".to_string()];
-        }
-        ids
+        helpers::dictionary_ids(&snapshot)
     }
 
     /// Check if a path should be ignored based on the effective configuration
     fn should_ignore_path(&self, path: &Path) -> bool {
-        let path_str = path.to_string_lossy();
         let snapshot = self.snapshot();
-        snapshot.ignore_paths.iter().any(|pattern| {
-            Pattern::new(pattern)
-                .map(|p| p.matches(&path_str))
-                .unwrap_or(false)
-        })
+        helpers::should_ignore_path(&snapshot, path)
     }
 
     /// Check if a word is in the effective allowlist
     fn is_allowed_word(&self, word: &str) -> bool {
-        let word = word.to_ascii_lowercase();
         let snapshot = self.snapshot();
-        snapshot.words.iter().any(|w| w == &word)
+        helpers::is_allowed_word(&snapshot, word)
     }
 
     /// Check if a word should be flagged according to effective configuration
     fn should_flag_word(&self, word: &str) -> bool {
-        let word = word.to_ascii_lowercase();
         let snapshot = self.snapshot();
-        snapshot.flag_words.iter().any(|w| w == &word)
+        helpers::should_flag_word(&snapshot, word)
     }
 
     /// Get the list of user-defined ignore patterns
     fn get_ignore_patterns(&self) -> Option<Vec<Regex>> {
         let mut inner = self.inner.write().unwrap();
-        let str_patterns = inner.snapshot.ignore_patterns.clone();
-
-        // Lazily initialize the Regex cache
         if inner.regex_cache.is_none() {
-            let regex_set = str_patterns
-                .into_iter()
-                .filter_map(|pattern| match Regex::new(&pattern) {
-                    Ok(regex) => Some(regex),
-                    Err(e) => {
-                        log::error!("Ignoring invalid regex pattern '{pattern}': {e}");
-                        None
-                    }
-                })
-                .collect::<Vec<_>>();
+            let regex_set = helpers::build_ignore_regexes(&inner.snapshot.ignore_patterns);
             inner.regex_cache = Some(regex_set);
         }
 
@@ -558,7 +492,7 @@ impl CodebookConfig for CodebookConfigFile {
 
     /// Get the minimum word length which should be checked
     fn get_min_word_length(&self) -> usize {
-        self.snapshot().min_word_length
+        helpers::min_word_length(&self.snapshot())
     }
 
     fn cache_dir(&self) -> &Path {
@@ -600,14 +534,7 @@ impl CodebookConfigMemory {
 impl CodebookConfig for CodebookConfigMemory {
     fn add_word(&self, word: &str) -> Result<bool, io::Error> {
         let mut settings = self.settings.write().unwrap();
-        let word = word.to_ascii_lowercase();
-        if settings.words.contains(&word) {
-            return Ok(false);
-        }
-        settings.words.push(word);
-        settings.words.sort();
-        settings.words.dedup();
-        Ok(true)
+        Ok(helpers::insert_word(&mut settings, word))
     }
 
     fn add_word_global(&self, word: &str) -> Result<bool, io::Error> {
@@ -616,65 +543,36 @@ impl CodebookConfig for CodebookConfigMemory {
 
     fn add_ignore(&self, file: &str) -> Result<bool, io::Error> {
         let mut settings = self.settings.write().unwrap();
-        let file = file.to_string();
-        if settings.ignore_paths.contains(&file) {
-            return Ok(false);
-        }
-        settings.ignore_paths.push(file);
-        settings.ignore_paths.sort();
-        settings.ignore_paths.dedup();
-        Ok(true)
+        Ok(helpers::insert_ignore(&mut settings, file))
     }
 
     fn get_dictionary_ids(&self) -> Vec<String> {
         let snapshot = self.snapshot();
-        let ids = snapshot.dictionaries.clone();
-        if ids.is_empty() {
-            return vec!["en_us".to_string()];
-        }
-        ids
+        helpers::dictionary_ids(&snapshot)
     }
 
     fn should_ignore_path(&self, path: &Path) -> bool {
-        let path_str = path.to_string_lossy();
         let snapshot = self.snapshot();
-        snapshot.ignore_paths.iter().any(|pattern| {
-            Pattern::new(pattern)
-                .map(|p| p.matches(&path_str))
-                .unwrap_or(false)
-        })
+        helpers::should_ignore_path(&snapshot, path)
     }
 
     fn is_allowed_word(&self, word: &str) -> bool {
-        let word = word.to_ascii_lowercase();
         let snapshot = self.snapshot();
-        snapshot.words.iter().any(|w| w == &word)
+        helpers::is_allowed_word(&snapshot, word)
     }
 
     fn should_flag_word(&self, word: &str) -> bool {
-        let word = word.to_ascii_lowercase();
         let snapshot = self.snapshot();
-        snapshot.flag_words.iter().any(|w| w == &word)
+        helpers::should_flag_word(&snapshot, word)
     }
 
     fn get_ignore_patterns(&self) -> Option<Vec<Regex>> {
         let snapshot = self.snapshot();
-        let regex_set = snapshot
-            .ignore_patterns
-            .iter()
-            .filter_map(|pattern| match Regex::new(pattern) {
-                Ok(regex) => Some(regex),
-                Err(e) => {
-                    log::error!("Ignoring invalid regex pattern '{pattern}': {e}");
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-        Some(regex_set)
+        Some(helpers::build_ignore_regexes(&snapshot.ignore_patterns))
     }
 
     fn get_min_word_length(&self) -> usize {
-        self.snapshot().min_word_length
+        helpers::min_word_length(&self.snapshot())
     }
 
     fn cache_dir(&self) -> &Path {
