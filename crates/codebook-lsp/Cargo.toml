@@ -1,6 +1,6 @@
 [package]
 name = "codebook-lsp"
-version = "0.3.15"
+version = "0.3.16"
 edition = "2024"
 description = "A code-aware spell checker with language server implementation, installable via cargo install"
 authors = ["Codebook Contributors"]
