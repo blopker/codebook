@@ -5,6 +5,28 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
+
+[DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
+internal class Program
+{
+    private static void Main(string[] args)
+    {
+        // Incorrectly flagged
+        Console.WriteLine($"Hellooo, {nameof(Program)}!");
+
+        // Incorrectly flagged
+        Console.WriteLine(
+            $$"""
+            Hello {{nameof(Program)}}!
+            """);
+    }
+    private string GetDebuggerDisplay()
+    {
+        // OK
+        return nameof(Program);
+    }
+}
+
 namespace SpellcheckDemoo
 {
     // Interface with a mispelled name/methodd
