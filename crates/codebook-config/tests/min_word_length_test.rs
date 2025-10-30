@@ -1,4 +1,4 @@
-use codebook_config::CodebookConfig;
+use codebook_config::{CodebookConfig, CodebookConfigFile};
 use std::fs;
 use tempfile::TempDir;
 
@@ -16,7 +16,7 @@ fn test_min_word_length_from_config() {
     fs::write(&config_path, config_content).unwrap();
 
     // Load the configuration
-    let config = CodebookConfig::load(Some(temp_dir.path())).unwrap();
+    let config = CodebookConfigFile::load(Some(temp_dir.path())).unwrap();
 
     // Verify the min_word_length is set correctly
     assert_eq!(config.get_min_word_length(), 2);
@@ -35,7 +35,7 @@ fn test_min_word_length_default() {
     fs::write(&config_path, config_content).unwrap();
 
     // Load the configuration
-    let config = CodebookConfig::load(Some(temp_dir.path())).unwrap();
+    let config = CodebookConfigFile::load(Some(temp_dir.path())).unwrap();
 
     // Verify the default min_word_length is 3
     assert_eq!(config.get_min_word_length(), 3);
@@ -71,7 +71,7 @@ fn test_min_word_length_with_global_config() {
     }
 
     // Load the configuration
-    let config = CodebookConfig::load(Some(project_dir.path())).unwrap();
+    let config = CodebookConfigFile::load(Some(project_dir.path())).unwrap();
 
     // Project config should override global config
     assert_eq!(config.get_min_word_length(), 2);
@@ -95,7 +95,7 @@ fn test_min_word_length_zero() {
     fs::write(&config_path, config_content).unwrap();
 
     // Load the configuration
-    let config = CodebookConfig::load(Some(temp_dir.path())).unwrap();
+    let config = CodebookConfigFile::load(Some(temp_dir.path())).unwrap();
 
     // Verify min_word_length can be set to 0
     assert_eq!(config.get_min_word_length(), 0);
@@ -114,7 +114,7 @@ fn test_min_word_length_large_value() {
     fs::write(&config_path, config_content).unwrap();
 
     // Load the configuration
-    let config = CodebookConfig::load(Some(temp_dir.path())).unwrap();
+    let config = CodebookConfigFile::load(Some(temp_dir.path())).unwrap();
 
     // Verify large values work correctly
     assert_eq!(config.get_min_word_length(), 10);

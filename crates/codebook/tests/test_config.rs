@@ -1,13 +1,13 @@
-use std::sync::Arc;
-
 use codebook::{
     Codebook,
     parser::{TextRange, WordLocation},
     queries::LanguageType,
 };
+use codebook_config::{CodebookConfig, CodebookConfigMemory};
+use std::sync::Arc;
 
 pub fn get_processor(words: Option<&[&str]>) -> Codebook {
-    let config = Arc::new(codebook_config::CodebookConfig::default());
+    let config = Arc::new(CodebookConfigMemory::default());
     if let Some(words) = words {
         for w in words {
             let _ = config.add_word(w);
