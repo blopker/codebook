@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use codebook::Codebook;
+use codebook_config::{CodebookConfig, CodebookConfigMemory};
 
 pub fn get_processor() -> Codebook {
-    let config = Arc::new(codebook_config::CodebookConfig::default());
+    let config = Arc::new(CodebookConfigMemory::default());
     config
         .add_ignore("**/ignore.txt")
         .expect("Should ignore file");

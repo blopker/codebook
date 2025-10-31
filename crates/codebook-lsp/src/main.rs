@@ -3,7 +3,7 @@ mod lsp;
 mod lsp_logger;
 
 use clap::{Parser, Subcommand};
-use codebook_config::CodebookConfig;
+use codebook_config::CodebookConfigFile;
 use log::{LevelFilter, debug, info};
 use lsp::Backend;
 use lsp_logger::LspLogger;
@@ -54,7 +54,7 @@ async fn main() {
             serve_lsp(root).await;
         }
         Some(Commands::Clean {}) => {
-            let config = CodebookConfig::default();
+            let config = CodebookConfigFile::default();
             info!("Cleaning: {:?}", config.cache_dir);
             config.clean_cache()
         }

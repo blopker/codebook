@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use codebook::Codebook;
+use codebook_config::CodebookConfigMemory;
 
 pub fn get_processor() -> Codebook {
-    let config = Arc::new(codebook_config::CodebookConfig::default());
+    let config = Arc::new(CodebookConfigMemory::default());
     Codebook::new(config).unwrap()
 }
 

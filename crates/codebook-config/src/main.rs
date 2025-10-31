@@ -1,14 +1,15 @@
-use codebook_config::CodebookConfig;
+use codebook_config::{CodebookConfig, CodebookConfigFile};
+use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load configuration
-    let config = CodebookConfig::load(None)?;
+    let config = CodebookConfigFile::load(None)?;
 
     // Use the configuration
     println!("Loaded dictionaries: {:?}", config.get_dictionary_ids());
 
     // Check if a path should be ignored
-    let should_ignore = config.should_ignore_path("target/debug/build");
+    let should_ignore = config.should_ignore_path(Path::new("target/debug/build"));
     println!("Should ignore path: {should_ignore}");
 
     // Check if a word is allowed

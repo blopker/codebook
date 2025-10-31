@@ -54,9 +54,11 @@
   (identifier) @identifier)
 
 ; String literals
+(interpolated_string_expression
+    (string_content) @string)
+
 [
   (string_literal)
   (raw_string_literal)
   (verbatim_string_literal)
-  (interpolated_string_expression)
 ] @string

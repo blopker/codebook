@@ -34,8 +34,9 @@ impl HunspellDictionary {
     pub fn new(aff_path: &str, dic_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let aff = std::fs::read_to_string(aff_path)?;
         let dic = std::fs::read_to_string(dic_path)?;
-        let dict = spellbook::Dictionary::new(&aff, &dic)
-            .map_err(|e| format!("Dictionary parse error: {e}"))?;
+        let dict = spellbook::Dictionary::new(&aff, &dic).map_err(|e| {
+            format!("Dictionary [aff: {aff_path}, dic: {dic_path}] parse error: {e}")
+        })?;
 
         Ok(HunspellDictionary {
             dictionary: dict,

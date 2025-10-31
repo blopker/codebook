@@ -56,48 +56,48 @@ static HUNSPELL_DICTIONARIES: LazyLock<Vec<HunspellRepo>> = LazyLock::new(|| {
         ),
         HunspellRepo::new(
             "en_gb",
-            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/en-GB/index.aff",
-            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/en-GB/index.dic",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/en-GB/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/en-GB/index.dic",
         ),
         HunspellRepo::new(
             "es",
-            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/es/index.aff",
-            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/es/index.dic",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/es/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/es/index.dic",
         ),
         HunspellRepo::new(
             "de",
-            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/de/index.aff",
-            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/de/index.dic",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/de/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/de/index.dic",
         ),
         HunspellRepo::new(
             "de_at",
-            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/de-AT/index.aff",
-            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/de-AT/index.dic",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/de-AT/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/de-AT/index.dic",
         ),
         HunspellRepo::new(
             "de_ch",
-            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/de-CH/index.aff",
-            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/de-CH/index.dic",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/de-CH/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/de-CH/index.dic",
         ),
         HunspellRepo::new(
             "fr",
-            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/fr/index.aff",
-            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/fr/index.dic",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/fr/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/fr/index.dic",
         ),
         HunspellRepo::new(
             "ru",
-            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/ru/index.aff",
-            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/ru/index.dic",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/ru/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/ru/index.dic",
         ),
         HunspellRepo::new(
             "it",
-            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/it/index.aff",
-            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/it/index.dic",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/it/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/it/index.dic",
         ),
         HunspellRepo::new(
             "sv",
-            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/sv/index.aff",
-            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/sv/index.dic",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/sv/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/sv/index.dic",
         ),
         HunspellRepo::new(
             "pt_br",
@@ -106,8 +106,13 @@ static HUNSPELL_DICTIONARIES: LazyLock<Vec<HunspellRepo>> = LazyLock::new(|| {
         ),
         HunspellRepo::new(
             "nl_nl",
-            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/nl/index.aff",
-            "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/nl/index.dic",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/nl/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/nl/index.dic",
+        ),
+        HunspellRepo::new(
+            "da",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/da/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/da/index.dic",
         ),
     ]
 });
@@ -131,6 +136,10 @@ static TEXT_DICTIONARIES: LazyLock<Vec<TextRepo>> = LazyLock::new(|| {
             text: Some(CODEBOOK_DICTIONARY),
             url: None,
         },
+        TextRepo::new(
+            "csharp",
+            "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/csharp/csharp.txt",
+        ),
     ]
 });
 

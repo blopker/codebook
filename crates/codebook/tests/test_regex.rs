@@ -200,8 +200,9 @@ fn test_user_defined_regex_patterns() {
 
     std::fs::write(&config_path, config_content).unwrap();
 
-    let config =
-        std::sync::Arc::new(codebook_config::CodebookConfig::load(Some(temp_dir.path())).unwrap());
+    let config = std::sync::Arc::new(
+        codebook_config::CodebookConfigFile::load(Some(temp_dir.path())).unwrap(),
+    );
 
     let processor = codebook::Codebook::new(config).unwrap();
 
