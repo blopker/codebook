@@ -25,6 +25,7 @@ pub enum LanguageType {
     TOML,
     Text,
     Typescript,
+    Typst,
     Zig,
 }
 
@@ -207,6 +208,13 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         query: include_str!("queries/csharp.scm"),
         extensions: &["cs"],
     },
+    LanguageSetting {
+        type_: LanguageType::Typst,
+        ids: &["typst"],
+        dictionary_ids: &["typst"],
+        query: include_str!("queries/typst.scm"),
+        extensions: &["typ"],
+    },
 ];
 
 #[derive(Debug)]
@@ -243,6 +251,7 @@ impl LanguageSetting {
             LanguageType::TOML => Some(tree_sitter_toml_ng::LANGUAGE.into()),
             LanguageType::Text => None,
             LanguageType::Typescript => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
+            LanguageType::Typst => Some(codebook_tree_sitter_typst::language()),
             LanguageType::Zig => Some(tree_sitter_zig::LANGUAGE.into()),
         }
     }
