@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     path::PathBuf,
+    str::FromStr,
     sync::{Arc, RwLock},
 };
 
@@ -82,17 +83,32 @@ impl DictionaryManager {
     }
 
     fn get_text_dictionary(&self, repo: TextRepo) -> Option<Arc<dyn Dictionary>> {
-        if repo.text.is_some() {
-            return Some(Arc::new(TextDictionary::new(repo.text.unwrap())));
-        }
-        let text_path = match self.downloader.get(&repo.url.unwrap()) {
-            Ok(path) => path,
-            Err(e) => {
-                error!("Error: {e:?}");
-                return None;
+        const FAILED_TO_READ_DICT_ERR: &'static str = "Failed to read dictionary file";
+
+        let dict = match repo.text_location {
+            super::repo::TextRepoLocation::Url(url) => {
+                let text_path = self
+                    .downloader
+                    .get(&url)
+                    .inspect_err(|e| error!("Error: {e:?}"))
+                    .ok()?;
+
+                TextDictionary::try_from(&text_path)
+                    .inspect_err(|_| error!("{}: {}", FAILED_TO_READ_DICT_ERR, text_path.display()))
+                    .ok()?
             }
+            super::repo::TextRepoLocation::LocalFile(path) => {
+                let text_path = PathBuf::from_str(&path)
+                    .inspect_err(|e| error!("Error: {e:?}"))
+                    .ok()?;
+
+                TextDictionary::try_from(&text_path)
+                    .inspect_err(|_| error!("{}: {}", FAILED_TO_READ_DICT_ERR, text_path.display()))
+                    .ok()?
+            }
+            super::repo::TextRepoLocation::Text(text) => TextDictionary::new(text),
         };
-        let dict = TextDictionary::new_from_path(&text_path);
+
         Some(Arc::new(dict))
     }
 }
