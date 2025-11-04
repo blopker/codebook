@@ -428,6 +428,7 @@ dependencies = [
  "spellbook",
  "streaming-iterator",
  "tempfile",
+ "thiserror 2.0.17",
  "tree-sitter",
  "tree-sitter-bash",
  "tree-sitter-c",

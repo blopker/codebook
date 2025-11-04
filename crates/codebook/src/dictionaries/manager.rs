@@ -29,6 +29,11 @@ impl DictionaryManager {
         }
     }
 
+    pub fn invalidate_cache_entry(&self, id: &str) {
+        let mut cache = self.dictionary_cache.write().unwrap();
+        cache.remove(id);
+    }
+
     pub fn get_dictionary(
         &self,
         id: &str,

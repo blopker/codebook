@@ -231,7 +231,7 @@ impl CodebookConfigFile {
                 let mut effective = global.clone();
 
                 if let Some(path) = global_config.path() {
-                    project.try_normalizing_relative_paths(path);
+                    effective.try_normalizing_relative_paths(path);
                 }
 
                 effective.merge(project);

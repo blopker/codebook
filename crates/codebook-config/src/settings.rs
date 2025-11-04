@@ -123,8 +123,8 @@ impl<'de> Deserialize<'de> for ConfigSettings {
             custom_dictionaries_definitions: helper
                 .custom_dictionaries_definitions
                 .into_iter()
-                .map(|c| {
-                    c.name.to_ascii_lowercase();
+                .map(|mut c| {
+                    c.name.make_ascii_lowercase();
                     c
                 })
                 .collect(),
@@ -176,15 +176,15 @@ impl ConfigSettings {
     }
 
     pub fn try_normalizing_relative_paths(&mut self, config_path: &Path) {
-        let config_path = config_path.parent();
-        if config_path.is_none() {
+        let config_path_parent = if let Some(config_path_parent) = config_path.parent() {
+            config_path_parent
+        } else {
             return;
-        }
-        let config_path = config_path.unwrap();
+        };
 
         for current_dict in &mut self.custom_dictionaries_definitions {
-            let custom_dict_path = Path::new(&current_dict.path);
-            if let Ok(path) = path::absolute(config_path.join(custom_dict_path)) {
+            if let Ok(path) = path::absolute(config_path_parent.join(Path::new(&current_dict.path)))
+            {
                 current_dict.path = path.to_str().unwrap().to_string();
             }
         }
