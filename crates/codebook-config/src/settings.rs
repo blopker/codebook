@@ -1,9 +1,26 @@
 use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct CustomDictionariesDefinitions {
+    /// The name of the custom dictionary
+    name: String,
+
+    /// Relative path to the custom dictionary
+    path: String,
+
+    /// Allow adding words to this dictionary
+    allow_add_words: bool,
+}
+
 #[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct ConfigSettings {
     /// List of dictionaries to use for spell checking
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub dictionaries: Vec<String>,
+
+    /// List of custom dictionaries to use for spell checking
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub custom_dictionaries_definitions: Vec<CustomDictionariesDefinitions>,
 
     /// Custom allowlist of words
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -56,6 +73,7 @@ impl Default for ConfigSettings {
     fn default() -> Self {
         Self {
             dictionaries: vec![],
+            custom_dictionaries_definitions: vec![],
             words: Vec::new(),
             flag_words: Vec::new(),
             ignore_paths: Vec::new(),
@@ -79,6 +97,8 @@ impl<'de> Deserialize<'de> for ConfigSettings {
             #[serde(default)]
             dictionaries: Vec<String>,
             #[serde(default)]
+            custom_dictionaries_definitions: Vec<CustomDictionariesDefinitions>,
+            #[serde(default)]
             words: Vec<String>,
             #[serde(default)]
             flag_words: Vec<String>,
@@ -95,6 +115,7 @@ impl<'de> Deserialize<'de> for ConfigSettings {
         let helper = Helper::deserialize(deserializer)?;
         Ok(ConfigSettings {
             dictionaries: to_lowercase_vec(helper.dictionaries),
+            custom_dictionaries_definitions: helper.custom_dictionaries_definitions,
             words: to_lowercase_vec(helper.words),
             flag_words: to_lowercase_vec(helper.flag_words),
             ignore_paths: helper.ignore_paths,
@@ -106,10 +127,12 @@ impl<'de> Deserialize<'de> for ConfigSettings {
 }
 
 impl ConfigSettings {
-    /// Merge another config settings into this one, sorting and deduplicating all collections
+    /// Merge another config settings into this one, sorting and deduplicating all collections, prioritizing self when possible
     pub fn merge(&mut self, other: ConfigSettings) {
         // Add items from the other config
         self.dictionaries.extend(other.dictionaries);
+        self.custom_dictionaries_definitions
+            .extend(other.custom_dictionaries_definitions);
         self.words.extend(other.words);
         self.flag_words.extend(other.flag_words);
         self.ignore_paths.extend(other.ignore_paths);
@@ -131,6 +154,9 @@ impl ConfigSettings {
     pub fn sort_and_dedup(&mut self) {
         // Sort and deduplicate each Vec
         sort_and_dedup(&mut self.dictionaries);
+        sort_and_dedup_by(&mut self.custom_dictionaries_definitions, |d1, d2| {
+            d1.name.cmp(&d2.name)
+        });
         sort_and_dedup(&mut self.words);
         sort_and_dedup(&mut self.flag_words);
         sort_and_dedup(&mut self.ignore_paths);
@@ -144,9 +170,25 @@ fn sort_and_dedup(vec: &mut Vec<String>) {
     vec.dedup();
 }
 
+pub fn sort_and_dedup_by<T, F>(vec: &mut Vec<T>, f: F)
+where
+    F: Fn(&T, &T) -> std::cmp::Ordering,
+{
+    vec.sort_by(&f);
+    vec.dedup_by(|d1, d2| f(d1, d2) == std::cmp::Ordering::Equal);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn build_fake_custom_dict(name: &str) -> CustomDictionariesDefinitions {
+        CustomDictionariesDefinitions {
+            name: name.into(),
+            path: name.into(),
+            allow_add_words: false,
+        }
+    }
 
     #[test]
     fn test_default() {
@@ -221,8 +263,14 @@ mod tests {
 
     #[test]
     fn test_merge() {
+        let mut duplicate_custom_dict = build_fake_custom_dict("duplicate");
+
         let mut base = ConfigSettings {
             dictionaries: vec!["en_us".to_string()],
+            custom_dictionaries_definitions: vec![
+                build_fake_custom_dict("base_unique"),
+                duplicate_custom_dict.clone(),
+            ],
             words: vec!["codebook".to_string()],
             flag_words: vec!["todo".to_string()],
             ignore_paths: vec!["**/*.md".to_string()],
@@ -231,8 +279,15 @@ mod tests {
             min_word_length: 3,
         };
 
+        // flip allow_add_words to true, to create a disparity between the dictionaries
+        duplicate_custom_dict.allow_add_words = !duplicate_custom_dict.allow_add_words;
+
         let other = ConfigSettings {
             dictionaries: vec!["en_gb".to_string(), "en_us".to_string()],
+            custom_dictionaries_definitions: vec![
+                duplicate_custom_dict.clone(),
+                build_fake_custom_dict("other_unique"),
+            ],
             words: vec!["rust".to_string()],
             flag_words: vec!["fixme".to_string()],
             ignore_paths: vec!["target/".to_string()],
@@ -245,6 +300,13 @@ mod tests {
 
         // After merging and deduplicating, we should have combined items
         assert_eq!(base.dictionaries, vec!["en_gb", "en_us"]);
+        assert_eq!(
+            base.custom_dictionaries_definitions
+                .iter()
+                .map(|d| d.name.clone())
+                .collect::<Vec<String>>(),
+            vec!["base_unique", "duplicate", "other_unique"]
+        );
         assert_eq!(base.words, vec!["codebook", "rust"]);
         assert_eq!(base.flag_words, vec!["fixme", "todo"]);
         assert_eq!(base.ignore_paths, vec!["**/*.md", "target/"]);
@@ -258,6 +320,12 @@ mod tests {
         assert!(base.use_global);
         // min_word_length from other should override base (since it's non-default)
         assert_eq!(base.min_word_length, 2);
+
+        // Assert that base custom_dictionaries_definitions took priority
+        assert_ne!(
+            base.custom_dictionaries_definitions.iter().find(|d| d.name == "duplicate").expect("custom_dictionaries_definitions duplicate must be present if set in ether of the merged dictionaries").allow_add_words 
+            ,duplicate_custom_dict.allow_add_words
+        );
     }
 
     #[test]
@@ -288,6 +356,11 @@ mod tests {
                 "en_us".to_string(),
                 "en_gb".to_string(),
             ],
+            custom_dictionaries_definitions: vec![
+                build_fake_custom_dict("custom_1"),
+                build_fake_custom_dict("custom_2"),
+                build_fake_custom_dict("custom_1"),
+            ],
             words: vec![
                 "rust".to_string(),
                 "codebook".to_string(),
@@ -311,6 +384,14 @@ mod tests {
         config.sort_and_dedup();
 
         assert_eq!(config.dictionaries, vec!["en_gb", "en_us"]);
+        assert_eq!(
+            config
+                .custom_dictionaries_definitions
+                .iter()
+                .map(|d| d.name.clone())
+                .collect::<Vec<String>>(),
+            vec!["custom_1", "custom_2"]
+        );
         assert_eq!(config.words, vec!["codebook", "rust"]);
         assert_eq!(config.flag_words, vec!["fixme", "todo"]);
         assert_eq!(config.ignore_paths, vec!["**/*.md", "target/"]);
