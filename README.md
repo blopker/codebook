@@ -114,6 +114,8 @@ However, if you are looking for a traditional spell checker for _prose_, Codeboo
 
 To see the motivations behind Codebook, read [this blog post](https://blopker.com/writing/09-survey-of-the-current-state-of-code-spell-checking/).
 
+Also note that Codebook is a coding spell checker, and aims to be unobtrusive by only marking spelling issues that the user controls. For example, there is no point in flagging spelling mistakes in external libraries that are not under the user control - this would only create clutter that the user cannot act on. As a consequence, Codebook only marks issues for terms where they are defined, and not where they are used. Correcting both the definition (flagged by Codebook) and all subsequent uses should be done by other language specific tooling - usually available as a LSP too.
+
 ## Status
 
 Codebook is in active development. As better dictionaries are added, words that were previously marked as misspelled (or spelled correctly), might change over time to improve correctness.
