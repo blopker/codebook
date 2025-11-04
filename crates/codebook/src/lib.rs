@@ -167,11 +167,24 @@ impl Codebook {
             .iter()
             .find(|d| d.allow_add_words && d.name == dict_id)
         {
+            // FIXME: I am still unsure where to maintain an dict_id to WatchedFile map, for now I
+            // am just going to use simple file operations to write to the end of the file.
+            // Also we should make sure we are writing to a text file, a simple solution would be to
+            // filter out dict paths based on extensions, so if the path isn't ending with .dict
+            // or .txt we just toss the update away.
             let mut file = File::options()
+                .read(true)
                 .append(true)
                 .create(false)
                 .open(&custom_dict.path)?;
-            write!(file, "\n{}", word)?;
+
+            // FIXME: we should check if the last byte of the dict is a new line and only prepend
+            // newlines if its missing, I have bigger fish to fry right now
+            if file.metadata()?.len() == 0 {
+                write!(file, "{}", word)?;
+            } else {
+                write!(file, "\n{}", word)?;
+            }
         }
 
         Ok(())
