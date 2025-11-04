@@ -103,7 +103,10 @@ impl Codebook {
         let mut dictionaries = Vec::with_capacity(dictionary_ids.len());
         debug!("Checking text with dictionaries: {dictionary_ids:?}");
         for dictionary_id in dictionary_ids {
-            let dictionary = self.manager.get_dictionary(&dictionary_id);
+            let dictionary = self.manager.get_dictionary(
+                &dictionary_id,
+                &self.config.get_custom_dictionaries_definitions(),
+            );
             if let Some(d) = dictionary {
                 dictionaries.push(d);
             }

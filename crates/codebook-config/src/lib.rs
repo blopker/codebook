@@ -2,6 +2,7 @@ mod helpers;
 mod settings;
 mod watched_file;
 use crate::settings::ConfigSettings;
+pub use crate::settings::CustomDictionariesDefinitions;
 use crate::watched_file::WatchedFile;
 use log::debug;
 use log::info;
@@ -24,6 +25,7 @@ pub trait CodebookConfig: Sync + Send + Debug {
     fn add_word_global(&self, word: &str) -> Result<bool, io::Error>;
     fn add_ignore(&self, file: &str) -> Result<bool, io::Error>;
     fn get_dictionary_ids(&self) -> Vec<String>;
+    fn get_custom_dictionaries_definitions(&self) -> Vec<CustomDictionariesDefinitions>;
     fn should_ignore_path(&self, path: &Path) -> bool;
     fn is_allowed_word(&self, word: &str) -> bool;
     fn should_flag_word(&self, word: &str) -> bool;
@@ -496,6 +498,11 @@ impl CodebookConfig for CodebookConfigFile {
     fn cache_dir(&self) -> &Path {
         &self.cache_dir
     }
+
+    fn get_custom_dictionaries_definitions(&self) -> Vec<CustomDictionariesDefinitions> {
+        let snapshot = self.snapshot();
+        snapshot.custom_dictionaries_definitions.clone()
+    }
 }
 
 #[derive(Debug)]
@@ -575,6 +582,11 @@ impl CodebookConfig for CodebookConfigMemory {
 
     fn cache_dir(&self) -> &Path {
         &self.cache_dir
+    }
+
+    fn get_custom_dictionaries_definitions(&self) -> Vec<CustomDictionariesDefinitions> {
+        let snapshot = self.snapshot();
+        snapshot.custom_dictionaries_definitions.clone()
     }
 }
 

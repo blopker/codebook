@@ -3,13 +3,16 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CustomDictionariesDefinitions {
     /// The name of the custom dictionary
-    name: String,
+    #[serde(default)]
+    pub name: String,
 
     /// Relative path to the custom dictionary
-    path: String,
+    #[serde(default)]
+    pub path: String,
 
     /// Allow adding words to this dictionary
-    allow_add_words: bool,
+    #[serde(default)]
+    pub allow_add_words: bool,
 }
 
 #[derive(Debug, Serialize, Clone, PartialEq)]
