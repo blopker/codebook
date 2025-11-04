@@ -1,4 +1,4 @@
-use std::sync::LazyLock;
+use std::{path::PathBuf, sync::LazyLock};
 
 static CODEBOOK_DICTIONARY: &str = include_str!("./combined.gen.txt");
 
@@ -23,7 +23,7 @@ impl HunspellRepo {
 pub enum TextRepoLocation {
     Url(String),
     Text(&'static str),
-    LocalFile(String),
+    LocalFile(PathBuf),
 }
 
 #[derive(Clone, Debug)]

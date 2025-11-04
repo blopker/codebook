@@ -1,4 +1,8 @@
-use std::path::{self, Path};
+use std::{
+    io,
+    path::{self, Path, PathBuf},
+    sync::Arc,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +19,25 @@ pub struct CustomDictionariesEntry {
     /// Allow adding words to this dictionary
     #[serde(default)]
     pub allow_add_words: bool,
+
+    /// For internal use to track the coodbook.toml that originated this entry
+    #[serde(skip)]
+    pub config_file_path: Option<Arc<Path>>,
+}
+
+impl CustomDictionariesEntry {
+    pub fn resolve_full_path(&self) -> Result<PathBuf, io::Error> {
+        let full_path = if let Some(config_file_path) = &self.config_file_path {
+            config_file_path
+                .parent()
+                .ok_or(io::Error::from(io::ErrorKind::NotFound))?
+                .join(Path::new(&self.path))
+        } else {
+            PathBuf::from(&self.path)
+        };
+
+        path::absolute(&full_path)
+    }
 }
 
 #[derive(Debug, Serialize, Clone, PartialEq)]
@@ -175,18 +198,10 @@ impl ConfigSettings {
         sort_and_dedup(&mut self.ignore_patterns);
     }
 
-    pub fn try_normalizing_relative_paths(&mut self, config_path: &Path) {
-        let config_path_parent = if let Some(config_path_parent) = config_path.parent() {
-            config_path_parent
-        } else {
-            return;
-        };
-
-        for current_dict in &mut self.custom_dictionaries_definitions {
-            if let Ok(path) = path::absolute(config_path_parent.join(Path::new(&current_dict.path)))
-            {
-                current_dict.path = path.to_str().unwrap().to_string();
-            }
+    pub fn set_config_file_paths(&mut self, config_path: &Path) {
+        let config_path: Arc<Path> = Arc::from(config_path);
+        for custom_directory in &mut self.custom_dictionaries_definitions {
+            custom_directory.config_file_path = Some(config_path.clone());
         }
     }
 }
@@ -213,7 +228,7 @@ mod tests {
         CustomDictionariesEntry {
             name: name.into(),
             path: name.into(),
-            allow_add_words: false,
+            ..Default::default()
         }
     }
 
@@ -462,37 +477,5 @@ mod tests {
         assert_eq!(config.ignore_paths, Vec::<String>::new());
         assert_eq!(config.ignore_patterns, Vec::<String>::new());
         assert!(config.use_global);
-    }
-
-    #[test]
-    fn test_relative_path_normalization() {
-        let base_config_path = "/tmp/coodbook.toml";
-        let absolute_dict_path = "/absolute_dict.txt";
-        let relative_dict_path = "./relative_dict.txt";
-        let expected_relative_path = "/tmp/relative_dict.txt";
-
-        let mut config = ConfigSettings::default();
-
-        let mut relative_custom_dict = CustomDictionariesEntry::default();
-        relative_custom_dict.path = relative_dict_path.to_string();
-        let mut absolute_dict = CustomDictionariesEntry::default();
-        absolute_dict.path = absolute_dict_path.to_string();
-
-        config.custom_dictionaries_definitions.push(absolute_dict);
-
-        config
-            .custom_dictionaries_definitions
-            .push(relative_custom_dict);
-
-        config.try_normalizing_relative_paths(Path::new(base_config_path));
-
-        assert_eq!(
-            config
-                .custom_dictionaries_definitions
-                .iter()
-                .map(|d| d.path.clone())
-                .collect::<Vec<String>>(),
-            vec![absolute_dict_path, expected_relative_path]
-        );
     }
 }

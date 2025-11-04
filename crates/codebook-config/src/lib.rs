@@ -200,8 +200,11 @@ impl CodebookConfigFile {
         let path = path.as_ref();
         let content = fs::read_to_string(path)?;
 
-        match toml::from_str(&content) {
-            Ok(settings) => Ok(settings),
+        match toml::from_str::<ConfigSettings>(&content) {
+            Ok(mut settings) => {
+                settings.set_config_file_paths(path);
+                Ok(settings)
+            }
             Err(e) => {
                 let err = io::Error::new(
                     ErrorKind::InvalidData,
@@ -217,22 +220,14 @@ impl CodebookConfigFile {
         project_config: &WatchedFile<ConfigSettings>,
         global_config: &WatchedFile<ConfigSettings>,
     ) -> ConfigSettings {
-        let mut project = project_config
+        let project = project_config
             .content()
             .cloned()
             .unwrap_or_else(ConfigSettings::default);
 
-        if let Some(path) = project_config.path() {
-            project.try_normalizing_relative_paths(path);
-        }
-
         if project.use_global {
             if let Some(global) = global_config.content() {
                 let mut effective = global.clone();
-
-                if let Some(path) = global_config.path() {
-                    effective.try_normalizing_relative_paths(path);
-                }
 
                 effective.merge(project);
                 effective
@@ -1103,7 +1098,7 @@ mod tests {
     #[test]
     fn test_normalization_of_custom_dict_paths() -> Result<(), io::Error> {
         let temp_dir = TempDir::new().unwrap();
-        let config_path = temp_dir.path().join("codebook.toml");
+        let config_path = Arc::from(temp_dir.path().join("codebook.toml").as_path());
         let relative_custom_dict_path = temp_dir.path().join("custom_rel.txt");
         let absolute_custom_dict_path = temp_dir.path().join("custom_abs.txt");
         let mut file = File::create(&config_path)?;
@@ -1115,11 +1110,13 @@ mod tests {
                 name: "absolute".to_owned(),
                 path: absolute_custom_dict_path.to_str().unwrap().to_string(),
                 allow_add_words: true,
+                config_file_path: Some(config_path.clone()),
             },
             CustomDictionariesEntry {
                 name: "relative".to_owned(),
                 path: relative_custom_dict_path.to_str().unwrap().to_string(),
                 allow_add_words: false,
+                config_file_path: Some(config_path.clone()),
             },
         ];
 

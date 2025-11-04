@@ -15,7 +15,7 @@ pub fn get_processor(enable_custom_dict: bool) -> Codebook {
     let custom_dict = CustomDictionariesEntry {
         name: custom_dict_name.to_owned(),
         path: custom_dict_path,
-        allow_add_words: false,
+        ..Default::default()
     };
     config.add_custom_dict(custom_dict);
 

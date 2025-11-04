@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     path::PathBuf,
-    str::FromStr,
     sync::{Arc, RwLock},
 };
 
@@ -49,7 +48,12 @@ impl DictionaryManager {
         let repo = if let Some(custom_dict) = custom_dicts_defs.iter().find(|d| d.name == id) {
             DictionaryRepo::Text(TextRepo {
                 name: custom_dict.name.clone(),
-                text_location: TextRepoLocation::LocalFile(custom_dict.path.clone()),
+                text_location: TextRepoLocation::LocalFile(
+                    custom_dict
+                        .resolve_full_path()
+                        .inspect_err(|e| error!("Failed to build local text repo due to: {e}"))
+                        .ok()?,
+                ),
             })
         } else {
             let repo = get_repo(id);
@@ -114,15 +118,9 @@ impl DictionaryManager {
                     .inspect_err(|_| error!("{}: {}", FAILED_TO_READ_DICT_ERR, text_path.display()))
                     .ok()?
             }
-            super::repo::TextRepoLocation::LocalFile(path) => {
-                let text_path = PathBuf::from_str(&path)
-                    .inspect_err(|e| error!("Error: {e:?}"))
-                    .ok()?;
-
-                TextDictionary::try_from(&text_path)
-                    .inspect_err(|_| error!("{}: {}", FAILED_TO_READ_DICT_ERR, text_path.display()))
-                    .ok()?
-            }
+            super::repo::TextRepoLocation::LocalFile(path) => TextDictionary::try_from(&path)
+                .inspect_err(|_| error!("{}: {}", FAILED_TO_READ_DICT_ERR, path.display()))
+                .ok()?,
             super::repo::TextRepoLocation::Text(text) => TextDictionary::new(text),
         };
 

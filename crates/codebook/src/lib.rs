@@ -176,7 +176,7 @@ impl Codebook {
                 .read(true)
                 .append(true)
                 .create(false)
-                .open(&custom_dict.path)?;
+                .open(&custom_dict.resolve_full_path()?)?;
 
             // FIXME: we should check if the last byte of the dict is a new line and only prepend
             // newlines if its missing, I have bigger fish to fry right now
