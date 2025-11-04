@@ -140,10 +140,6 @@ static TEXT_DICTIONARIES: LazyLock<Vec<TextRepo>> = LazyLock::new(|| {
             name: "codebook".to_string(),
             text_location: TextRepoLocation::Text(CODEBOOK_DICTIONARY),
         },
-        TextRepo {
-            name: "codebook".to_string(),
-            text_location: TextRepoLocation::Text(CODEBOOK_DICTIONARY),
-        },
         TextRepo::new_url_repo(
             "csharp",
             "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/csharp/csharp.txt",
