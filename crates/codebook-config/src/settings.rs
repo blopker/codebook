@@ -1,3 +1,5 @@
+use std::path::{self, Path};
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
@@ -6,7 +8,7 @@ pub struct CustomDictionariesDefinitions {
     #[serde(default)]
     pub name: String,
 
-    /// Relative path to the custom dictionary
+    /// An absolute or relative path to the custom dictionary
     #[serde(default)]
     pub path: String,
 
@@ -164,6 +166,21 @@ impl ConfigSettings {
         sort_and_dedup(&mut self.flag_words);
         sort_and_dedup(&mut self.ignore_paths);
         sort_and_dedup(&mut self.ignore_patterns);
+    }
+
+    pub fn try_normalizing_relative_paths(&mut self, config_path: &Path) {
+        let config_path = config_path.parent();
+        if config_path.is_none() {
+            return;
+        }
+        let config_path = config_path.unwrap();
+
+        for current_dict in &mut self.custom_dictionaries_definitions {
+            let custom_dict_path = Path::new(&current_dict.path);
+            if let Ok(path) = path::absolute(config_path.join(custom_dict_path)) {
+                current_dict.path = path.to_str().unwrap().to_string();
+            }
+        }
     }
 }
 
@@ -438,5 +455,37 @@ mod tests {
         assert_eq!(config.ignore_paths, Vec::<String>::new());
         assert_eq!(config.ignore_patterns, Vec::<String>::new());
         assert!(config.use_global);
+    }
+
+    #[test]
+    fn test_relative_path_normalization() {
+        let base_config_path = "/tmp/coodbook.toml";
+        let absolute_dict_path = "/absolute_dict.txt";
+        let relative_dict_path = "./relative_dict.txt";
+        let expected_relative_path = "/tmp/relative_dict.txt";
+
+        let mut config = ConfigSettings::default();
+
+        let mut relative_custom_dict = CustomDictionariesDefinitions::default();
+        relative_custom_dict.path = relative_dict_path.to_string();
+        let mut absolute_dict = CustomDictionariesDefinitions::default();
+        absolute_dict.path = absolute_dict_path.to_string();
+
+        config.custom_dictionaries_definitions.push(absolute_dict);
+
+        config
+            .custom_dictionaries_definitions
+            .push(relative_custom_dict);
+
+        config.try_normalizing_relative_paths(Path::new(base_config_path));
+
+        assert_eq!(
+            config
+                .custom_dictionaries_definitions
+                .iter()
+                .map(|d| d.path.clone())
+                .collect::<Vec<String>>(),
+            vec![absolute_dict_path, expected_relative_path]
+        );
     }
 }

@@ -217,14 +217,23 @@ impl CodebookConfigFile {
         project_config: &WatchedFile<ConfigSettings>,
         global_config: &WatchedFile<ConfigSettings>,
     ) -> ConfigSettings {
-        let project = project_config
+        let mut project = project_config
             .content()
             .cloned()
             .unwrap_or_else(ConfigSettings::default);
 
+        if let Some(path) = project_config.path() {
+            project.try_normalizing_relative_paths(path);
+        }
+
         if project.use_global {
             if let Some(global) = global_config.content() {
                 let mut effective = global.clone();
+
+                if let Some(path) = global_config.path() {
+                    project.try_normalizing_relative_paths(path);
+                }
+
                 effective.merge(project);
                 effective
             } else {
@@ -526,6 +535,18 @@ impl CodebookConfigMemory {
             settings: RwLock::new(settings),
             cache_dir: env::temp_dir().join(CACHE_DIR),
         }
+    }
+
+    pub fn add_dict_id(&self, id: &str) {
+        let mut settings = self.settings.write().unwrap();
+        settings.dictionaries.push(id.into());
+        settings.sort_and_dedup();
+    }
+
+    pub fn add_custom_dict(&self, custom_dict: CustomDictionariesDefinitions) {
+        let mut settings = self.settings.write().unwrap();
+        settings.custom_dictionaries_definitions.push(custom_dict);
+        settings.sort_and_dedup();
     }
 }
 
