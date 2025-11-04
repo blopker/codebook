@@ -120,7 +120,14 @@ impl<'de> Deserialize<'de> for ConfigSettings {
         let helper = Helper::deserialize(deserializer)?;
         Ok(ConfigSettings {
             dictionaries: to_lowercase_vec(helper.dictionaries),
-            custom_dictionaries_definitions: helper.custom_dictionaries_definitions,
+            custom_dictionaries_definitions: helper
+                .custom_dictionaries_definitions
+                .into_iter()
+                .map(|c| {
+                    c.name.to_ascii_lowercase();
+                    c
+                })
+                .collect(),
             words: to_lowercase_vec(helper.words),
             flag_words: to_lowercase_vec(helper.flag_words),
             ignore_paths: helper.ignore_paths,
