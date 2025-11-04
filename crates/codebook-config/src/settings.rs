@@ -3,7 +3,7 @@ use std::path::{self, Path};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
-pub struct CustomDictionariesDefinitions {
+pub struct CustomDictionariesEntry {
     /// The name of the custom dictionary
     #[serde(default)]
     pub name: String,
@@ -25,7 +25,7 @@ pub struct ConfigSettings {
 
     /// List of custom dictionaries to use for spell checking
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub custom_dictionaries_definitions: Vec<CustomDictionariesDefinitions>,
+    pub custom_dictionaries_definitions: Vec<CustomDictionariesEntry>,
 
     /// Custom allowlist of words
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -102,7 +102,7 @@ impl<'de> Deserialize<'de> for ConfigSettings {
             #[serde(default)]
             dictionaries: Vec<String>,
             #[serde(default)]
-            custom_dictionaries_definitions: Vec<CustomDictionariesDefinitions>,
+            custom_dictionaries_definitions: Vec<CustomDictionariesEntry>,
             #[serde(default)]
             words: Vec<String>,
             #[serde(default)]
@@ -202,8 +202,8 @@ where
 mod tests {
     use super::*;
 
-    fn build_fake_custom_dict(name: &str) -> CustomDictionariesDefinitions {
-        CustomDictionariesDefinitions {
+    fn build_fake_custom_dict(name: &str) -> CustomDictionariesEntry {
+        CustomDictionariesEntry {
             name: name.into(),
             path: name.into(),
             allow_add_words: false,
@@ -466,9 +466,9 @@ mod tests {
 
         let mut config = ConfigSettings::default();
 
-        let mut relative_custom_dict = CustomDictionariesDefinitions::default();
+        let mut relative_custom_dict = CustomDictionariesEntry::default();
         relative_custom_dict.path = relative_dict_path.to_string();
-        let mut absolute_dict = CustomDictionariesDefinitions::default();
+        let mut absolute_dict = CustomDictionariesEntry::default();
         absolute_dict.path = absolute_dict_path.to_string();
 
         config.custom_dictionaries_definitions.push(absolute_dict);

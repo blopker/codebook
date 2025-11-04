@@ -11,7 +11,7 @@ use super::{
     dictionary::{self, TextDictionary},
     repo::{DictionaryRepo, HunspellRepo, TextRepo, get_repo},
 };
-use codebook_config::CustomDictionariesDefinitions;
+use codebook_config::CustomDictionariesEntry;
 use codebook_downloader::Downloader;
 use dictionary::{Dictionary, HunspellDictionary};
 use log::{debug, error};
@@ -32,7 +32,7 @@ impl DictionaryManager {
     pub fn get_dictionary(
         &self,
         id: &str,
-        custom_dicts_defs: &[CustomDictionariesDefinitions],
+        custom_dicts_defs: &[CustomDictionariesEntry],
     ) -> Option<Arc<dyn Dictionary>> {
         {
             let cache = self.dictionary_cache.read().unwrap();

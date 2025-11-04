@@ -2,7 +2,7 @@ mod helpers;
 mod settings;
 mod watched_file;
 use crate::settings::ConfigSettings;
-pub use crate::settings::CustomDictionariesDefinitions;
+pub use crate::settings::CustomDictionariesEntry;
 use crate::watched_file::WatchedFile;
 use log::debug;
 use log::info;
@@ -25,7 +25,7 @@ pub trait CodebookConfig: Sync + Send + Debug {
     fn add_word_global(&self, word: &str) -> Result<bool, io::Error>;
     fn add_ignore(&self, file: &str) -> Result<bool, io::Error>;
     fn get_dictionary_ids(&self) -> Vec<String>;
-    fn get_custom_dictionaries_definitions(&self) -> Vec<CustomDictionariesDefinitions>;
+    fn get_custom_dictionaries_definitions(&self) -> Vec<CustomDictionariesEntry>;
     fn should_ignore_path(&self, path: &Path) -> bool;
     fn is_allowed_word(&self, word: &str) -> bool;
     fn should_flag_word(&self, word: &str) -> bool;
@@ -508,7 +508,7 @@ impl CodebookConfig for CodebookConfigFile {
         &self.cache_dir
     }
 
-    fn get_custom_dictionaries_definitions(&self) -> Vec<CustomDictionariesDefinitions> {
+    fn get_custom_dictionaries_definitions(&self) -> Vec<CustomDictionariesEntry> {
         let snapshot = self.snapshot();
         snapshot.custom_dictionaries_definitions.clone()
     }
@@ -543,7 +543,7 @@ impl CodebookConfigMemory {
         settings.sort_and_dedup();
     }
 
-    pub fn add_custom_dict(&self, custom_dict: CustomDictionariesDefinitions) {
+    pub fn add_custom_dict(&self, custom_dict: CustomDictionariesEntry) {
         let mut settings = self.settings.write().unwrap();
         settings.custom_dictionaries_definitions.push(custom_dict);
         settings.sort_and_dedup();
@@ -605,7 +605,7 @@ impl CodebookConfig for CodebookConfigMemory {
         &self.cache_dir
     }
 
-    fn get_custom_dictionaries_definitions(&self) -> Vec<CustomDictionariesDefinitions> {
+    fn get_custom_dictionaries_definitions(&self) -> Vec<CustomDictionariesEntry> {
         let snapshot = self.snapshot();
         snapshot.custom_dictionaries_definitions.clone()
     }
@@ -1096,6 +1096,53 @@ mod tests {
         assert!(!config.is_allowed_word("globalword1")); // Not used from global
         assert!(config.should_flag_word("projecttodo")); // From project
         assert!(!config.should_flag_word("globaltodo")); // Not used from global
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_normalization_of_custom_dict_paths() -> Result<(), io::Error> {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("codebook.toml");
+        let relative_custom_dict_path = temp_dir.path().join("custom_rel.txt");
+        let absolute_custom_dict_path = temp_dir.path().join("custom_abs.txt");
+        let mut file = File::create(&config_path)?;
+        File::create(&relative_custom_dict_path)?;
+        File::create(&absolute_custom_dict_path)?;
+
+        let expected = vec![
+            CustomDictionariesEntry {
+                name: "absolute".to_owned(),
+                path: absolute_custom_dict_path.to_str().unwrap().to_string(),
+                allow_add_words: true,
+            },
+            CustomDictionariesEntry {
+                name: "relative".to_owned(),
+                path: relative_custom_dict_path.to_str().unwrap().to_string(),
+                allow_add_words: false,
+            },
+        ];
+
+        let a = format!(
+            r#"
+        [[custom_dictionaries_definitions]]
+        name = "absolute"
+        path = "{}"
+        allow_add_words = true
+
+        [[custom_dictionaries_definitions]]
+        name = "relative"
+        path = "{}"
+        allow_add_words = false
+        "#,
+            absolute_custom_dict_path.display(),
+            relative_custom_dict_path.display(),
+        );
+        file.write_all(a.as_bytes())?;
+
+        let config = load_from_file(ConfigType::Project, &config_path)?;
+        let custom_dicts = config.snapshot().custom_dictionaries_definitions.clone();
+        assert_eq!(expected, custom_dicts);
 
         Ok(())
     }

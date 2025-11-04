@@ -1,5 +1,5 @@
 use codebook::{Codebook, queries::LanguageType};
-use codebook_config::{CodebookConfigMemory, CustomDictionariesDefinitions};
+use codebook_config::{CodebookConfigMemory, CustomDictionariesEntry};
 use std::sync::Arc;
 
 mod utils;
@@ -12,7 +12,7 @@ pub fn get_processor(enable_custom_dict: bool) -> Codebook {
 
     let custom_dict_name = "my_dict";
     let custom_dict_path = example_file_path("custom_dict.txt");
-    let custom_dict = CustomDictionariesDefinitions {
+    let custom_dict = CustomDictionariesEntry {
         name: custom_dict_name.to_owned(),
         path: custom_dict_path,
         allow_add_words: false,
