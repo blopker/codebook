@@ -14,7 +14,7 @@ pub struct CustomDictionariesEntry {
 
     /// An absolute or relative path to the custom dictionary
     #[serde(default)]
-    pub path: String,
+    pub path: PathBuf,
 
     /// Allow adding words to this dictionary
     #[serde(default)]
@@ -31,9 +31,9 @@ impl CustomDictionariesEntry {
             config_file_path
                 .parent()
                 .ok_or(io::Error::from(io::ErrorKind::NotFound))?
-                .join(Path::new(&self.path))
+                .join(&self.path)
         } else {
-            PathBuf::from(&self.path)
+            self.path.clone()
         };
 
         path::absolute(&full_path)
