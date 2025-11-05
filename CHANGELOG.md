@@ -1,5 +1,8 @@
-[0.3.15]
-Unreleased
+[0.3.17]
+
+- Add Typst support
+
+[0.3.16]
 
 - Rust: remove char_literal query
 - Add the Danish dictionary (`da`)
