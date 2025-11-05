@@ -486,8 +486,9 @@ dependencies = [
 
 [[package]]
 name = "codebook-tree-sitter-typst"
-version = "0.0.1"
-source = "git+https://github.com/VasanthakumarV/tree-sitter-typst.git#5f3cdb854cdad72f7cec859c065e878a24df39b4"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7fc4a810d33666309e650213bff15317386f45eb9676635e5b990f9f5f36a0d"
 dependencies = [
  "cc",
  "tree-sitter",
