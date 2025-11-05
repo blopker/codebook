@@ -327,6 +327,8 @@ No remote calls for spell checking or analytics. Once dictionaries are cached, C
 
 Codebook should have high signal and low noise. It should only highlight words that users have control over. For example, a misspelled word in an imported function should not be highlighted as the user can't do anything about it.
 
+As a consequence, Codebook only marks issues for terms where they are defined, and not where they are used. Correcting both the definition (flagged by Codebook) and all subsequent uses should be done by other language specific tooling - usually available as a LSP for that language.
+
 ### Efficient
 
 All features will be weighed against their impact on CPU and memory. Codebook should be fast enough to spell check on every keystroke on even low-end hardware.
