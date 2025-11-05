@@ -48,6 +48,7 @@ sveltekit
 systemd
 todo
 typescript
+typst
 ubuntu
 uncomment
 validator
