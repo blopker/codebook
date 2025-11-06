@@ -15,9 +15,9 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
-static CACHE_DIR: &str = "codebook";
-static GLOBAL_CONFIG_FILE: &str = "codebook.toml";
-static USER_CONFIG_FILES: [&str; 2] = ["codebook.toml", ".codebook.toml"];
+const CACHE_DIR: &str = "codebook";
+const GLOBAL_CONFIG_FILE: &str = "codebook.toml";
+const USER_CONFIG_FILES: [&str; 2] = ["codebook.toml", ".codebook.toml"];
 
 /// The main trait for Codebook configuration.
 pub trait CodebookConfig: Sync + Send + Debug {
