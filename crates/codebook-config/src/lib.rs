@@ -1108,13 +1108,13 @@ mod tests {
         let expected = vec![
             CustomDictionariesEntry {
                 name: "absolute".to_owned(),
-                path: absolute_custom_dict_path.clone(),
+                path: absolute_custom_dict_path.to_str().unwrap().to_string(),
                 allow_add_words: true,
                 config_file_path: Some(config_path.clone()),
             },
             CustomDictionariesEntry {
                 name: "relative".to_owned(),
-                path: relative_custom_dict_path.clone(),
+                path: relative_custom_dict_path.to_str().unwrap().to_string(),
                 allow_add_words: false,
                 config_file_path: Some(config_path.clone()),
             },
