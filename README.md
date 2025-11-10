@@ -206,7 +206,7 @@ Codebook supports both global and project-specific configuration. Configuration 
 The global configuration applies to all projects by default. Location depends on your operating system:
 
 - **Linux/macOS**: `$XDG_CONFIG_HOME/codebook/codebook.toml` or `~/.config/codebook/codebook.toml`
-- **Windows**: `%APPDATA%\codebook\codebook.toml`
+- **Windows**: `%APPDATA%\codebook\codebook.toml` or `%APPDATA%\Roaming\codebook\codebook.toml`
 
 ### Project Configuration
 
