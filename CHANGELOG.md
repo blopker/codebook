@@ -1,3 +1,8 @@
+[Unreleased]
+
+- Add Windows ARM64 release artifacts
+- Move dictionary cache directory to platform-specific data directories instead of /tmp
+
 [0.3.18]
 
 - Fixed f-string issues in Python

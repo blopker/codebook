@@ -158,7 +158,9 @@ If you are a Zed user, you may skip this step and consult the [Zed section](#zed
 ### Manual
 
 1. Download the latest release for your architecture from the [releases](https://github.com/blopker/codebook/releases) page.
-2. Extract the binary from the tarball, and move it somewhere on your system `$PATH`.
+   - Prebuilt archives are published for macOS (x86_64, aarch64), Linux (x86_64, aarch64), and Windows (x86_64, arm64).
+   - Windows artifacts are provided as `.zip` files; macOS and Linux artifacts are `.tar.gz`.
+2. Extract the binary from the archive, and move it somewhere on your system `$PATH`.
   - `~/.local/bin/codebook-lsp`
   - `/usr/bin/codebook-lsp`
   - Etc...
