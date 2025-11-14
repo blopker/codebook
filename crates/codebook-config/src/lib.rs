@@ -64,7 +64,7 @@ impl Default for CodebookConfigFile {
 
         Self {
             inner: RwLock::new(inner),
-            cache_dir: env::temp_dir().join(CACHE_DIR),
+            cache_dir: helpers::default_cache_dir(),
         }
     }
 }
@@ -508,7 +508,7 @@ impl Default for CodebookConfigMemory {
     fn default() -> Self {
         Self {
             settings: RwLock::new(ConfigSettings::default()),
-            cache_dir: env::temp_dir().join(CACHE_DIR),
+            cache_dir: helpers::default_cache_dir(),
         }
     }
 }
@@ -517,7 +517,7 @@ impl CodebookConfigMemory {
     pub fn new(settings: ConfigSettings) -> Self {
         Self {
             settings: RwLock::new(settings),
-            cache_dir: env::temp_dir().join(CACHE_DIR),
+            cache_dir: helpers::default_cache_dir(),
         }
     }
 }
