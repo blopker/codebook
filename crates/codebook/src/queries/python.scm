@@ -1,5 +1,5 @@
 (comment) @comment
-(string) @string
+(string_content) @string
 (function_definition
     name: (identifier) @identifier)
 (function_definition
