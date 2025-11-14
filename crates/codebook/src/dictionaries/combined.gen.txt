@@ -2725,6 +2725,7 @@ typemeta
 typeof
 types
 typescript
+typst
 ua
 ubuntu
 uc
