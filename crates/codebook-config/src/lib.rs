@@ -18,58 +18,6 @@ static CACHE_DIR: &str = "codebook";
 static GLOBAL_CONFIG_FILE: &str = "codebook.toml";
 static USER_CONFIG_FILES: [&str; 2] = ["codebook.toml", ".codebook.toml"];
 
-fn default_cache_dir() -> PathBuf {
-    #[cfg(windows)]
-    {
-        windows_cache_dir()
-    }
-
-    #[cfg(not(windows))]
-    {
-        unix_cache_dir()
-    }
-}
-
-#[cfg(windows)]
-fn windows_cache_dir() -> PathBuf {
-    if let Some(dir) = dirs::data_local_dir() {
-        return dir.join("codebook").join("cache");
-    }
-
-    if let Some(dir) = dirs::data_dir() {
-        return dir.join("codebook").join("cache");
-    }
-
-    if let Some(home) = dirs::home_dir() {
-        return home
-            .join("AppData")
-            .join("Local")
-            .join("codebook")
-            .join("cache");
-    }
-
-    env::temp_dir().join("codebook").join("cache")
-}
-
-#[cfg(not(windows))]
-fn unix_cache_dir() -> PathBuf {
-    if let Some(xdg_data_home) = env::var_os("XDG_DATA_HOME")
-        && !xdg_data_home.is_empty()
-    {
-        return PathBuf::from(xdg_data_home).join("codebook").join("cache");
-    }
-
-    if let Some(home) = dirs::home_dir() {
-        return home
-            .join(".local")
-            .join("share")
-            .join("codebook")
-            .join("cache");
-    }
-
-    env::temp_dir().join("codebook").join("cache")
-}
-
 /// The main trait for Codebook configuration.
 pub trait CodebookConfig: Sync + Send + Debug {
     fn add_word(&self, word: &str) -> Result<bool, io::Error>;
@@ -116,7 +64,7 @@ impl Default for CodebookConfigFile {
 
         Self {
             inner: RwLock::new(inner),
-            cache_dir: default_cache_dir(),
+            cache_dir: helpers::default_cache_dir(),
         }
     }
 }
@@ -560,7 +508,7 @@ impl Default for CodebookConfigMemory {
     fn default() -> Self {
         Self {
             settings: RwLock::new(ConfigSettings::default()),
-            cache_dir: default_cache_dir(),
+            cache_dir: helpers::default_cache_dir(),
         }
     }
 }
@@ -569,7 +517,7 @@ impl CodebookConfigMemory {
     pub fn new(settings: ConfigSettings) -> Self {
         Self {
             settings: RwLock::new(settings),
-            cache_dir: default_cache_dir(),
+            cache_dir: helpers::default_cache_dir(),
         }
     }
 }

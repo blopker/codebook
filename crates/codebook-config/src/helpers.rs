@@ -2,7 +2,60 @@ use crate::settings::ConfigSettings;
 use glob::Pattern;
 use log::error;
 use regex::Regex;
-use std::path::Path;
+use std::env;
+use std::path::{Path, PathBuf};
+
+pub(crate) fn default_cache_dir() -> PathBuf {
+    #[cfg(windows)]
+    {
+        windows_cache_dir()
+    }
+
+    #[cfg(not(windows))]
+    {
+        unix_cache_dir()
+    }
+}
+
+#[cfg(windows)]
+pub(crate) fn windows_cache_dir() -> PathBuf {
+    if let Some(dir) = dirs::data_local_dir() {
+        return dir.join("codebook").join("cache");
+    }
+
+    if let Some(dir) = dirs::data_dir() {
+        return dir.join("codebook").join("cache");
+    }
+
+    if let Some(home) = dirs::home_dir() {
+        return home
+            .join("AppData")
+            .join("Local")
+            .join("codebook")
+            .join("cache");
+    }
+
+    env::temp_dir().join("codebook").join("cache")
+}
+
+#[cfg(not(windows))]
+pub(crate) fn unix_cache_dir() -> PathBuf {
+    if let Some(xdg_data_home) = env::var_os("XDG_DATA_HOME")
+        && !xdg_data_home.is_empty()
+    {
+        return PathBuf::from(xdg_data_home).join("codebook").join("cache");
+    }
+
+    if let Some(home) = dirs::home_dir() {
+        return home
+            .join(".local")
+            .join("share")
+            .join("codebook")
+            .join("cache");
+    }
+
+    env::temp_dir().join("codebook").join("cache")
+}
 
 /// Insert a word into the allowlist, returning true when it was newly added.
 pub(crate) fn insert_word(settings: &mut ConfigSettings, word: &str) -> bool {
@@ -76,4 +129,83 @@ pub(crate) fn build_ignore_regexes(patterns: &[String]) -> Vec<Regex> {
 /// Retrieve the configured minimum word length.
 pub(crate) fn min_word_length(settings: &ConfigSettings) -> usize {
     settings.min_word_length
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::OsString;
+    use std::sync::{Mutex, MutexGuard};
+
+    #[cfg(not(windows))]
+    static ENV_MUTEX: Mutex<()> = Mutex::new(());
+
+    #[cfg(not(windows))]
+    fn lock_env_and_set_xdg(value: Option<&str>) -> (MutexGuard<'static, ()>, Option<OsString>) {
+        let guard = ENV_MUTEX.lock().unwrap();
+        let previous = env::var_os("XDG_DATA_HOME");
+
+        unsafe {
+            match value {
+                Some(val) => env::set_var("XDG_DATA_HOME", val),
+                None => env::remove_var("XDG_DATA_HOME"),
+            }
+        }
+
+        (guard, previous)
+    }
+
+    #[cfg(not(windows))]
+    fn restore_xdg(previous: Option<OsString>) {
+        unsafe {
+            match previous {
+                Some(val) => env::set_var("XDG_DATA_HOME", val),
+                None => env::remove_var("XDG_DATA_HOME"),
+            }
+        }
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn unix_cache_dir_uses_xdg_data_home() {
+        let (guard, previous) = lock_env_and_set_xdg(Some("/tmp/codebook-xdg"));
+
+        let expected = PathBuf::from("/tmp/codebook-xdg")
+            .join("codebook")
+            .join("cache");
+
+        assert_eq!(unix_cache_dir(), expected);
+
+        restore_xdg(previous);
+        drop(guard);
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn unix_cache_dir_falls_back_to_home() {
+        let (guard, previous) = lock_env_and_set_xdg(Some(""));
+
+        let home = dirs::home_dir().expect("home directory must be available for the test");
+        let expected = home
+            .join(".local")
+            .join("share")
+            .join("codebook")
+            .join("cache");
+
+        assert_eq!(unix_cache_dir(), expected);
+
+        restore_xdg(previous);
+        drop(guard);
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn default_cache_dir_matches_unix_on_non_windows() {
+        let (guard, previous) = lock_env_and_set_xdg(Some("/tmp/codebook-xdg-default"));
+
+        assert_eq!(default_cache_dir(), unix_cache_dir());
+
+        restore_xdg(previous);
+        drop(guard);
+    }
 }
