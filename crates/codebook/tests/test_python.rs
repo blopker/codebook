@@ -196,11 +196,11 @@ fn test_python_f_strings() {
     let sample_text = r#"
 name = "John"
 age = 25
-message = f'Hello, my naem is {name} and I am {age} years oldd'
+message = f'Hello, my naem is {namz} and I am {age} years oldd'
 another = f"This is antoher examle with {name} varibles"
 simple = f'check these wordz {but} {not} {the} {variables}'
     "#;
-    
+
     let expected = vec![
         WordLocation::new(
             "naem".to_string(),
@@ -245,14 +245,14 @@ simple = f'check these wordz {but} {not} {the} {variables}'
             }],
         ),
     ];
-    
-    let not_expected = vec!["name", "age", "but", "not", "the", "variables"];
-    
+
+    let not_expected = vec!["namz", "age", "but", "not", "the", "variables"];
+
     let misspelled = processor
         .spell_check(sample_text, Some(LanguageType::Python), None)
         .to_vec();
     println!("Misspelled words: {misspelled:?}");
-    
+
     for e in &expected {
         let miss = misspelled
             .iter()
@@ -261,7 +261,7 @@ simple = f'check these wordz {but} {not} {the} {variables}'
         println!("Expecting: {e:?}");
         assert_eq!(miss.locations, e.locations);
     }
-    
+
     for word in not_expected {
         println!("Not expecting: {word:?}");
         assert!(!misspelled.iter().any(|r| r.word == word));
