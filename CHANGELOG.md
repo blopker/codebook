@@ -1,3 +1,8 @@
+[0.3.18]
+
+- Fixed f-string issues in Python
+- Only emit important logs on startup before LSP handshake initialization
+
 [0.3.17]
 
 - Add Typst support
