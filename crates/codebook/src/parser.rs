@@ -217,13 +217,15 @@ fn find_locations_code(
                             end_byte: range.end_byte + node_start_byte,
                         };
                         if let Some(existing_result) = word_locations.get_mut(&word_pos.word) {
-                            let added = existing_result.insert(location);
                             #[cfg(debug_assertions)]
-                            if !added {
-                                let word = word_pos.word.clone();
-                                panic!(
-                                    "Two of the same locations found. Make a better query. Word: {word}, Location: {location:?}"
-                                )
+                            {
+                                let added = existing_result.insert(location);
+                                if !added {
+                                    let word = word_pos.word.clone();
+                                    panic!(
+                                        "Two of the same locations found. Make a better query. Word: {word}, Location: {location:?}"
+                                    )
+                                }
                             }
                         } else {
                             let mut set = HashSet::new();
