@@ -16,7 +16,7 @@
 <img
   src="assets/example.png" alt="Example" width="400" >
 
-No setup needed. Codebook will automatically detect the language you are editing and mark issues for you. Note, Codebook will only mark issues for words that you control, where they are initially defined.
+No configuration needed. Codebook will automatically detect the language you are editing and mark issues for you. Codebook will try to only mark issues for words that you create, where they are initially defined.
 
 Please gift a ⭐ if you find Codebook useful!
 
