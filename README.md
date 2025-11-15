@@ -16,9 +16,11 @@
 <img
   src="assets/example.png" alt="Example" width="400" >
 
-No setup needed. Codebook will automatically detect the language you are editing and mark issues for you. Note, Codebook will only mark issues for words that you control, where they are initially defined.
+No configuration needed. Codebook will automatically detect the language you are editing and mark issues for you. Codebook will try to only mark issues for words that you create, where they are initially defined.
 
 Please gift a ⭐ if you find Codebook useful!
+
+**Supported platforms:** Prebuilt archives are published for macOS (x86_64, aarch64), Linux (x86_64, aarch64), and Windows (x86_64, arm64).
 
 ## Integrations
 
@@ -158,7 +160,9 @@ If you are a Zed user, you may skip this step and consult the [Zed section](#zed
 ### Manual
 
 1. Download the latest release for your architecture from the [releases](https://github.com/blopker/codebook/releases) page.
-2. Extract the binary from the tarball, and move it somewhere on your system `$PATH`.
+   - Prebuilt archives are published for macOS (x86_64, aarch64), Linux (x86_64, aarch64), and Windows (x86_64, arm64).
+   - Windows artifacts are provided as `.zip` files; macOS and Linux artifacts are `.tar.gz`.
+2. Extract the binary from the archive, and move it somewhere on your system `$PATH`.
   - `~/.local/bin/codebook-lsp`
   - `/usr/bin/codebook-lsp`
   - Etc...
