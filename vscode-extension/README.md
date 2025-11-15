@@ -36,6 +36,7 @@ This extension contributes the following settings:
 
 * `codebook.enable`: Enable/disable the spell checker
 * `codebook.serverPath`: Path to the codebook-lsp executable (default: auto-download from GitHub)
+* `codebook.globalConfigPath`: Override the default global `codebook.toml` location
 * `codebook.logLevel`: Log level for the language server (`error`, `warn`, `info`, `debug`, `trace`)
 * `codebook.minWordLength`: Minimum word length to check (default: 3)
 * `codebook.dictionaries`: Additional dictionaries to use

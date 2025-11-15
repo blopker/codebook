@@ -1,7 +1,7 @@
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr as _;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use codebook::parser::get_word_from_string;
 use codebook::queries::LanguageType;
@@ -11,6 +11,7 @@ use string_offsets::StringOffsets;
 
 use log::LevelFilter;
 use log::error;
+use serde::Deserialize;
 use serde_json::Value;
 use tokio::task;
 use tower_lsp::jsonrpc::Result as RpcResult;
@@ -26,11 +27,64 @@ use crate::lsp_logger;
 
 const SOURCE_NAME: &str = "Codebook";
 
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ClientInitializationOptions {
+    #[serde(default)]
+    log_level: Option<String>,
+    #[serde(default)]
+    global_config_path: Option<Option<String>>,
+}
+
+impl ClientInitializationOptions {
+    fn from_value(value: Option<Value>) -> Self {
+        value
+            .and_then(|options| {
+                serde_json::from_value(options)
+                    .map_err(|err| {
+                        error!("Failed to parse initialization options: {err}");
+                        err
+                    })
+                    .ok()
+            })
+            .unwrap_or_default()
+    }
+
+    fn log_level_filter(&self) -> LevelFilter {
+        match self
+            .log_level
+            .as_deref()
+            .map(|level| level.to_ascii_lowercase())
+        {
+            Some(level) if level == "trace" => LevelFilter::Trace,
+            Some(level) if level == "debug" => LevelFilter::Debug,
+            Some(level) if level == "warn" => LevelFilter::Warn,
+            Some(level) if level == "error" => LevelFilter::Error,
+            _ => LevelFilter::Info,
+        }
+    }
+
+    fn global_config_override(&self) -> Option<Option<PathBuf>> {
+        self.global_config_path.as_ref().map(|maybe_path| {
+            maybe_path.as_ref().and_then(|path| {
+                let trimmed = path.trim();
+                if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(PathBuf::from(trimmed))
+                }
+            })
+        })
+    }
+}
+
 pub struct Backend {
     pub client: Client,
     // Wrap every call to codebook in spawn_blocking, it's not async
-    pub codebook: Arc<Codebook>,
-    pub config: Arc<CodebookConfigFile>,
+    workspace_dir: PathBuf,
+    global_config_override: RwLock<Option<PathBuf>>,
+    pub codebook: RwLock<Arc<Codebook>>,
+    pub config: RwLock<Arc<CodebookConfigFile>>,
     pub document_cache: TextDocumentCache,
 }
 
@@ -64,20 +118,10 @@ impl From<CodebookCommand> for String {
 impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> RpcResult<InitializeResult> {
         // info!("Capabilities: {:?}", params.capabilities);
-        // Get log level from initialization options
-        let log_level = params
-            .initialization_options
-            .as_ref()
-            .and_then(|options| options.get("logLevel"))
-            .and_then(|level| level.as_str())
-            .map(|level| {
-                if level == "debug" {
-                    LevelFilter::Debug
-                } else {
-                    LevelFilter::Info
-                }
-            })
-            .unwrap_or(LevelFilter::Info);
+        let client_options =
+            ClientInitializationOptions::from_value(params.initialization_options.clone());
+        let log_level = client_options.log_level_filter();
+        let global_override = client_options.global_config_override();
 
         // Attach the LSP client to the logger and flush buffered logs
         lsp_logger::LspLogger::attach_client(self.client.clone(), log_level);
@@ -85,6 +129,19 @@ impl LanguageServer for Backend {
             "LSP logger attached to client with log level: {}",
             log_level
         );
+        if let Some(global_override) = global_override {
+            if self.apply_global_config_override(global_override.clone()) {
+                match &global_override {
+                    Some(path) => {
+                        info!(
+                            "Using client-supplied global config path: {}",
+                            path.display()
+                        );
+                    }
+                    None => info!("Client reset global config override to default location"),
+                }
+            }
+        }
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
                 position_encoding: Some(PositionEncodingKind::UTF16),
@@ -118,16 +175,14 @@ impl LanguageServer for Backend {
 
     async fn initialized(&self, _: InitializedParams) {
         info!("Server ready!");
-        info!(
-            "Project config: {}",
-            self.config.project_config_path().unwrap().display()
-        );
+        let config = self.config_handle();
+        match config.project_config_path() {
+            Some(path) => info!("Project config: {}", path.display()),
+            None => info!("Project config: <not set>"),
+        }
         info!(
             "Global config: {}",
-            self.config
-                .global_config_path()
-                .unwrap_or_default()
-                .display()
+            config.global_config_path().unwrap_or_default().display()
         );
     }
 
@@ -199,7 +254,7 @@ impl LanguageServer for Backend {
             if word.is_empty() || word.contains(" ") {
                 continue;
             }
-            let cb = self.codebook.clone();
+            let cb = self.codebook_handle();
             let inner_word = word.clone();
             let suggestions = task::spawn_blocking(move || cb.get_suggestions(&inner_word)).await;
 
@@ -265,6 +320,7 @@ impl LanguageServer for Backend {
     async fn execute_command(&self, params: ExecuteCommandParams) -> RpcResult<Option<Value>> {
         match CodebookCommand::from(params.command.as_str()) {
             CodebookCommand::AddWord => {
+                let config = self.config_handle();
                 let words = params
                     .arguments
                     .iter()
@@ -273,21 +329,22 @@ impl LanguageServer for Backend {
                     "Adding words to dictionary {}",
                     words.clone().collect::<Vec<String>>().join(", ")
                 );
-                let updated = self.add_words(words);
+                let updated = self.add_words(config.as_ref(), words);
                 if updated {
-                    let _ = self.config.save();
+                    let _ = config.save();
                     self.recheck_all().await;
                 }
                 Ok(None)
             }
             CodebookCommand::AddWordGlobal => {
+                let config = self.config_handle();
                 let words = params
                     .arguments
                     .iter()
                     .filter_map(|arg| arg.as_str().map(|s| s.to_string()));
-                let updated = self.add_words_global(words);
+                let updated = self.add_words_global(config.as_ref(), words);
                 if updated {
-                    let _ = self.config.save_global();
+                    let _ = config.save_global();
                     self.recheck_all().await;
                 }
                 Ok(None)
@@ -299,17 +356,74 @@ impl LanguageServer for Backend {
 
 impl Backend {
     pub fn new(client: Client, workspace_dir: &Path) -> Self {
-        let config = CodebookConfigFile::load(Some(workspace_dir)).expect("Unable to make config.");
-        let config_arc: Arc<CodebookConfigFile> = Arc::new(config);
-        let cb_config = Arc::clone(&config_arc);
-        let codebook = Arc::new(Codebook::new(cb_config).expect("Unable to make codebook"));
+        let initial_override: Option<PathBuf> = None;
+        let (config_arc, codebook) =
+            Self::build_configuration(workspace_dir, initial_override.as_deref())
+                .expect("Unable to initialize Codebook configuration");
 
         Self {
             client,
-            codebook,
-            config: Arc::clone(&config_arc),
+            workspace_dir: workspace_dir.to_path_buf(),
+            global_config_override: RwLock::new(initial_override),
+            codebook: RwLock::new(codebook),
+            config: RwLock::new(config_arc),
             document_cache: TextDocumentCache::default(),
         }
+    }
+
+    fn build_configuration(
+        workspace_dir: &Path,
+        global_config_override: Option<&Path>,
+    ) -> Result<(Arc<CodebookConfigFile>, Arc<Codebook>), String> {
+        let config = CodebookConfigFile::load_with_global_config(
+            Some(workspace_dir),
+            global_config_override,
+        )
+        .map_err(|e| format!("Unable to make config: {e}"))?;
+        let config_arc: Arc<CodebookConfigFile> = Arc::new(config);
+        let cb_config = Arc::clone(&config_arc);
+        let codebook =
+            Codebook::new(cb_config).map_err(|e| format!("Unable to make codebook: {e}"))?;
+        Ok((config_arc, Arc::new(codebook)))
+    }
+
+    fn apply_global_config_override(&self, new_override: Option<PathBuf>) -> bool {
+        {
+            let guard = self.global_config_override.read().unwrap();
+            if *guard == new_override {
+                return false;
+            }
+        }
+
+        match Self::build_configuration(&self.workspace_dir, new_override.as_deref()) {
+            Ok((config_arc, codebook)) => {
+                {
+                    let mut cfg = self.config.write().unwrap();
+                    *cfg = Arc::clone(&config_arc);
+                }
+                {
+                    let mut cb = self.codebook.write().unwrap();
+                    *cb = codebook;
+                }
+                {
+                    let mut guard = self.global_config_override.write().unwrap();
+                    *guard = new_override;
+                }
+                true
+            }
+            Err(err) => {
+                error!("Failed to apply global config override: {err}");
+                false
+            }
+        }
+    }
+
+    fn config_handle(&self) -> Arc<CodebookConfigFile> {
+        self.config.read().unwrap().clone()
+    }
+
+    fn codebook_handle(&self) -> Arc<Codebook> {
+        self.codebook.read().unwrap().clone()
     }
     fn make_diagnostic(&self, word: &str, start_pos: &Pos, end_pos: &Pos) -> Diagnostic {
         let message = format!("Possible spelling issue '{word}'.");
@@ -335,10 +449,10 @@ impl Backend {
         }
     }
 
-    fn add_words(&self, words: impl Iterator<Item = String>) -> bool {
+    fn add_words(&self, config: &CodebookConfigFile, words: impl Iterator<Item = String>) -> bool {
         let mut should_save = false;
         for word in words {
-            match self.config.add_word(&word) {
+            match config.add_word(&word) {
                 Ok(true) => {
                     should_save = true;
                 }
@@ -352,10 +466,14 @@ impl Backend {
         }
         should_save
     }
-    fn add_words_global(&self, words: impl Iterator<Item = String>) -> bool {
+    fn add_words_global(
+        &self,
+        config: &CodebookConfigFile,
+        words: impl Iterator<Item = String>,
+    ) -> bool {
         let mut should_save = false;
         for word in words {
-            match self.config.add_word_global(&word) {
+            match config.add_word_global(&word) {
                 Ok(true) => {
                     should_save = true;
                 }
@@ -406,7 +524,8 @@ impl Backend {
     }
 
     async fn spell_check(&self, uri: &Url) {
-        let did_reload = match self.config.reload() {
+        let config = self.config_handle();
+        let did_reload = match config.reload() {
             Ok(did_reload) => did_reload,
             Err(e) => {
                 error!("Failed to reload config: {e}");
@@ -440,7 +559,7 @@ impl Backend {
         let lang = doc.language_id.as_deref();
         let lang_type = lang.and_then(|lang| LanguageType::from_str(lang).ok());
         debug!("Document identified as type {lang_type:?} from {lang:?}");
-        let cb = self.codebook.clone();
+        let cb = self.codebook_handle();
         let fp = file_path.clone();
         let spell_results = task::spawn_blocking(move || {
             cb.spell_check(&doc.text, lang_type, Some(fp.to_str().unwrap_or_default()))

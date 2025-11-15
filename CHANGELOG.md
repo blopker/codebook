@@ -2,6 +2,7 @@
 
 - Add Windows ARM64 release artifacts
 - Move dictionary cache directory to platform-specific data directories instead of /tmp
+- Allow overriding the global `codebook.toml` path via LSP initialization options (e.g., VS Code's `codebook.globalConfigPath` setting)
 
 [0.3.18]
 
