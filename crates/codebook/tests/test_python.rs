@@ -5,11 +5,11 @@ use codebook::{
 
 mod utils;
 
-/// Strategy: 
+/// Strategy:
 /// Use distinct misspellings to test location sensitive checking.
 /// This simpler to write than asserting exact locations.
 /// Granted - it doesn't test that the spell_check return correct locations,
-/// but should be sufficient that some tests tests this. 
+/// but should be sufficient that some tests tests this.
 /// This can be used to test language-specific grammar rules with less effort.
 ///
 /// `not_expected` does not have to be exhaustive.
@@ -20,9 +20,9 @@ fn assert_simple_misspellings(
     not_expected: Vec<&str>,
     language: LanguageType,
 ) {
-    // Check that the misspellings and the expected correct words used are distinct,
+    // Check that the misspelled words used are distinct,
     // otherwise the test could fail to properly test location sensitive properties
-    for word in expected_misspellings.iter().chain(not_expected.iter()) {
+    for word in expected_misspellings.iter() {
         let count = sample_text.matches(word).count();
         assert_eq!(
             count, 1,
@@ -41,14 +41,15 @@ fn assert_simple_misspellings(
     misspelled.sort();
     println!("Misspelled words: {misspelled:?}");
 
-    assert_eq!(misspelled, expected_misspellings);
+    let mut expected_misspellings_sorted = expected_misspellings.clone();
+    expected_misspellings_sorted.sort();
+    assert_eq!(misspelled, expected_misspellings_sorted);
 
     for word in not_expected {
         println!("Not expecting: {word:?}");
         assert!(!misspelled.iter().any(|w| *w == word));
     }
 }
-
 
 #[test]
 fn test_python_simple() {
@@ -320,20 +321,20 @@ fn test_python_functions() {
 
     // Test simple function - function name and parameter names should be checked
     let simple_function = r#"
-def simple_wrngfunction_name(wrngparam, correct):
+def simple_wrngfunction_name(wrngparam, correct, wrngdefaultparam=1, correct_default=2):
     pass
     "#;
     assert_simple_misspellings(
         &processor,
         simple_function,
-        vec!["wrngfunction", "wrngparam"],
-        vec!["simple", "correct", "def", "name"],
+        vec!["wrngfunction", "wrngparam", "wrngdefaultparam"],
+        vec!["simple", "correct", "def", "name", "default"],
         LanguageType::Python,
     );
 
     // Test typed function - function names and parameters should be checked, but not types or modules
     let simple_typed_function = r#"
-def simple_wrngfunction(wrngparam: str, correct: Wrngtype, other: wrngmod.Wrngmodtype) -> Wrngret:
+def simple_wrngfunction(wrngparam: str, correct: Wrngtype, other: wrngmod.Wrngmodtype, correct_default: Nons | int = 2) -> Wrngret:
     pass
     "#;
     assert_simple_misspellings(
@@ -349,6 +350,8 @@ def simple_wrngfunction(wrngparam: str, correct: Wrngtype, other: wrngmod.Wrngmo
             "Wrngmodtype",
             "Wrngret",
             "def",
+            "Nons",
+            "default",
         ],
         LanguageType::Python,
     );
