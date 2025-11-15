@@ -1,4 +1,4 @@
-use std::sync::LazyLock;
+use std::{path::PathBuf, sync::LazyLock};
 
 static CODEBOOK_DICTIONARY: &str = include_str!("./combined.gen.txt");
 
@@ -20,17 +20,22 @@ impl HunspellRepo {
 }
 
 #[derive(Clone, Debug)]
+pub enum TextRepoLocation {
+    Url(String),
+    Text(&'static str),
+    LocalFile(PathBuf),
+}
+
+#[derive(Clone, Debug)]
 pub struct TextRepo {
-    pub url: Option<String>,
-    pub text: Option<&'static str>,
+    pub text_location: TextRepoLocation,
     pub name: String,
 }
 
 impl TextRepo {
-    pub fn new(name: &str, url: &str) -> Self {
+    pub fn new_url_repo(name: &str, url: &str) -> Self {
         Self {
-            url: Some(url.to_string()),
-            text: None,
+            text_location: TextRepoLocation::Url(url.to_string()),
             name: name.to_string(),
         }
     }
@@ -119,24 +124,23 @@ static HUNSPELL_DICTIONARIES: LazyLock<Vec<HunspellRepo>> = LazyLock::new(|| {
 
 static TEXT_DICTIONARIES: LazyLock<Vec<TextRepo>> = LazyLock::new(|| {
     vec![
-        TextRepo::new(
+        TextRepo::new_url_repo(
             "rust",
             "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/rust/dict/rust.txt",
         ),
-        TextRepo::new(
+        TextRepo::new_url_repo(
             "software_terms",
             "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/software-terms/dict/softwareTerms.txt",
         ),
-        TextRepo::new(
+        TextRepo::new_url_repo(
             "computing_acronyms",
             "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/software-terms/dict/computing-acronyms.txt",
         ),
         TextRepo {
             name: "codebook".to_string(),
-            text: Some(CODEBOOK_DICTIONARY),
-            url: None,
+            text_location: TextRepoLocation::Text(CODEBOOK_DICTIONARY),
         },
-        TextRepo::new(
+        TextRepo::new_url_repo(
             "csharp",
             "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/csharp/csharp.txt",
         ),

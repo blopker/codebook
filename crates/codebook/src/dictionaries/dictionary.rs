@@ -2,6 +2,7 @@ use lru::LruCache;
 
 use std::{
     collections::HashSet,
+    io,
     num::NonZeroUsize,
     path::PathBuf,
     sync::{Arc, RwLock},
@@ -158,15 +159,19 @@ impl TextDictionary {
             .collect();
         Self { words }
     }
-    pub fn new_from_path(path: &PathBuf) -> Self {
-        let word_list = std::fs::read_to_string(path)
-            .unwrap_or_else(|_| panic!("Failed to read dictionary file: {}", path.display()));
-        Self::new(&word_list)
-    }
 
     /// Get a reference to the internal HashSet for batch operations
     pub fn word_set(&self) -> &HashSet<String> {
         &self.words
+    }
+}
+
+impl TryFrom<&PathBuf> for TextDictionary {
+    type Error = io::Error;
+
+    fn try_from(value: &PathBuf) -> Result<Self, Self::Error> {
+        let word_list = std::fs::read_to_string(value)?;
+        Ok(Self::new(&word_list))
     }
 }
 

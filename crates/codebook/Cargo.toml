@@ -53,6 +53,7 @@ tree-sitter-zig.workspace = true
 tree-sitter-c-sharp.workspace = true
 tree-sitter.workspace = true
 unicode-segmentation.workspace = true
+thiserror.workspace = true
 
 codebook_config.workspace = true
 codebook_downloader.workspace = true

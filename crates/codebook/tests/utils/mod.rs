@@ -15,3 +15,8 @@ pub fn get_processor() -> Codebook {
 pub fn init_logging() {
     let _ = env_logger::builder().is_test(true).try_init();
 }
+
+pub fn example_file_path(file: &str) -> String {
+    // get root of the project through CARGO_MANIFEST_DIR
+    format!("tests/examples/{file}")
+}

@@ -4,10 +4,13 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use crate::dictionaries::repo::TextRepoLocation;
+
 use super::{
     dictionary::{self, TextDictionary},
     repo::{DictionaryRepo, HunspellRepo, TextRepo, get_repo},
 };
+use codebook_config::CustomDictionariesEntry;
 use codebook_downloader::Downloader;
 use dictionary::{Dictionary, HunspellDictionary};
 use log::{debug, error};
@@ -25,19 +28,39 @@ impl DictionaryManager {
         }
     }
 
-    pub fn get_dictionary(&self, id: &str) -> Option<Arc<dyn Dictionary>> {
+    pub fn invalidate_cache_entry(&self, id: &str) {
+        let mut cache = self.dictionary_cache.write().unwrap();
+        cache.remove(id);
+    }
+
+    pub fn get_dictionary(
+        &self,
+        id: &str,
+        custom_dicts_defs: &[CustomDictionariesEntry],
+    ) -> Option<Arc<dyn Dictionary>> {
         {
             let cache = self.dictionary_cache.read().unwrap();
             if let Some(dictionary) = cache.get(id) {
                 return Some(dictionary.clone());
             }
         }
-        let repo = match get_repo(id) {
-            Some(r) => r,
-            None => {
+
+        let repo = if let Some(custom_dict) = custom_dicts_defs.iter().find(|d| d.name == id) {
+            DictionaryRepo::Text(TextRepo {
+                name: custom_dict.name.clone(),
+                text_location: TextRepoLocation::LocalFile(
+                    custom_dict
+                        .resolve_full_path()
+                        .inspect_err(|e| error!("Failed to build local text repo due to: {e}"))
+                        .ok()?,
+                ),
+            })
+        } else {
+            let repo = get_repo(id);
+            if repo.is_none() {
                 debug!("Failed to get repo for dictionary, skipping: {id}");
-                return None;
             }
+            repo?
         };
 
         let dictionary: Option<Arc<dyn Dictionary>> = match repo {
@@ -46,13 +69,12 @@ impl DictionaryManager {
         };
 
         let mut cache = self.dictionary_cache.write().unwrap();
-        match dictionary {
-            Some(d) => {
-                cache.insert(id.to_string(), d.clone());
-                Some(d)
-            }
-            None => None,
+
+        if let Some(dictionary) = &dictionary {
+            cache.insert(id.to_string(), dictionary.clone());
         }
+
+        dictionary
     }
 
     fn get_hunspell_dictionary(&self, repo: HunspellRepo) -> Option<Arc<dyn Dictionary>> {
@@ -82,17 +104,26 @@ impl DictionaryManager {
     }
 
     fn get_text_dictionary(&self, repo: TextRepo) -> Option<Arc<dyn Dictionary>> {
-        if repo.text.is_some() {
-            return Some(Arc::new(TextDictionary::new(repo.text.unwrap())));
-        }
-        let text_path = match self.downloader.get(&repo.url.unwrap()) {
-            Ok(path) => path,
-            Err(e) => {
-                error!("Error: {e:?}");
-                return None;
+        const FAILED_TO_READ_DICT_ERR: &'static str = "Failed to read dictionary file";
+
+        let dict = match repo.text_location {
+            super::repo::TextRepoLocation::Url(url) => {
+                let text_path = self
+                    .downloader
+                    .get(&url)
+                    .inspect_err(|e| error!("Error: {e:?}"))
+                    .ok()?;
+
+                TextDictionary::try_from(&text_path)
+                    .inspect_err(|_| error!("{}: {}", FAILED_TO_READ_DICT_ERR, text_path.display()))
+                    .ok()?
             }
+            super::repo::TextRepoLocation::LocalFile(path) => TextDictionary::try_from(&path)
+                .inspect_err(|_| error!("{}: {}", FAILED_TO_READ_DICT_ERR, path.display()))
+                .ok()?,
+            super::repo::TextRepoLocation::Text(text) => TextDictionary::new(text),
         };
-        let dict = TextDictionary::new_from_path(&text_path);
+
         Some(Arc::new(dict))
     }
 }

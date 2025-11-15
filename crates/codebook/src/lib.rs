@@ -1,13 +1,16 @@
 pub mod dictionaries;
+pub mod errors;
 mod logging;
 pub mod parser;
 pub mod queries;
 pub mod regexes;
 mod splitter;
 
+use crate::errors::DictModificationError;
 use crate::regexes::get_default_skip_patterns;
-use std::path::Path;
+use std::io::Write;
 use std::sync::Arc;
+use std::{fs::File, path::Path};
 
 use codebook_config::CodebookConfig;
 use dictionaries::{dictionary, manager::DictionaryManager};
@@ -103,7 +106,10 @@ impl Codebook {
         let mut dictionaries = Vec::with_capacity(dictionary_ids.len());
         debug!("Checking text with dictionaries: {dictionary_ids:?}");
         for dictionary_id in dictionary_ids {
-            let dictionary = self.manager.get_dictionary(&dictionary_id);
+            let dictionary = self.manager.get_dictionary(
+                &dictionary_id,
+                &self.config.get_custom_dictionaries_definitions(),
+            );
             if let Some(d) = dictionary {
                 dictionaries.push(d);
             }
@@ -137,6 +143,57 @@ impl Codebook {
             return None;
         }
         Some(collect_round_robin(&suggestions, max_results))
+    }
+
+    pub fn add_word_to_custom_dictionary(
+        &self,
+        word: &str,
+        dict_id: &str,
+    ) -> Result<(), DictModificationError> {
+        let custom_dicts_defs = &self.config.get_custom_dictionaries_definitions();
+
+        let dict = self.manager.get_dictionary(dict_id, custom_dicts_defs);
+
+        if dict.is_none() {
+            return Err(DictModificationError::UnknownDictID(dict_id.to_string()));
+        }
+        let dict = dict.unwrap();
+
+        if dict.check(word) {
+            return Err(DictModificationError::WordAlreadyExists(word.to_string()));
+        }
+
+        if let Some(custom_dict) = custom_dicts_defs
+            .iter()
+            .find(|d| d.allow_add_words && d.name == dict_id)
+        {
+            // FIXME: I am still unsure where to maintain an dict_id to WatchedFile map, for now I
+            // am just going to use simple file operations to write to the end of the file.
+            // Also we should make sure we are writing to a text file, a simple solution would be to
+            // filter out dict paths based on extensions, so if the path isn't ending with .dict
+            // or .txt we just toss the update away.
+            let mut file = File::options()
+                .read(true)
+                .append(true)
+                .create(false)
+                .open(&custom_dict.resolve_full_path()?)?;
+
+            // FIXME: we should check if the last byte of the dict is a new line and only prepend
+            // newlines if its missing, I have bigger fish to fry right now
+            if file.metadata()?.len() == 0 {
+                write!(file, "{}", word)?;
+            } else {
+                write!(file, "\n{}", word)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn refresh_custom_dictionary(&self, dict_id: &str) {
+        self.manager.invalidate_cache_entry(dict_id);
+        self.manager
+            .get_dictionary(dict_id, &self.config.get_custom_dictionaries_definitions());
     }
 }
 

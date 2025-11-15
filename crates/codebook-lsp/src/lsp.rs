@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::Path;
 use std::str::FromStr as _;
 use std::sync::Arc;
 
+use codebook::errors::DictModificationError;
 use codebook::parser::get_word_from_string;
 use codebook::queries::LanguageType;
 use string_offsets::AllConfig;
@@ -13,6 +15,8 @@ use log::LevelFilter;
 use log::error;
 use serde_json::Value;
 use tokio::task;
+use tower_lsp::jsonrpc::Error as RpcError;
+use tower_lsp::jsonrpc::ErrorCode;
 use tower_lsp::jsonrpc::Result as RpcResult;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
@@ -37,6 +41,7 @@ pub struct Backend {
 enum CodebookCommand {
     AddWord,
     AddWordGlobal,
+    AddWordDict,
     Unknown,
 }
 
@@ -45,6 +50,7 @@ impl From<&str> for CodebookCommand {
         match command {
             "codebook.addWord" => CodebookCommand::AddWord,
             "codebook.addWordGlobal" => CodebookCommand::AddWordGlobal,
+            "codebook.addWordDict" => CodebookCommand::AddWordDict,
             _ => CodebookCommand::Unknown,
         }
     }
@@ -55,6 +61,7 @@ impl From<CodebookCommand> for String {
         match command {
             CodebookCommand::AddWord => "codebook.addWord".to_string(),
             CodebookCommand::AddWordGlobal => "codebook.addWordGlobal".to_string(),
+            CodebookCommand::AddWordDict => "codebook.addWordDict".to_string(),
             CodebookCommand::Unknown => "codebook.unknown".to_string(),
         }
     }
@@ -95,6 +102,7 @@ impl LanguageServer for Backend {
                     commands: vec![
                         CodebookCommand::AddWord.into(),
                         CodebookCommand::AddWordGlobal.into(),
+                        CodebookCommand::AddWordDict.into(),
                     ],
                     work_done_progress_options: Default::default(),
                 }),
@@ -255,6 +263,35 @@ impl LanguageServer for Backend {
                 disabled: None,
                 data: None,
             }));
+
+            let active_dict_ids = self
+                .config
+                .get_dictionary_ids()
+                .into_iter()
+                .collect::<HashSet<String>>();
+
+            for custom_dict in self.config.get_custom_dictionaries_definitions() {
+                if !custom_dict.allow_add_words || !active_dict_ids.contains(&custom_dict.name) {
+                    continue;
+                }
+
+                let custom_dict_name = custom_dict.name;
+                let title = format!("Add '{word}' to '{custom_dict_name}' dictionary");
+                actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                    title: title.clone(),
+                    kind: Some(CodeActionKind::QUICKFIX),
+                    diagnostics: None,
+                    edit: None,
+                    command: Some(Command {
+                        title: title,
+                        command: CodebookCommand::AddWordDict.into(),
+                        arguments: Some(vec![custom_dict_name.into(), word.to_string().into()]),
+                    }),
+                    is_preferred: None,
+                    disabled: None,
+                    data: None,
+                }));
+            }
         }
         match actions.is_empty() {
             true => Ok(None),
@@ -288,6 +325,28 @@ impl LanguageServer for Backend {
                 let updated = self.add_words_global(words);
                 if updated {
                     let _ = self.config.save_global();
+                    self.recheck_all().await;
+                }
+                Ok(None)
+            }
+            CodebookCommand::AddWordDict => {
+                let dict_id = params
+                    .arguments
+                    .first()
+                    .and_then(|arg| arg.as_str())
+                    .ok_or(RpcError::new(ErrorCode::InvalidParams))?
+                    .to_string();
+
+                let words = params
+                    .arguments
+                    .iter()
+                    .skip(1)
+                    .filter_map(|arg| arg.as_str().map(|s| s.to_string()));
+
+                let updated = self.add_words_to_dict(&dict_id, words);
+                if updated {
+                    self.codebook.refresh_custom_dictionary(&dict_id);
+
                     self.recheck_all().await;
                 }
                 Ok(None)
@@ -366,6 +425,17 @@ impl Backend {
                     error!("Failed to add word: {e}");
                 }
             }
+        }
+        should_save
+    }
+    fn add_words_to_dict(&self, dict_id: &str, words: impl Iterator<Item = String>) -> bool {
+        let mut should_save = false;
+        for word in words {
+            match self.codebook.add_word_to_custom_dictionary(&word, dict_id) {
+                Ok(_) => should_save = true,
+                Err(e @ DictModificationError::WordAlreadyExists(_)) => info!("{e}"),
+                Err(e) => error!("{e}"),
+            };
         }
         should_save
     }

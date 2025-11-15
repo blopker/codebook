@@ -2,6 +2,7 @@ mod helpers;
 mod settings;
 mod watched_file;
 use crate::settings::ConfigSettings;
+pub use crate::settings::CustomDictionariesEntry;
 use crate::watched_file::WatchedFile;
 use log::debug;
 use log::info;
@@ -14,9 +15,9 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
-static CACHE_DIR: &str = "codebook";
-static GLOBAL_CONFIG_FILE: &str = "codebook.toml";
-static USER_CONFIG_FILES: [&str; 2] = ["codebook.toml", ".codebook.toml"];
+const CACHE_DIR: &str = "codebook";
+const GLOBAL_CONFIG_FILE: &str = "codebook.toml";
+const USER_CONFIG_FILES: [&str; 2] = ["codebook.toml", ".codebook.toml"];
 
 /// The main trait for Codebook configuration.
 pub trait CodebookConfig: Sync + Send + Debug {
@@ -24,6 +25,7 @@ pub trait CodebookConfig: Sync + Send + Debug {
     fn add_word_global(&self, word: &str) -> Result<bool, io::Error>;
     fn add_ignore(&self, file: &str) -> Result<bool, io::Error>;
     fn get_dictionary_ids(&self) -> Vec<String>;
+    fn get_custom_dictionaries_definitions(&self) -> Vec<CustomDictionariesEntry>;
     fn should_ignore_path(&self, path: &Path) -> bool;
     fn is_allowed_word(&self, word: &str) -> bool;
     fn should_flag_word(&self, word: &str) -> bool;
@@ -198,8 +200,11 @@ impl CodebookConfigFile {
         let path = path.as_ref();
         let content = fs::read_to_string(path)?;
 
-        match toml::from_str(&content) {
-            Ok(settings) => Ok(settings),
+        match toml::from_str::<ConfigSettings>(&content) {
+            Ok(mut settings) => {
+                settings.set_config_file_paths(path);
+                Ok(settings)
+            }
             Err(e) => {
                 let err = io::Error::new(
                     ErrorKind::InvalidData,
@@ -223,6 +228,7 @@ impl CodebookConfigFile {
         if project.use_global {
             if let Some(global) = global_config.content() {
                 let mut effective = global.clone();
+
                 effective.merge(project);
                 effective
             } else {
@@ -496,6 +502,11 @@ impl CodebookConfig for CodebookConfigFile {
     fn cache_dir(&self) -> &Path {
         &self.cache_dir
     }
+
+    fn get_custom_dictionaries_definitions(&self) -> Vec<CustomDictionariesEntry> {
+        let snapshot = self.snapshot();
+        snapshot.custom_dictionaries_definitions.clone()
+    }
 }
 
 #[derive(Debug)]
@@ -519,6 +530,18 @@ impl CodebookConfigMemory {
             settings: RwLock::new(settings),
             cache_dir: helpers::default_cache_dir(),
         }
+    }
+
+    pub fn add_dict_id(&self, id: &str) {
+        let mut settings = self.settings.write().unwrap();
+        settings.dictionaries.push(id.into());
+        settings.sort_and_dedup();
+    }
+
+    pub fn add_custom_dict(&self, custom_dict: CustomDictionariesEntry) {
+        let mut settings = self.settings.write().unwrap();
+        settings.custom_dictionaries_definitions.push(custom_dict);
+        settings.sort_and_dedup();
     }
 }
 
@@ -575,6 +598,11 @@ impl CodebookConfig for CodebookConfigMemory {
 
     fn cache_dir(&self) -> &Path {
         &self.cache_dir
+    }
+
+    fn get_custom_dictionaries_definitions(&self) -> Vec<CustomDictionariesEntry> {
+        let snapshot = self.snapshot();
+        snapshot.custom_dictionaries_definitions.clone()
     }
 }
 
@@ -1063,6 +1091,55 @@ mod tests {
         assert!(!config.is_allowed_word("globalword1")); // Not used from global
         assert!(config.should_flag_word("projecttodo")); // From project
         assert!(!config.should_flag_word("globaltodo")); // Not used from global
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_normalization_of_custom_dict_paths() -> Result<(), io::Error> {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = Arc::from(temp_dir.path().join("codebook.toml").as_path());
+        let relative_custom_dict_path = temp_dir.path().join("custom_rel.txt");
+        let absolute_custom_dict_path = temp_dir.path().join("custom_abs.txt");
+        let mut file = File::create(&config_path)?;
+        File::create(&relative_custom_dict_path)?;
+        File::create(&absolute_custom_dict_path)?;
+
+        let expected = vec![
+            CustomDictionariesEntry {
+                name: "absolute".to_owned(),
+                path: absolute_custom_dict_path.to_str().unwrap().to_string(),
+                allow_add_words: true,
+                config_file_path: Some(config_path.clone()),
+            },
+            CustomDictionariesEntry {
+                name: "relative".to_owned(),
+                path: relative_custom_dict_path.to_str().unwrap().to_string(),
+                allow_add_words: false,
+                config_file_path: Some(config_path.clone()),
+            },
+        ];
+
+        let a = format!(
+            r#"
+        [[custom_dictionaries_definitions]]
+        name = "absolute"
+        path = "{}"
+        allow_add_words = true
+
+        [[custom_dictionaries_definitions]]
+        name = "relative"
+        path = "{}"
+        allow_add_words = false
+        "#,
+            absolute_custom_dict_path.display(),
+            relative_custom_dict_path.display(),
+        );
+        file.write_all(a.as_bytes())?;
+
+        let config = load_from_file(ConfigType::Project, &config_path)?;
+        let custom_dicts = config.snapshot().custom_dictionaries_definitions.clone();
+        assert_eq!(expected, custom_dicts);
 
         Ok(())
     }

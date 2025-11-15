@@ -3,12 +3,9 @@ use codebook::{
     queries::LanguageType,
 };
 
-mod utils;
+use crate::utils::example_file_path;
 
-fn example_file_path(file: &str) -> String {
-    // get root of the project through CARGO_MANIFEST_DIR
-    format!("tests/examples/{file}")
-}
+mod utils;
 
 #[test]
 fn test_ignore_file() {
