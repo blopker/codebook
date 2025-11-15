@@ -20,6 +20,8 @@ No setup needed. Codebook will automatically detect the language you are editing
 
 Please gift a ⭐ if you find Codebook useful!
 
+**Supported platforms:** Prebuilt archives are published for macOS (x86_64, aarch64), Linux (x86_64, aarch64), and Windows (x86_64, arm64).
+
 ## Integrations
 
 ### Zed
