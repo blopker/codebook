@@ -10,15 +10,14 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{BufReader, Read};
-use std::ops::Deref;
 use std::path::{Path, PathBuf};
-use std::sync::RwLock;
+use std::sync::{OnceLock, RwLock};
 use tempfile::NamedTempFile;
 
 const METADATA_FILE: &str = "_metadata.json";
 const TWO_WEEKS: u64 = 14 * 24 * 3600;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 struct Metadata {
     files: HashMap<String, FileEntry>,
 }
@@ -33,86 +32,124 @@ struct FileEntry {
 
 pub struct Downloader {
     cache_dir: PathBuf,
-    metadata: RwLock<Metadata>,
-    client: Client,
+    metadata_path: PathBuf,
+    metadata: OnceLock<RwLock<Metadata>>,
+    _client: OnceLock<Client>,
 }
 
 impl Downloader {
     pub fn new(cache_dir: impl AsRef<Path>) -> Result<Self> {
         let cache_dir = cache_dir.as_ref().to_path_buf();
-        fs::create_dir_all(&cache_dir)?;
         info!("Cache folder at: {cache_dir:?}");
 
         let metadata_path = cache_dir.join(METADATA_FILE);
-        let metadata = if metadata_path.exists() {
-            // Try to parse the existing metadata file
-            match File::open(&metadata_path).and_then(|file| Ok(serde_json::from_reader(file)?)) {
-                Ok(metadata) => metadata,
-                Err(e) => {
-                    // Log the error but continue with a fresh metadata file
-                    log::warn!("Failed to load metadata file: {e}, creating a new one");
-                    Metadata {
-                        files: HashMap::new(),
-                    }
-                }
-            }
-        } else {
-            Metadata {
-                files: HashMap::new(),
-            }
-        };
-
-        // Set up rustls_platform_verifier to use OS cert chains (proxy support)
-        let arc_crypto_provider =
-            std::sync::Arc::new(rustls::crypto::aws_lc_rs::default_provider());
-        let config = ClientConfig::builder_with_provider(arc_crypto_provider)
-            .with_safe_default_protocol_versions()
-            .unwrap()
-            .with_platform_verifier()
-            .unwrap()
-            .with_no_client_auth();
-        let client = reqwest::blocking::Client::builder()
-            .use_preconfigured_tls(config)
-            .build()?;
 
         Ok(Self {
             cache_dir,
-            metadata: RwLock::new(metadata),
-            client,
+            metadata_path,
+            metadata: OnceLock::new(),
+            _client: OnceLock::new(),
         })
     }
 
-    pub fn get(&self, url: &str) -> Result<PathBuf> {
-        // First check with read lock
-        let (needs_update, file_exists) = {
-            let metadata = self.metadata.read().unwrap();
-            let entry = metadata.files.get(url);
+    fn client(&self) -> &Client {
+        self._client.get_or_init(|| {
+            // Set up rustls_platform_verifier to use OS cert chains (proxy support)
+            let arc_crypto_provider =
+                std::sync::Arc::new(rustls::crypto::aws_lc_rs::default_provider());
+            let config = ClientConfig::builder_with_provider(arc_crypto_provider)
+                .with_safe_default_protocol_versions()
+                .unwrap()
+                .with_platform_verifier()
+                .unwrap()
+                .with_no_client_auth();
+            reqwest::blocking::Client::builder()
+                .use_preconfigured_tls(config)
+                .build()
+                .expect("Failed to build http client")
+        })
+    }
 
-            match entry {
-                Some(e) => {
-                    let needs_update =
-                        e.last_checked.timestamp() + TWO_WEEKS as i64 <= Utc::now().timestamp();
-                    let file_exists = e.path.exists();
-                    (Some(needs_update), file_exists)
+    fn metadata(&self) -> &RwLock<Metadata> {
+        let metadata_path = self.metadata_path.clone();
+        let cache_dir = self.cache_dir.clone();
+        self.metadata.get_or_init(move || {
+            fs::create_dir_all(&cache_dir)
+                .expect("Failed to create cache directory: {cache_dir:?}");
+            let metadata = Self::load_metadata(&metadata_path);
+            RwLock::new(metadata)
+        })
+    }
+
+    fn load_metadata(metadata_path: &Path) -> Metadata {
+        match File::open(metadata_path) {
+            Ok(file) => match serde_json::from_reader(file) {
+                Ok(metadata) => metadata,
+                Err(err) => {
+                    log::warn!("Failed to parse metadata file {metadata_path:?}: {err}");
+                    Metadata::default()
                 }
-                None => (None, false),
+            },
+            Err(err) => {
+                if err.kind() != std::io::ErrorKind::NotFound {
+                    log::warn!("Failed to open metadata file {metadata_path:?}: {err}");
+                }
+                Metadata::default()
             }
+        }
+    }
+
+    fn persist_metadata(&self, metadata: &Metadata) -> Result<()> {
+        let file = File::create(&self.metadata_path)?;
+        serde_json::to_writer_pretty(file, metadata)?;
+        Ok(())
+    }
+
+    fn purge_stale_entry(&self, url: &str, stale_path: &Path) {
+        let mut metadata = self.metadata().write().unwrap();
+        if metadata
+            .files
+            .get(url)
+            .map(|entry| entry.path == stale_path)
+            .unwrap_or(false)
+        {
+            metadata.files.remove(url);
+            if let Err(err) = self.persist_metadata(&metadata) {
+                log::error!(
+                    "Failed to persist metadata after removing stale entry for {url}: {err}"
+                );
+            }
+        }
+    }
+
+    pub fn get(&self, url: &str) -> Result<PathBuf> {
+        let entry = {
+            let metadata = self.metadata().read().unwrap();
+            metadata.files.get(url).cloned()
         };
 
-        // If the file doesn't exist but we have metadata, treat it as a new download
-        if !file_exists && needs_update.is_some() {
-            return self.download_new(url);
-        }
-
-        match needs_update {
-            Some(true) => self.try_update(url),
-            Some(false) => Ok(self.metadata.read().unwrap().files[url].path.clone()),
+        let result = match entry {
+            Some(entry) => {
+                if !entry.path.exists() {
+                    self.purge_stale_entry(url, &entry.path);
+                    self.download_new(url)
+                } else {
+                    let needs_update =
+                        entry.last_checked.timestamp() + TWO_WEEKS as i64 <= Utc::now().timestamp();
+                    if needs_update {
+                        self.try_update(url)
+                    } else {
+                        Ok(entry.path)
+                    }
+                }
+            }
             None => self.download_new(url),
-        }
-        .or_else(|e| {
+        };
+
+        result.or_else(|e| {
             log::error!("Failed to update, using cached version: {e}");
             let entry = {
-                let metadata = self.metadata.read().unwrap();
+                let metadata = self.metadata().read().unwrap();
                 metadata
                     .files
                     .get(url)
@@ -123,6 +160,7 @@ impl Downloader {
                     if path.exists() {
                         Ok(path)
                     } else {
+                        self.purge_stale_entry(url, &path);
                         // If fallback path doesn't exist, try to download anyway
                         self.download_new(url)
                     }
@@ -139,7 +177,7 @@ impl Downloader {
     fn try_update(&self, url: &str) -> Result<PathBuf> {
         // Get last modified time with read lock
         let last_modified = {
-            self.metadata
+            self.metadata()
                 .read()
                 .unwrap()
                 .files
@@ -149,7 +187,7 @@ impl Downloader {
         // log::info!("{:?}", last_modified);
         // log::info!("URL {:?}", url);
 
-        let mut request = self.client.get(url);
+        let mut request = self.client().get(url);
         if let Some(lm) = last_modified {
             request = request.header(IF_MODIFIED_SINCE, lm.with_timezone(&Utc).to_rfc2822());
         }
@@ -174,7 +212,7 @@ impl Downloader {
         let new_hash = compute_file_hash(temp_file.path())?;
         let old_hash = {
             let metadata = self
-                .metadata
+                .metadata()
                 .read()
                 .map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
             metadata.files.get(url).unwrap().content_hash.clone()
@@ -187,7 +225,7 @@ impl Downloader {
     }
 
     fn download_new(&self, url: &str) -> Result<PathBuf> {
-        let response = self.client.get(url).send()?;
+        let response = self.client().get(url).send()?;
         let last_modified = parse_last_modified(&response);
         let temp_file = self.download_to_temp(response)?;
         let new_hash = compute_file_hash(temp_file.path())?;
@@ -218,10 +256,10 @@ impl Downloader {
             content_hash,
         };
         {
-            let mut metadata = self.metadata.write().unwrap();
+            let mut metadata = self.metadata().write().unwrap();
             metadata.files.insert(url.to_string(), entry);
+            self.persist_metadata(&metadata)?;
         }
-        self.save_metadata()?;
         Ok(path)
     }
 
@@ -234,7 +272,7 @@ impl Downloader {
     ) -> Result<PathBuf> {
         let new_path: PathBuf;
         {
-            let mut metadata = self.metadata.write().unwrap();
+            let mut metadata = self.metadata().write().unwrap();
             let entry = metadata.files.get_mut(url).unwrap();
             let old_path = entry.path.clone();
 
@@ -250,30 +288,22 @@ impl Downloader {
             entry.last_checked = Utc::now();
             entry.last_modified = last_modified;
             entry.content_hash = content_hash;
+            self.persist_metadata(&metadata)?;
         }
 
-        self.save_metadata()?;
         Ok(new_path)
     }
 
     fn update_check_time(&self, url: &str) -> Result<PathBuf> {
         let path: PathBuf;
         {
-            let mut metadata = self.metadata.write().unwrap();
+            let mut metadata = self.metadata().write().unwrap();
             let entry = metadata.files.get_mut(url).unwrap();
             entry.last_checked = Utc::now();
             path = entry.path.clone();
+            self.persist_metadata(&metadata)?;
         }
-        self.save_metadata()?;
         Ok(path)
-    }
-
-    fn save_metadata(&self) -> Result<()> {
-        let metadata_path = self.cache_dir.join(METADATA_FILE);
-        let file = File::create(metadata_path)?;
-        let metadata = self.metadata.read().unwrap();
-        serde_json::to_writer_pretty(file, &metadata.deref())?;
-        Ok(())
     }
 }
 
@@ -333,7 +363,7 @@ mod tests {
         mock.assert();
         assert!(path.exists());
         assert_eq!(std::fs::read_to_string(path).unwrap(), "test content");
-        let metadata = downloader.metadata.read().unwrap();
+        let metadata = downloader.metadata().read().unwrap();
         let entry = metadata.files.get(&server.url("/test.txt")).unwrap();
         assert_eq!(entry.content_hash, compute_file_hash(&entry.path).unwrap());
     }
@@ -387,13 +417,13 @@ mod tests {
 
         // Get stored metadata
         let stored_last_modified = {
-            let metadata = downloader.metadata.read().unwrap();
+            let metadata = downloader.metadata().read().unwrap();
             metadata.files[&test_path].last_modified
         };
 
         // Set last checked to 3 weeks ago
         {
-            let mut metadata = downloader.metadata.write().unwrap();
+            let mut metadata = downloader.metadata().write().unwrap();
             let entry = metadata.files.get_mut(&test_path).unwrap();
             entry.last_checked = stored_last_modified.unwrap() - Duration::weeks(3);
         }
@@ -433,7 +463,7 @@ mod tests {
 
         // Force update check time and break the server
         {
-            let mut metadata = downloader.metadata.try_write().unwrap();
+            let mut metadata = downloader.metadata().try_write().unwrap();
             if let Some(entry) = metadata.files.get_mut(&server.url("/test.txt")) {
                 entry.last_checked = Utc::now() - Duration::seconds(TWO_WEEKS as i64 * 2);
             }
@@ -488,7 +518,7 @@ mod tests {
 
         // Force check time
         {
-            let mut metadata = downloader.metadata.write().unwrap();
+            let mut metadata = downloader.metadata().write().unwrap();
             if let Some(entry) = metadata.files.get_mut(&server.url("/test.txt")) {
                 entry.last_checked = DateTime::parse_from_rfc2822("Wed, 21 Oct 2020 07:28:00 GMT")
                     .unwrap()
@@ -507,7 +537,7 @@ mod tests {
         let cached_path = downloader.get(&server.url("/test.txt")).unwrap();
         mock2.assert();
         assert_eq!(original_path, cached_path);
-        let metadata = downloader.metadata.read().unwrap();
+        let metadata = downloader.metadata().read().unwrap();
         let entry = metadata.files.get(&server.url("/test.txt")).unwrap();
         assert!(entry.last_checked > Utc::now() - Duration::seconds(1));
     }

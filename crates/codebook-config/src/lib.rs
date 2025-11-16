@@ -1,6 +1,7 @@
 mod helpers;
 mod settings;
 mod watched_file;
+use crate::helpers::expand_tilde;
 use crate::settings::ConfigSettings;
 use crate::watched_file::WatchedFile;
 use log::debug;
@@ -78,7 +79,7 @@ impl CodebookConfigFile {
     /// Load configuration with an explicit global config override.
     pub fn load_with_global_config(
         current_dir: Option<&Path>,
-        global_config_path: Option<&Path>,
+        global_config_path: Option<PathBuf>,
     ) -> Result<Self, io::Error> {
         debug!("Initializing CodebookConfig");
 
@@ -94,7 +95,7 @@ impl CodebookConfigFile {
     /// Load both global and project configuration
     fn load_configs(
         start_dir: &Path,
-        global_config_override: Option<&Path>,
+        global_config_override: Option<PathBuf>,
     ) -> Result<Self, io::Error> {
         let config = Self::default();
         let mut inner = config.inner.write().unwrap();
@@ -336,6 +337,10 @@ impl CodebookConfigFile {
             Some(path) => path.to_path_buf(),
             None => return Ok(()),
         };
+
+        #[cfg(not(windows))]
+        let global_config_path = expand_tilde(global_config_path)
+            .expect("Failed to expand tilde in: {global_config_path}");
 
         let settings = match inner.global_config.content() {
             Some(settings) => settings,
@@ -848,10 +853,10 @@ mod tests {
 
         let config = CodebookConfigFile::load_with_global_config(
             Some(workspace_dir.as_path()),
-            Some(override_path.as_path()),
+            Some(override_path.clone()),
         )?;
 
-        assert_eq!(config.global_config_path(), Some(override_path.clone()));
+        assert_eq!(config.global_config_path(), Some(override_path));
         assert!(config.is_allowed_word("customword"));
         Ok(())
     }
