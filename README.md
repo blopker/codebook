@@ -212,6 +212,8 @@ The global configuration applies to all projects by default. Location depends on
 - **Linux/macOS**: `$XDG_CONFIG_HOME/codebook/codebook.toml` or `~/.config/codebook/codebook.toml`
 - **Windows**: `%APPDATA%\codebook\codebook.toml` or `%APPDATA%\Roaming\codebook\codebook.toml`
 
+You can override this location if you sync your config elsewhere by providing `initializationOptions.globalConfigPath` from your LSP client (the VS Code extension exposes this as the `codebook.globalConfigPath` setting). When no override is provided, the OS-specific default above is used.
+
 ### Project Configuration
 
 Project-specific configuration is loaded from either `codebook.toml` or `.codebook.toml` in the project root. Codebook searches for this file starting from the current directory and moving up to parent directories.

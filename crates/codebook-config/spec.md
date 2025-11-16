@@ -44,6 +44,8 @@ The data model for configuration settings:
   - Linux/macOS: `$XDG_CONFIG_HOME/codebook/codebook.toml` if XDG_CONFIG_HOME is set
   - Linux/macOS fallback: `~/.config/codebook/codebook.toml`
   - Windows: `%APPDATA%\codebook\codebook.toml`
+- **Custom Overrides**:
+  - Consumers may call `CodebookConfigFile::load_with_global_config` to supply an explicit global config path (used by `codebook-lsp` when an LSP client provides `initializationOptions.globalConfigPath`).
 
 - **Configuration Precedence**:
   - Project configuration overrides global configuration

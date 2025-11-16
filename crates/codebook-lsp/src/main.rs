@@ -1,4 +1,5 @@
 mod file_cache;
+mod init_options;
 mod lsp;
 mod lsp_logger;
 
@@ -9,7 +10,6 @@ use lsp::Backend;
 use lsp_logger::LspLogger;
 use std::env;
 use std::path::{Path, PathBuf};
-use tokio::task;
 use tower_lsp::{LspService, Server};
 
 #[derive(Parser)]
@@ -72,12 +72,6 @@ async fn serve_lsp(root: &Path) {
     info!("Starting Codebook Language Server v{version}-{build_profile}...");
     let (stdin, stdout) = (tokio::io::stdin(), tokio::io::stdout());
     let inner_root = root.to_owned();
-
-    // Some blocking setup is done, so spawn_block!
-    let (service, socket) =
-        task::spawn_blocking(move || LspService::new(|client| Backend::new(client, &inner_root)))
-            .await
-            .unwrap();
-
+    let (service, socket) = LspService::new(|client| Backend::new(client, &inner_root));
     Server::new(stdin, stdout, socket).serve(service).await;
 }

@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support for multiple architectures (x86_64, aarch64) and platforms (macOS, Linux, Windows)
 - Fallback to locally installed binaries (cargo, PATH, or custom path)
 - Smart detection of development binaries for contributors
+- `codebook.globalConfigPath` setting that forwards a custom `codebook.toml` location to the language server through initialization options
 
 ### Changed
 - No longer requires manual installation of `codebook-lsp` - the extension handles this automatically

@@ -89,6 +89,11 @@
           "default": "",
           "description": "Optional: Path to a custom codebook-lsp executable. If not specified, the extension will automatically download the appropriate binary for your platform."
         },
+        "codebook.globalConfigPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional: Override the default global codebook.toml location. Useful if you sync your config in a custom directory."
+        },
         "codebook.logLevel": {
           "type": "string",
           "enum": [
