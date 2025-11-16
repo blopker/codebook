@@ -1,7 +1,7 @@
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr as _;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock, RwLock};
 
 use codebook::parser::get_word_from_string;
 use codebook::queries::LanguageType;
@@ -9,7 +9,6 @@ use string_offsets::AllConfig;
 use string_offsets::Pos;
 use string_offsets::StringOffsets;
 
-use log::LevelFilter;
 use log::error;
 use serde_json::Value;
 use tokio::task;
@@ -22,16 +21,18 @@ use codebook_config::{CodebookConfig, CodebookConfigFile};
 use log::{debug, info};
 
 use crate::file_cache::TextDocumentCache;
+use crate::init_options::ClientInitializationOptions;
 use crate::lsp_logger;
 
 const SOURCE_NAME: &str = "Codebook";
 
 pub struct Backend {
-    pub client: Client,
-    // Wrap every call to codebook in spawn_blocking, it's not async
-    pub codebook: Arc<Codebook>,
-    pub config: Arc<CodebookConfigFile>,
-    pub document_cache: TextDocumentCache,
+    client: Client,
+    workspace_dir: PathBuf,
+    codebook: OnceLock<Arc<Codebook>>,
+    config: OnceLock<Arc<CodebookConfigFile>>,
+    document_cache: TextDocumentCache,
+    initialize_options: RwLock<Arc<ClientInitializationOptions>>,
 }
 
 enum CodebookCommand {
@@ -64,27 +65,17 @@ impl From<CodebookCommand> for String {
 impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> RpcResult<InitializeResult> {
         // info!("Capabilities: {:?}", params.capabilities);
-        // Get log level from initialization options
-        let log_level = params
-            .initialization_options
-            .as_ref()
-            .and_then(|options| options.get("logLevel"))
-            .and_then(|level| level.as_str())
-            .map(|level| {
-                if level == "debug" {
-                    LevelFilter::Debug
-                } else {
-                    LevelFilter::Info
-                }
-            })
-            .unwrap_or(LevelFilter::Info);
+        let client_options = ClientInitializationOptions::from_value(params.initialization_options);
 
         // Attach the LSP client to the logger and flush buffered logs
-        lsp_logger::LspLogger::attach_client(self.client.clone(), log_level);
+        lsp_logger::LspLogger::attach_client(self.client.clone(), client_options.log_level);
         info!(
             "LSP logger attached to client with log level: {}",
-            log_level
+            client_options.log_level
         );
+
+        *self.initialize_options.write().unwrap() = Arc::new(client_options);
+
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
                 position_encoding: Some(PositionEncodingKind::UTF16),
@@ -118,16 +109,14 @@ impl LanguageServer for Backend {
 
     async fn initialized(&self, _: InitializedParams) {
         info!("Server ready!");
-        info!(
-            "Project config: {}",
-            self.config.project_config_path().unwrap().display()
-        );
+        let config = self.config_handle();
+        match config.project_config_path() {
+            Some(path) => info!("Project config: {}", path.display()),
+            None => info!("Project config: <not set>"),
+        }
         info!(
             "Global config: {}",
-            self.config
-                .global_config_path()
-                .unwrap_or_default()
-                .display()
+            config.global_config_path().unwrap_or_default().display()
         );
     }
 
@@ -199,7 +188,7 @@ impl LanguageServer for Backend {
             if word.is_empty() || word.contains(" ") {
                 continue;
             }
-            let cb = self.codebook.clone();
+            let cb = self.codebook_handle();
             let inner_word = word.clone();
             let suggestions = task::spawn_blocking(move || cb.get_suggestions(&inner_word)).await;
 
@@ -265,6 +254,7 @@ impl LanguageServer for Backend {
     async fn execute_command(&self, params: ExecuteCommandParams) -> RpcResult<Option<Value>> {
         match CodebookCommand::from(params.command.as_str()) {
             CodebookCommand::AddWord => {
+                let config = self.config_handle();
                 let words = params
                     .arguments
                     .iter()
@@ -273,21 +263,22 @@ impl LanguageServer for Backend {
                     "Adding words to dictionary {}",
                     words.clone().collect::<Vec<String>>().join(", ")
                 );
-                let updated = self.add_words(words);
+                let updated = self.add_words(config.as_ref(), words);
                 if updated {
-                    let _ = self.config.save();
+                    let _ = config.save();
                     self.recheck_all().await;
                 }
                 Ok(None)
             }
             CodebookCommand::AddWordGlobal => {
+                let config = self.config_handle();
                 let words = params
                     .arguments
                     .iter()
                     .filter_map(|arg| arg.as_str().map(|s| s.to_string()));
-                let updated = self.add_words_global(words);
+                let updated = self.add_words_global(config.as_ref(), words);
                 if updated {
-                    let _ = self.config.save_global();
+                    let _ = config.save_global();
                     self.recheck_all().await;
                 }
                 Ok(None)
@@ -299,18 +290,42 @@ impl LanguageServer for Backend {
 
 impl Backend {
     pub fn new(client: Client, workspace_dir: &Path) -> Self {
-        let config = CodebookConfigFile::load(Some(workspace_dir)).expect("Unable to make config.");
-        let config_arc: Arc<CodebookConfigFile> = Arc::new(config);
-        let cb_config = Arc::clone(&config_arc);
-        let codebook = Arc::new(Codebook::new(cb_config).expect("Unable to make codebook"));
-
         Self {
             client,
-            codebook,
-            config: Arc::clone(&config_arc),
+            workspace_dir: workspace_dir.to_path_buf(),
+            codebook: OnceLock::new(),
+            config: OnceLock::new(),
             document_cache: TextDocumentCache::default(),
+            initialize_options: RwLock::new(Arc::new(ClientInitializationOptions::default())),
         }
     }
+
+    fn config_handle(&self) -> Arc<CodebookConfigFile> {
+        self.config
+            .get_or_init(|| {
+                Arc::new(
+                    CodebookConfigFile::load_with_global_config(
+                        Some(self.workspace_dir.as_path()),
+                        self.initialize_options
+                            .read()
+                            .unwrap()
+                            .global_config_path
+                            .clone(),
+                    )
+                    .expect("Unable to make config: {e}"),
+                )
+            })
+            .clone()
+    }
+
+    fn codebook_handle(&self) -> Arc<Codebook> {
+        self.codebook
+            .get_or_init(|| {
+                Arc::new(Codebook::new(self.config_handle()).expect("Unable to make codebook: {e}"))
+            })
+            .clone()
+    }
+
     fn make_diagnostic(&self, word: &str, start_pos: &Pos, end_pos: &Pos) -> Diagnostic {
         let message = format!("Possible spelling issue '{word}'.");
         Diagnostic {
@@ -335,10 +350,10 @@ impl Backend {
         }
     }
 
-    fn add_words(&self, words: impl Iterator<Item = String>) -> bool {
+    fn add_words(&self, config: &CodebookConfigFile, words: impl Iterator<Item = String>) -> bool {
         let mut should_save = false;
         for word in words {
-            match self.config.add_word(&word) {
+            match config.add_word(&word) {
                 Ok(true) => {
                     should_save = true;
                 }
@@ -352,10 +367,14 @@ impl Backend {
         }
         should_save
     }
-    fn add_words_global(&self, words: impl Iterator<Item = String>) -> bool {
+    fn add_words_global(
+        &self,
+        config: &CodebookConfigFile,
+        words: impl Iterator<Item = String>,
+    ) -> bool {
         let mut should_save = false;
         for word in words {
-            match self.config.add_word_global(&word) {
+            match config.add_word_global(&word) {
                 Ok(true) => {
                     should_save = true;
                 }
@@ -406,7 +425,8 @@ impl Backend {
     }
 
     async fn spell_check(&self, uri: &Url) {
-        let did_reload = match self.config.reload() {
+        let config = self.config_handle();
+        let did_reload = match config.reload() {
             Ok(did_reload) => did_reload,
             Err(e) => {
                 error!("Failed to reload config: {e}");
@@ -440,7 +460,7 @@ impl Backend {
         let lang = doc.language_id.as_deref();
         let lang_type = lang.and_then(|lang| LanguageType::from_str(lang).ok());
         debug!("Document identified as type {lang_type:?} from {lang:?}");
-        let cb = self.codebook.clone();
+        let cb = self.codebook_handle();
         let fp = file_path.clone();
         let spell_results = task::spawn_blocking(move || {
             cb.spell_check(&doc.text, lang_type, Some(fp.to_str().unwrap_or_default()))

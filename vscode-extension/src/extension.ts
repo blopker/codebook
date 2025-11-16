@@ -230,6 +230,31 @@ function saveBinaryMeta(
   fs.writeFileSync(metaPath, JSON.stringify(info, null, 2));
 }
 
+function resolveGlobalConfigPath(
+  rawPath: string | undefined,
+): string | undefined {
+  if (!rawPath) {
+    return undefined;
+  }
+
+  const trimmed = rawPath.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  let expanded = trimmed;
+  if (expanded.startsWith("~")) {
+    const home = os.homedir();
+    expanded = path.join(home, expanded.slice(1));
+  }
+
+  if (!path.isAbsolute(expanded)) {
+    expanded = path.resolve(expanded);
+  }
+
+  return expanded;
+}
+
 async function findLocalBinary(): Promise<string | null> {
   // Check if binary exists in PATH
   const whichCommand = process.platform === "win32" ? "where" : "which";
@@ -420,6 +445,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
   try {
     const serverPath = await getBinary(context);
+    const resolvedGlobalConfigPath = resolveGlobalConfigPath(
+      config.get<string>("globalConfigPath", ""),
+    );
 
     // Server options
     const serverOptions: ServerOptions = {
@@ -429,6 +457,13 @@ export async function activate(context: vscode.ExtensionContext) {
     };
 
     // Client options
+    const initializationOptions: Record<string, unknown> = {
+      logLevel: config.get<string>("logLevel", "info"),
+    };
+    if (resolvedGlobalConfigPath) {
+      initializationOptions.globalConfigPath = resolvedGlobalConfigPath;
+    }
+
     const clientOptions: LanguageClientOptions = {
       documentSelector: [
         { scheme: "file", language: "*" },
@@ -436,6 +471,7 @@ export async function activate(context: vscode.ExtensionContext) {
       ],
       outputChannel,
       revealOutputChannelOn: RevealOutputChannelOn.Error,
+      initializationOptions,
     };
 
     // Create the language client
