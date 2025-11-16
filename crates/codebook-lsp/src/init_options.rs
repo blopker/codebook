@@ -104,29 +104,3 @@ mod tests {
         assert_eq!(options.log_level, LevelFilter::Debug);
     }
 }
-// // --- Example Usage ---
-// pub fn main() {
-//     // 1. Field missing: `default = "..."` is called
-//     let json_empty = r#"{}"#;
-//     let opts_empty: ClientInitializationOptions = serde_json::from_str(json_empty).unwrap();
-//     println!("Empty: {:?}", opts_empty);
-//     assert_eq!(opts_empty.log_level, LevelFilter::Info); // Correctly defaulted
-
-//     // 2. Field is null: `deserialize_with = "..."` is called
-//     let json_null = r#"{ "logLevel": null }"#;
-//     let opts_null: ClientInitializationOptions = serde_json::from_str(json_null).unwrap();
-//     println!("Null: {:?}", opts_null);
-//     assert_eq!(opts_null.log_level, LevelFilter::Info); // `_` case in helper
-
-//     // 3. Field is present: `deserialize_with = "..."` is called
-//     let json_trace = r#"{ "logLevel": "trace" }"#;
-//     let opts_trace: ClientInitializationOptions = serde_json::from_str(json_trace).unwrap();
-//     println!("Trace: {:?}", opts_trace);
-//     assert_eq!(opts_trace.log_level, LevelFilter::Trace);
-
-//     // 4. Field is unknown string: `deserialize_with = "..."` is called
-//     let json_unknown = r#"{ "logLevel": "foo" }"#;
-//     let opts_unknown: ClientInitializationOptions = serde_json::from_str(json_unknown).unwrap();
-//     println!("Unknown: {:?}", opts_unknown);
-//     assert_eq!(opts_unknown.log_level, LevelFilter::Info); // `_` case in helper
-// }

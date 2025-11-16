@@ -43,13 +43,14 @@ If quickfix code actions are not showing up for specific languages, ensure your 
 },
 ```
 
-To enable DEBUG logs, add this to your settings.json:
+To enable DEBUG logs or change the global config path, add this to your settings.json:
 
 ```json
 "lsp": {
   "codebook": {
     "initialization_options": {
-      "logLevel": "debug"
+      "logLevel": "debug",
+      "globalConfigPath": "~/.config/codebook/codebook.toml"
     }
   }
 },
@@ -212,7 +213,7 @@ The global configuration applies to all projects by default. Location depends on
 - **Linux/macOS**: `$XDG_CONFIG_HOME/codebook/codebook.toml` or `~/.config/codebook/codebook.toml`
 - **Windows**: `%APPDATA%\codebook\codebook.toml` or `%APPDATA%\Roaming\codebook\codebook.toml`
 
-You can override this location if you sync your config elsewhere by providing `initializationOptions.globalConfigPath` from your LSP client (the VS Code extension exposes this as the `codebook.globalConfigPath` setting). When no override is provided, the OS-specific default above is used.
+You can override this location if you sync your config elsewhere by providing `initializationOptions.globalConfigPath` from your LSP client. When no override is provided, the OS-specific default above is used.
 
 ### Project Configuration
 
