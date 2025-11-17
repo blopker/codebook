@@ -1,7 +1,7 @@
-[Unreleased]
+[0.3.19]
 
 - Add Windows ARM64 release artifacts
-- Move dictionary cache directory to platform-specific data directories instead of /tmp
+- Move dictionary cache directory to platform-specific data directories instead of `/tmp`, which can get cleaned up by the OS.
 - Allow overriding the global `codebook.toml` path via LSP initialization option `globalConfigPath`
 
 [0.3.18]
