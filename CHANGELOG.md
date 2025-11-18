@@ -1,4 +1,4 @@
-[Unreleased]
+[0.3.20]
 
 - Add `checkWhileTyping` to initialization options. When set to `false`, Codebook will only check for spelling issues when saving.
 
