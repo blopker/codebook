@@ -18,7 +18,7 @@
 
 No configuration needed. Codebook will automatically detect the language you are editing and mark issues for you. Codebook will try to only mark issues for words that you create, where they are initially defined.
 
-Please gift a ⭐ if you find Codebook useful!
+Please give a ⭐ if you find Codebook useful!
 
 **Supported platforms:** Prebuilt archives are published for macOS (x86_64, aarch64), Linux (x86_64, aarch64), and Windows (x86_64, arm64).
 
@@ -26,7 +26,7 @@ Please gift a ⭐ if you find Codebook useful!
 
 ### Zed
 
-Codebook is the most popular spell checker for Zed! To install, go to the Extension tab in Zed and look for "Codebook".
+Codebook is the most popular spell checker for Zed! To install, go to the Extension tab in Zed and look for "Codebook". Done!
 
 **Note**: The version that Zed displays in the extension menus is for the [Zed Extension](https://github.com/blopker/codebook-zed), and not the LSP version (this repo). The extension will automatically update the LSP. If that updater is broken for some reason, try uninstalling the extension and reinstalling.
 
@@ -39,19 +39,6 @@ If quickfix code actions are not showing up for specific languages, ensure your 
     // OR
     "language_servers": ["pyright", "ruff", "codebook"],
     "format_on_save": "on"
-  }
-},
-```
-
-To enable DEBUG logs or change the global config path, add this to your settings.json:
-
-```json
-"lsp": {
-  "codebook": {
-    "initialization_options": {
-      "logLevel": "debug",
-      "globalConfigPath": "~/.config/codebook/codebook.toml"
-    }
   }
 },
 ```
@@ -219,7 +206,7 @@ You can override this location if you sync your config elsewhere by providing `i
 
 Project-specific configuration is loaded from either `codebook.toml` or `.codebook.toml` in the project root. Codebook searches for this file starting from the current directory and moving up to parent directories.
 
-**Note:** Codebook picks which config to use on startup. If a config file is manually created or renamed (like switching between `codebook.toml` and `.codebook.toml`), restart your editor for the new file to be recognized.
+**Note:** Codebook picks which config to use on startup. If a config file is manually created or renamed (like switching between `codebook.toml` and `.codebook.toml`), restart your editor (or the LSP server) for the new file to be recognized.
 
 ### Configuration Options
 
@@ -322,6 +309,24 @@ ignore_patterns = [
 ```
 
 **Migration Note**: If you're upgrading from an older version, patterns that used `^` and `$` anchors may need adjustment since matching now occurs line-by-line rather than word-by-word.
+
+### LSP Initialization Options
+
+Editors can pass `initializationOptions` when starting the Codebook LSP for LSP-specific options. Refer to your editor's documentation for how to apply these options. All values are optional, omit them for the default behavior:
+
+- `logLevel` (`"trace" | "debug" | "info" | "warn" | "error"`, default `"info"`): sets the verbosity of logs.
+- `globalConfigPath` (string): overrides the auto-detected global `codebook.toml` path, useful if you sync configs from another location. On macOS and Linux, the `~/` prefix for the current user's home directory is supported.
+- `checkWhileTyping` (bool, default `true`): when `false`, spelling diagnostics are only published on save instead of each keystroke. This is useful for example if performance is a problem, or the real-time diagnostics are annoying (sorry!).
+
+Example payload:
+
+```json
+{
+  "logLevel": "debug",
+  "globalConfigPath": "~/dotfiles/codebook.toml",
+  "checkWhileTyping": false
+}
+```
 
 ## Goals
 
@@ -460,14 +465,6 @@ You can also test with real code files to verify that Codebook correctly identif
 
 If you've successfully added support for a new language, please consider contributing it back to Codebook with a pull request!
 
-## Roadmap
-
-- [X] Support more languages than US English
-- [X] Support custom project dictionaries
-- [X] Support per file extension dictionaries
-- [X] Add code actions to correct spelling
-- [X] Support hierarchical global and project configuration
-
 ## Running Tests
 
 Run test with `make test` after cloning. Integration tests are also available with `make integration_test`, but requires BunJS to run.
@@ -484,7 +481,7 @@ Run test with `make test` after cloning. Integration tests are also available wi
 
 ## Release
 
-To update the Language server:
+To publish a new version:
 
 1. Update and commit changelog with new version number
 1. Run `make release-lsp`
