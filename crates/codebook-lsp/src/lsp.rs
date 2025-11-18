@@ -66,6 +66,7 @@ impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> RpcResult<InitializeResult> {
         // info!("Capabilities: {:?}", params.capabilities);
         let client_options = ClientInitializationOptions::from_value(params.initialization_options);
+        info!("Client options: {:?}", client_options);
 
         // Attach the LSP client to the logger and flush buffered logs
         lsp_logger::LspLogger::attach_client(self.client.clone(), client_options.log_level);
@@ -133,7 +134,9 @@ impl LanguageServer for Backend {
             params.text_document.version
         );
         self.document_cache.insert(&params.text_document);
-        self.spell_check(&params.text_document.uri).await;
+        if self.should_spellcheck_while_typing() {
+            self.spell_check(&params.text_document.uri).await;
+        }
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
@@ -160,7 +163,9 @@ impl LanguageServer for Backend {
         let uri = params.text_document.uri;
         if let Some(change) = params.content_changes.first() {
             self.document_cache.update(&uri, &change.text);
-            self.spell_check(&uri).await;
+            if self.should_spellcheck_while_typing() {
+                self.spell_check(&uri).await;
+            }
         }
     }
 
@@ -324,6 +329,10 @@ impl Backend {
                 Arc::new(Codebook::new(self.config_handle()).expect("Unable to make codebook: {e}"))
             })
             .clone()
+    }
+
+    fn should_spellcheck_while_typing(&self) -> bool {
+        self.initialize_options.read().unwrap().check_while_typing
     }
 
     fn make_diagnostic(&self, word: &str, start_pos: &Pos, end_pos: &Pos) -> Diagnostic {

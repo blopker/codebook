@@ -40,6 +40,10 @@ where
     }
 }
 
+fn default_check_while_typing() -> bool {
+    true
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ClientInitializationOptions {
@@ -50,6 +54,8 @@ pub(crate) struct ClientInitializationOptions {
     pub(crate) log_level: LevelFilter,
     #[serde(default, deserialize_with = "deserialize_global_config_path")]
     pub(crate) global_config_path: Option<PathBuf>,
+    #[serde(default = "default_check_while_typing")]
+    pub(crate) check_while_typing: bool,
 }
 
 impl Default for ClientInitializationOptions {
@@ -57,6 +63,7 @@ impl Default for ClientInitializationOptions {
         ClientInitializationOptions {
             log_level: default_log_level(),
             global_config_path: None,
+            check_while_typing: true,
         }
     }
 }
@@ -86,21 +93,25 @@ mod tests {
     fn test_default() {
         let default_options = ClientInitializationOptions::default();
         assert_eq!(default_options.log_level, LevelFilter::Info);
+        assert!(default_options.check_while_typing);
     }
 
     #[test]
     fn test_custom() {
         let custom_options = ClientInitializationOptions {
             log_level: LevelFilter::Debug,
+            check_while_typing: false,
             ..Default::default()
         };
         assert_eq!(custom_options.log_level, LevelFilter::Debug);
+        assert!(!custom_options.check_while_typing);
     }
 
     #[test]
     fn test_json() {
-        let json = r#"{"logLevel": "debug"}"#;
+        let json = r#"{"logLevel": "debug", "checkWhileTyping": false}"#;
         let options: ClientInitializationOptions = serde_json::from_str(json).unwrap();
         assert_eq!(options.log_level, LevelFilter::Debug);
+        assert!(!options.check_while_typing);
     }
 }

@@ -1,3 +1,7 @@
+[Unreleased]
+
+- Add `checkWhileTyping` to initialization options. When set to `false`, Codebook will only check for spelling issues when saving.
+
 [0.3.19]
 
 - Add Windows ARM64 release artifacts
