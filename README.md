@@ -219,7 +219,7 @@ You can override this location if you sync your config elsewhere by providing `i
 
 Project-specific configuration is loaded from either `codebook.toml` or `.codebook.toml` in the project root. Codebook searches for this file starting from the current directory and moving up to parent directories.
 
-**Note:** Codebook picks which config to use on startup. If a config file is manually created or renamed (like switching between `codebook.toml` and `.codebook.toml`), restart your editor for the new file to be recognized.
+**Note:** Codebook picks which config to use on startup. If a config file is manually created or renamed (like switching between `codebook.toml` and `.codebook.toml`), restart your editor (or the LSP server) for the new file to be recognized.
 
 ### Configuration Options
 

@@ -80,8 +80,14 @@ impl LanguageServer for Backend {
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
                 position_encoding: Some(PositionEncodingKind::UTF16),
-                text_document_sync: Some(TextDocumentSyncCapability::Kind(
-                    TextDocumentSyncKind::FULL,
+                text_document_sync: Some(TextDocumentSyncCapability::Options(
+                    TextDocumentSyncOptions {
+                        change: Some(TextDocumentSyncKind::FULL),
+                        save: Some(TextDocumentSyncSaveOptions::SaveOptions(SaveOptions {
+                            include_text: Some(true),
+                        })),
+                        ..TextDocumentSyncOptions::default()
+                    },
                 )),
                 execute_command_provider: Some(ExecuteCommandOptions {
                     commands: vec![
@@ -151,8 +157,8 @@ impl LanguageServer for Backend {
         debug!("Saved document: {}", params.text_document.uri);
         if let Some(text) = params.text {
             self.document_cache.update(&params.text_document.uri, &text);
-            self.spell_check(&params.text_document.uri).await;
         }
+        self.spell_check(&params.text_document.uri).await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
