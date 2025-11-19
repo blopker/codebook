@@ -1,4 +1,6 @@
-# Codebook VS Code Extension
+# Codebook VS Code Extension (Unreleased)
+
+**Note** This extension is a work in progress and is not released on the VS Code marketplace yet. However, it is functional. Follow the Development instructions to install if you'd like to provide feedback!
 
 This extension wires the Codebook language server into VS Code so code-specific
 spell check diagnostics and quick fixes appear automatically.
