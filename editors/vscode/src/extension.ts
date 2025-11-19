@@ -18,7 +18,7 @@ let refreshPromise: Promise<void> = Promise.resolve();
 const clients = new Map<string, LanguageClient>();
 
 export async function activate(
-  context: vscode.ExtensionContext,
+  context: vscode.ExtensionContext
 ): Promise<void> {
   contextRef = context;
   outputChannel = vscode.window.createOutputChannel("Codebook");
@@ -29,23 +29,23 @@ export async function activate(
   context.subscriptions.push(
     vscode.commands.registerCommand("codebook.restart", async () => {
       vscode.window.showInformationMessage(
-        "Restarting Codebook language server…",
+        "Restarting Codebook language server…"
       );
       try {
         await queueRefresh();
         vscode.window.showInformationMessage(
-          "Codebook language server restarted.",
+          "Codebook language server restarted."
         );
       } catch (error) {
         vscode.window.showErrorMessage(`Failed to restart Codebook: ${error}`);
       }
-    }),
+    })
   );
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeWorkspaceFolders(async () => {
       await queueRefresh();
-    }),
+    })
   );
 
   context.subscriptions.push(
@@ -54,7 +54,7 @@ export async function activate(
         event.affectsConfiguration("codebook.binaryPath") ||
         event.affectsConfiguration("codebook.enablePrerelease");
       const forceDownload = event.affectsConfiguration(
-        "codebook.enablePrerelease",
+        "codebook.enablePrerelease"
       );
 
       if (
@@ -64,7 +64,7 @@ export async function activate(
       ) {
         await queueRefresh({ forceDownload, invalidateCache });
       }
-    }),
+    })
   );
 
   await queueRefresh();
@@ -105,7 +105,7 @@ async function refreshClients(options: RefreshOptions = {}): Promise<void> {
 
 async function startClient(
   folder: vscode.WorkspaceFolder | undefined,
-  binaryPath: string,
+  binaryPath: string
 ): Promise<void> {
   const key = folder?.uri.toString() ?? DEFAULT_CLIENT_KEY;
   if (clients.has(key)) {
@@ -118,7 +118,7 @@ async function startClient(
 
   const args = [`--root=${root}`, "serve"];
   outputChannel.appendLine(
-    `Starting Codebook (${args.join(" ")}) for ${folder?.name ?? root}`,
+    `Starting Codebook (${args.join(" ")}) for ${folder?.name ?? root}`
   );
 
   const serverOptions: ServerOptions = {
@@ -155,7 +155,7 @@ async function startClient(
     `codebook-${key}`,
     "Codebook",
     serverOptions,
-    clientOptions,
+    clientOptions
   );
   clients.set(key, client);
   contextRef.subscriptions.push(client);

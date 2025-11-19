@@ -37,7 +37,7 @@ To try it locally:
 cd editors/vscode
 bun install       # or npm install
 bun run build
-vsce package      # requires npm i -g @vscode/vsce
+bun run package   # or npm run package
 code --install-extension codebook-vscode-*.vsix
 ```
 

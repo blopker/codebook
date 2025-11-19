@@ -1,7 +1,7 @@
 {
   "name": "codebook-vscode",
-  "displayName": "Codebook",
-  "description": "Spell checking for code via the Codebook language server.",
+  "displayName": "Codebook Spell Checker",
+  "description": "A fast, code-aware spell checker.",
   "version": "0.0.1",
   "publisher": "blopker",
   "license": "MIT",
@@ -24,7 +24,6 @@
     "workspace"
   ],
   "activationEvents": [
-    "onCommand:codebook.restart",
     "onLanguage:c",
     "onLanguage:cpp",
     "onLanguage:css",
@@ -51,7 +50,9 @@
   "main": "./dist/extension.js",
   "scripts": {
     "build": "tsc -p .",
-    "watch": "tsc -w -p ."
+    "watch": "tsc -w -p .",
+    "package": "bun run build && vsce package --no-dependencies",
+    "publish": "bun run build && vsce publish --no-dependencies"
   },
   "contributes": {
     "commands": [
@@ -75,7 +76,12 @@
         },
         "codebook.logLevel": {
           "type": "string",
-          "enum": ["error", "warn", "info", "debug"],
+          "enum": [
+            "error",
+            "warn",
+            "info",
+            "debug"
+          ],
           "default": "info",
           "description": "Value assigned to the RUST_LOG environment variable for the language server."
         }
@@ -94,6 +100,7 @@
   "devDependencies": {
     "@types/node": "^20.12.7",
     "@types/vscode": "^1.80.0",
+    "@vscode/vsce": "^3.7.0",
     "typescript": "^5.4.0"
   }
 }
