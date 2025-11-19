@@ -24,6 +24,26 @@ Please give a ⭐ if you find Codebook useful!
 
 ## Integrations
 
+### VS Code
+
+An official VS Code extension lives in `editors/vscode`. The extension manages
+the `codebook-lsp` binary for you, starts it with the right flags, and exposes a
+few configuration toggles (`codebook.binaryPath`, `codebook.enablePrerelease`,
+and `codebook.logLevel`).
+
+To try it locally:
+
+```sh
+cd editors/vscode
+bun install       # or npm install
+bun run build
+vsce package      # requires npm i -g @vscode/vsce
+code --install-extension codebook-vscode-*.vsix
+```
+
+Once the extension is installed it will activate automatically for every
+supported language.
+
 ### Zed
 
 Codebook is the most popular spell checker for Zed! To install, go to the Extension tab in Zed and look for "Codebook". Done!

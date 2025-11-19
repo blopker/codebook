@@ -1,0 +1,99 @@
+{
+  "name": "codebook-vscode",
+  "displayName": "Codebook",
+  "description": "Spell checking for code via the Codebook language server.",
+  "version": "0.0.1",
+  "publisher": "blopker",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/blopker/codebook"
+  },
+  "bugs": {
+    "url": "https://github.com/blopker/codebook/issues"
+  },
+  "homepage": "https://github.com/blopker/codebook",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Linters",
+    "Other"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "activationEvents": [
+    "onCommand:codebook.restart",
+    "onLanguage:c",
+    "onLanguage:cpp",
+    "onLanguage:css",
+    "onLanguage:elixir",
+    "onLanguage:go",
+    "onLanguage:html",
+    "onLanguage:haskell",
+    "onLanguage:java",
+    "onLanguage:javascript",
+    "onLanguage:latex",
+    "onLanguage:lua",
+    "onLanguage:markdown",
+    "onLanguage:php",
+    "onLanguage:plaintext",
+    "onLanguage:python",
+    "onLanguage:ruby",
+    "onLanguage:rust",
+    "onLanguage:toml",
+    "onLanguage:typescript",
+    "onLanguage:typst",
+    "onLanguage:zig",
+    "onLanguage:csharp"
+  ],
+  "main": "./dist/extension.js",
+  "scripts": {
+    "build": "tsc -p .",
+    "watch": "tsc -w -p ."
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "codebook.restart",
+        "title": "Codebook: Restart Language Server"
+      }
+    ],
+    "configuration": {
+      "title": "Codebook",
+      "properties": {
+        "codebook.binaryPath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to an existing codebook-lsp binary. Leave empty to allow the extension to manage the download."
+        },
+        "codebook.enablePrerelease": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow downloading pre-release builds when managing the language server binary."
+        },
+        "codebook.logLevel": {
+          "type": "string",
+          "enum": ["error", "warn", "info", "debug"],
+          "default": "info",
+          "description": "Value assigned to the RUST_LOG environment variable for the language server."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "@types/adm-zip": "^0.5.7",
+    "@types/tar": "^6.1.13",
+    "@types/which": "^3.0.4",
+    "adm-zip": "^0.5.12",
+    "tar": "^6.2.1",
+    "vscode-languageclient": "^9.0.1",
+    "which": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.4.0"
+  }
+}
