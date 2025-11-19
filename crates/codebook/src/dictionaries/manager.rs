@@ -21,7 +21,7 @@ impl DictionaryManager {
     pub fn new(cache_dir: &PathBuf) -> Self {
         Self {
             dictionary_cache: Arc::new(RwLock::new(HashMap::new())),
-            downloader: Downloader::new(cache_dir).unwrap(),
+            downloader: Downloader::new(cache_dir),
         }
     }
 

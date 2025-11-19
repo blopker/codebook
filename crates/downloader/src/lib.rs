@@ -38,18 +38,18 @@ pub struct Downloader {
 }
 
 impl Downloader {
-    pub fn new(cache_dir: impl AsRef<Path>) -> Result<Self> {
+    pub fn new(cache_dir: impl AsRef<Path>) -> Self {
         let cache_dir = cache_dir.as_ref().to_path_buf();
         info!("Cache folder at: {cache_dir:?}");
 
         let metadata_path = cache_dir.join(METADATA_FILE);
 
-        Ok(Self {
+        Self {
             cache_dir,
             metadata_path,
             metadata: OnceLock::new(),
             _client: OnceLock::new(),
-        })
+        }
     }
 
     fn client(&self) -> &Client {
@@ -357,7 +357,7 @@ mod tests {
         });
 
         let temp_dir = tempdir().unwrap();
-        let downloader = Downloader::new(temp_dir.path()).unwrap();
+        let downloader = Downloader::new(temp_dir.path());
         let path = downloader.get(&server.url("/test.txt")).unwrap();
 
         mock.assert();
@@ -379,12 +379,12 @@ mod tests {
             then.status(200).body("cached content");
         });
 
-        let downloader = Downloader::new(temp_dir.path()).unwrap();
+        let downloader = Downloader::new(temp_dir.path());
         let path = downloader.get(&server.url("/test.txt")).unwrap();
         mock.assert();
 
         // Now simulate offline
-        let downloader = Downloader::new(temp_dir.path()).unwrap();
+        let downloader = Downloader::new(temp_dir.path());
         // server.stop(); // Make sure server isn't running
         let cached_path = downloader.get(&server.url("/test.txt")).unwrap();
 
@@ -410,7 +410,7 @@ mod tests {
                 .header("Last-Modified", initial_last_modified);
         });
 
-        let downloader = Downloader::new(temp_dir.path()).unwrap();
+        let downloader = Downloader::new(temp_dir.path());
         let path_v1 = downloader.get(&test_path).unwrap();
         mock1.assert();
         mock1.delete();
@@ -457,7 +457,7 @@ mod tests {
             then.status(200).body("original");
         });
 
-        let downloader = Downloader::new(temp_dir.path()).unwrap();
+        let downloader = Downloader::new(temp_dir.path());
         let original_path = downloader.get(&server.url("/test.txt")).unwrap();
         mock1.assert();
 
@@ -485,7 +485,7 @@ mod tests {
             then.status(200).body("content");
         });
 
-        let downloader = Downloader::new(temp_dir.path()).unwrap();
+        let downloader = Downloader::new(temp_dir.path());
         downloader.get(&server.url("/test.txt")).unwrap();
         mock.assert_calls(1);
 
@@ -511,7 +511,7 @@ mod tests {
                 .header("Last-Modified", "Wed, 21 Oct 2020 07:28:00 GMT");
         });
 
-        let downloader = Downloader::new(temp_dir.path()).unwrap();
+        let downloader = Downloader::new(temp_dir.path());
         let original_path = downloader.get(&server.url("/test.txt")).unwrap();
         mock1.assert();
         mock1.delete();
@@ -564,7 +564,7 @@ mod tests {
             then.status(200).body("content");
         });
 
-        let downloader = Downloader::new(temp_dir.path()).unwrap();
+        let downloader = Downloader::new(temp_dir.path());
         let path = downloader.get(&server.url("/test.txt")).unwrap();
         mock1.assert();
         mock1.delete();
