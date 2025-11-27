@@ -85,7 +85,7 @@ First, [install Codebook](#installation), and ensure that `codebook-lsp` is inst
 Then, add the following to your Neovim configuration:
 
 ```sh
-vim.lsp.enable('cookbook')
+vim.lsp.enable('codebook')
 ```
 
 ### VS Code (Unreleased)
