@@ -38,6 +38,7 @@ pub struct Backend {
 enum CodebookCommand {
     AddWord,
     AddWordGlobal,
+    IgnoreFile,
     Unknown,
 }
 
@@ -46,6 +47,7 @@ impl From<&str> for CodebookCommand {
         match command {
             "codebook.addWord" => CodebookCommand::AddWord,
             "codebook.addWordGlobal" => CodebookCommand::AddWordGlobal,
+            "codebook.ignoreFile" => CodebookCommand::IgnoreFile,
             _ => CodebookCommand::Unknown,
         }
     }
@@ -56,6 +58,7 @@ impl From<CodebookCommand> for String {
         match command {
             CodebookCommand::AddWord => "codebook.addWord".to_string(),
             CodebookCommand::AddWordGlobal => "codebook.addWordGlobal".to_string(),
+            CodebookCommand::IgnoreFile => "codebook.ignoreFile".to_string(),
             CodebookCommand::Unknown => "codebook.unknown".to_string(),
         }
     }
@@ -93,6 +96,7 @@ impl LanguageServer for Backend {
                     commands: vec![
                         CodebookCommand::AddWord.into(),
                         CodebookCommand::AddWordGlobal.into(),
+                        CodebookCommand::IgnoreFile.into(),
                     ],
                     work_done_progress_options: Default::default(),
                 }),
@@ -256,6 +260,21 @@ impl LanguageServer for Backend {
                 data: None,
             }));
         }
+        let relative_path = self.get_relative_path(&params.text_document.uri);
+        actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+            title: format!("Add current file to ignore list"),
+            kind: Some(CodeActionKind::QUICKFIX),
+            diagnostics: None,
+            edit: None,
+            command: Some(Command {
+                title: format!("Add current file to ignore list"),
+                command: CodebookCommand::IgnoreFile.into(),
+                arguments: Some(vec![relative_path.into()]),
+            }),
+            is_preferred: None,
+            disabled: None,
+            data: None,
+        }));
         match actions.is_empty() {
             true => Ok(None),
             false => Ok(Some(actions)),
@@ -290,6 +309,24 @@ impl LanguageServer for Backend {
                 let updated = self.add_words_global(config.as_ref(), words);
                 if updated {
                     let _ = config.save_global();
+                    self.recheck_all().await;
+                }
+                Ok(None)
+            }
+            CodebookCommand::IgnoreFile => {
+                let config = self.config_handle();
+                let file_uri = params
+                    .arguments
+                    .first()
+                    .expect("CodebookCommand::IgnoreFile: There has to be a file URI here!");
+                let updated = self.add_ignore_file(
+                    config.as_ref(),
+                    file_uri.as_str().expect(
+                        "CodebookCommand::IgnoreFile: Argument should be convertable to a String!",
+                    ),
+                );
+                if updated {
+                    let _ = config.save();
                     self.recheck_all().await;
                 }
                 Ok(None)
@@ -382,6 +419,7 @@ impl Backend {
         }
         should_save
     }
+
     fn add_words_global(
         &self,
         config: &CodebookConfigFile,
@@ -402,6 +440,36 @@ impl Backend {
             }
         }
         should_save
+    }
+
+    fn get_relative_path(&self, uri: &Url) -> String {
+        let file_path = uri.to_file_path().unwrap_or_default();
+        let absolute_workspace_dir = &self.workspace_dir.canonicalize();
+
+        match absolute_workspace_dir {
+            Ok(dir) => match file_path.strip_prefix(dir) {
+                Ok(relative) => relative.to_string_lossy().to_string(),
+                Err(_) => file_path.to_string_lossy().to_string(),
+            },
+            Err(err) => {
+                info!("Could not get absolute path from workspace directory. Error: {err}.");
+                file_path.to_string_lossy().to_string()
+            }
+        }
+    }
+
+    fn add_ignore_file(&self, config: &CodebookConfigFile, file_uri: &str) -> bool {
+        match config.add_ignore(file_uri) {
+            Ok(true) => true,
+            Ok(false) => {
+                info!("File {file_uri} already exists in the ignored files.");
+                false
+            }
+            Err(e) => {
+                error!("Failed to add ignore file: {e}");
+                false
+            }
+        }
     }
 
     fn make_suggestion(&self, suggestion: &str, range: &Range, uri: &Url) -> CodeAction {
