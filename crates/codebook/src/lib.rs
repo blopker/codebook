@@ -42,9 +42,6 @@ impl Codebook {
         {
             return Vec::new();
         }
-        if has_ignore_comment(text, language.unwrap_or(LanguageType::Javascript)) {
-            return Vec::new();
-        }
         // get needed dictionary names
         // get needed dictionaries
         // call spell check on each dictionary
@@ -53,6 +50,9 @@ impl Codebook {
         let mut regex_patterns = get_default_skip_patterns().clone();
         if let Some(config_patterns) = self.config.get_ignore_patterns() {
             regex_patterns.extend(config_patterns);
+        }
+        if has_ignore_comment(text, language) {
+            return Vec::new();
         }
         parser::find_locations(
             text,
