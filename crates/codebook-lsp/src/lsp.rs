@@ -447,8 +447,11 @@ impl Backend {
         let absolute_workspace_dir = &self.workspace_dir.canonicalize();
 
         match absolute_workspace_dir {
-            Ok(dir) => match file_path.strip_prefix(dir) {
-                Ok(relative) => relative.to_string_lossy().to_string(),
+            Ok(dir) => match file_path.canonicalize() {
+                Ok(canon_file_path) => match canon_file_path.strip_prefix(dir) {
+                    Ok(relative) => relative.to_string_lossy().to_string(),
+                    Err(_) => file_path.to_string_lossy().to_string(),
+                },
                 Err(_) => file_path.to_string_lossy().to_string(),
             },
             Err(err) => {
