@@ -346,7 +346,8 @@ Example payload:
 {
   "logLevel": "debug",
   "globalConfigPath": "~/dotfiles/codebook.toml",
-  "checkWhileTyping": false
+  "checkWhileTyping": false,
+  "diagnosticSeverity": "information"
 }
 ```
 
