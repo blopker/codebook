@@ -260,7 +260,6 @@ impl LanguageServer for Backend {
                 data: None,
             }));
         }
-        let relative_path = self.get_relative_path(&params.text_document.uri);
         actions.push(CodeActionOrCommand::CodeAction(CodeAction {
             title: format!("Add current file to ignore list"),
             kind: Some(CodeActionKind::QUICKFIX),
@@ -269,7 +268,7 @@ impl LanguageServer for Backend {
             command: Some(Command {
                 title: format!("Add current file to ignore list"),
                 command: CodebookCommand::IgnoreFile.into(),
-                arguments: Some(vec![relative_path.into()]),
+                arguments: Some(vec![params.text_document.uri.to_string().into()]),
             }),
             is_preferred: None,
             disabled: None,
@@ -318,13 +317,12 @@ impl LanguageServer for Backend {
                 let file_uri = params
                     .arguments
                     .first()
-                    .expect("CodebookCommand::IgnoreFile: There has to be a file URI here!");
-                let updated = self.add_ignore_file(
-                    config.as_ref(),
-                    file_uri.as_str().expect(
-                        "CodebookCommand::IgnoreFile: Argument should be convertable to a String!",
-                    ),
-                );
+                    .expect("CodebookCommand::IgnoreFile: There has to be a file URI here!")
+                    .as_str()
+                    .expect(
+                        "CodebookCommand::IgnoreFile: Argument should be convertible to a String.",
+                    );
+                let updated = self.add_ignore_file(config.as_ref(), file_uri);
                 if updated {
                     let _ = config.save();
                     self.recheck_all().await;
@@ -442,7 +440,9 @@ impl Backend {
         should_save
     }
 
-    fn get_relative_path(&self, uri: &Url) -> String {
+    fn get_relative_path(&self, uri: &str) -> String {
+        let uri = Url::parse(uri)
+            .expect("This is a correctly formatted URL because it comes from the LSP protocol.");
         let file_path = uri.to_file_path().unwrap_or_default();
         let absolute_workspace_dir = &self.workspace_dir.canonicalize();
 
@@ -459,7 +459,8 @@ impl Backend {
     }
 
     fn add_ignore_file(&self, config: &CodebookConfigFile, file_uri: &str) -> bool {
-        match config.add_ignore(file_uri) {
+        let relative_path = &self.get_relative_path(file_uri);
+        match config.add_ignore(relative_path) {
             Ok(true) => true,
             Ok(false) => {
                 info!("File {file_uri} already exists in the ignored files.");
