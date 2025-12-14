@@ -261,12 +261,12 @@ impl LanguageServer for Backend {
             }));
         }
         actions.push(CodeActionOrCommand::CodeAction(CodeAction {
-            title: format!("Add current file to ignore list"),
+            title: "Add current file to ignore list".to_string(),
             kind: Some(CodeActionKind::QUICKFIX),
             diagnostics: None,
             edit: None,
             command: Some(Command {
-                title: format!("Add current file to ignore list"),
+                title: "Add current file to ignore list".to_string(),
                 command: CodebookCommand::IgnoreFile.into(),
                 arguments: Some(vec![params.text_document.uri.to_string().into()]),
             }),
