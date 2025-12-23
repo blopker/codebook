@@ -355,7 +355,7 @@ impl Backend {
                     character: end_pos.col as u32,
                 },
             },
-            severity: Some(DiagnosticSeverity::INFORMATION),
+            severity: Some(self.initialize_options.read().unwrap().diagnostic_severity),
             code: None,
             code_description: None,
             source: Some(SOURCE_NAME.to_string()),

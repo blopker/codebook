@@ -339,6 +339,7 @@ Editors can pass `initializationOptions` when starting the Codebook LSP for LSP-
 - `logLevel` (`"trace" | "debug" | "info" | "warn" | "error"`, default `"info"`): sets the verbosity of logs.
 - `globalConfigPath` (string): overrides the auto-detected global `codebook.toml` path, useful if you sync configs from another location. On macOS and Linux, the `~/` prefix for the current user's home directory is supported.
 - `checkWhileTyping` (bool, default `true`): when `false`, spelling diagnostics are only published on save instead of each keystroke. This is useful for example if performance is a problem, or the real-time diagnostics are annoying (sorry!).
+- `diagnosticSeverity` (`"error" | "warning" | "information" | "hint"`, default `"information"`): sets the severity of spell check diagnostics.
 
 Example payload:
 
@@ -346,7 +347,8 @@ Example payload:
 {
   "logLevel": "debug",
   "globalConfigPath": "~/dotfiles/codebook.toml",
-  "checkWhileTyping": false
+  "checkWhileTyping": false,
+  "diagnosticSeverity": "information"
 }
 ```
 

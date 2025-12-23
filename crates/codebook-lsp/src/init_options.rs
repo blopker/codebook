@@ -3,6 +3,7 @@ use serde::Deserialize;
 use serde::de::Deserializer;
 use serde_json::Value;
 use std::path::PathBuf;
+use tower_lsp::lsp_types::DiagnosticSeverity;
 
 fn default_log_level() -> LevelFilter {
     LevelFilter::Info
@@ -44,6 +45,24 @@ fn default_check_while_typing() -> bool {
     true
 }
 
+fn default_diagnostic_severity() -> DiagnosticSeverity {
+    DiagnosticSeverity::INFORMATION
+}
+
+fn deserialize_diagnostic_severity<'de, D>(deserializer: D) -> Result<DiagnosticSeverity, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: Option<String> = Option::deserialize(deserializer)?;
+    match s.as_deref() {
+        Some("error") => Ok(DiagnosticSeverity::ERROR),
+        Some("warning") => Ok(DiagnosticSeverity::WARNING),
+        Some("information") => Ok(DiagnosticSeverity::INFORMATION),
+        Some("hint") => Ok(DiagnosticSeverity::HINT),
+        _ => Ok(default_diagnostic_severity()),
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ClientInitializationOptions {
@@ -56,6 +75,11 @@ pub(crate) struct ClientInitializationOptions {
     pub(crate) global_config_path: Option<PathBuf>,
     #[serde(default = "default_check_while_typing")]
     pub(crate) check_while_typing: bool,
+    #[serde(
+        default = "default_diagnostic_severity",
+        deserialize_with = "deserialize_diagnostic_severity"
+    )]
+    pub(crate) diagnostic_severity: DiagnosticSeverity,
 }
 
 impl Default for ClientInitializationOptions {
@@ -64,6 +88,7 @@ impl Default for ClientInitializationOptions {
             log_level: default_log_level(),
             global_config_path: None,
             check_while_typing: true,
+            diagnostic_severity: default_diagnostic_severity(),
         }
     }
 }
@@ -109,9 +134,11 @@ mod tests {
 
     #[test]
     fn test_json() {
-        let json = r#"{"logLevel": "debug", "checkWhileTyping": false}"#;
+        let json =
+            r#"{"logLevel": "debug", "checkWhileTyping": false, "diagnosticSeverity": "warning"}"#;
         let options: ClientInitializationOptions = serde_json::from_str(json).unwrap();
         assert_eq!(options.log_level, LevelFilter::Debug);
         assert!(!options.check_while_typing);
+        assert_eq!(options.diagnostic_severity, DiagnosticSeverity::WARNING);
     }
 }
