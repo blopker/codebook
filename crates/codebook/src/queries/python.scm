@@ -7,4 +7,4 @@
 (class_definition
     name: (identifier) @identifier)
 (assignment
-    (identifier) @identifier)
+    left: (identifier) @identifier)
