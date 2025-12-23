@@ -1,3 +1,7 @@
+[0.3.22]
+
+- Update dependencies
+
 [0.3.21]
 
 - Add "Ignore current file" code action
