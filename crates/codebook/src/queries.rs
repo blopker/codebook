@@ -241,7 +241,7 @@ impl LanguageSetting {
             LanguageType::Haskell => Some(tree_sitter_haskell::LANGUAGE.into()),
             LanguageType::Java => Some(tree_sitter_java::LANGUAGE.into()),
             LanguageType::Javascript => Some(tree_sitter_javascript::LANGUAGE.into()),
-            LanguageType::Latex => Some(codebook_tree_sitter_latex::language()),
+            LanguageType::Latex => Some(codebook_tree_sitter_latex::LANGUAGE.into()),
             LanguageType::Lua => Some(tree_sitter_lua::LANGUAGE.into()),
             LanguageType::Php => Some(tree_sitter_php::LANGUAGE_PHP.into()),
             LanguageType::Python => Some(tree_sitter_python::LANGUAGE.into()),
@@ -251,7 +251,7 @@ impl LanguageSetting {
             LanguageType::TOML => Some(tree_sitter_toml_ng::LANGUAGE.into()),
             LanguageType::Text => None,
             LanguageType::Typescript => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
-            LanguageType::Typst => Some(codebook_tree_sitter_typst::language()),
+            LanguageType::Typst => Some(codebook_tree_sitter_typst::LANGUAGE.into()),
             LanguageType::Zig => Some(tree_sitter_zig::LANGUAGE.into()),
         }
     }
