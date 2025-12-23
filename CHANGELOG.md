@@ -1,3 +1,11 @@
+[0.3.21]
+
+- Add "Ignore current file" code action
+- Allow user to set diagnostic severity in LSP init options
+- Fix missing open/close in LSP server capabilities
+- Python: Fix assignment query to only check the left-hand side identifier
+- New VS Code extension (work in progress)
+
 [0.3.20]
 
 - Add `checkWhileTyping` to initialization options. When set to `false`, Codebook will only check for spelling issues when saving.
