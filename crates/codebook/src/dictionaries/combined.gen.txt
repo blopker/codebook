@@ -1142,6 +1142,7 @@ helvetica
 here
 heroicons
 hex
+hgroup
 hh
 hi
 hibernate

@@ -26,6 +26,26 @@ use crate::lsp_logger;
 
 const SOURCE_NAME: &str = "Codebook";
 
+/// Computes the relative path of a file from a workspace directory.
+/// Returns the relative path if the file is within the workspace, otherwise returns the absolute path.
+fn compute_relative_path(workspace_dir: &Path, file_path: &Path) -> String {
+    let absolute_workspace_dir = workspace_dir.canonicalize();
+
+    match absolute_workspace_dir {
+        Ok(dir) => match file_path.canonicalize() {
+            Ok(canon_file_path) => match canon_file_path.strip_prefix(&dir) {
+                Ok(relative) => relative.to_string_lossy().to_string(),
+                Err(_) => file_path.to_string_lossy().to_string(),
+            },
+            Err(_) => file_path.to_string_lossy().to_string(),
+        },
+        Err(err) => {
+            info!("Could not get absolute path from workspace directory. Error: {err}.");
+            file_path.to_string_lossy().to_string()
+        }
+    }
+}
+
 pub struct Backend {
     client: Client,
     workspace_dir: PathBuf,
@@ -186,11 +206,13 @@ impl LanguageServer for Backend {
             None => return Ok(None),
         };
 
+        let mut has_codebook_diagnostic = false;
         for diag in params.context.diagnostics {
             // Only process our own diagnostics
             if diag.source.as_deref() != Some(SOURCE_NAME) {
                 continue;
             }
+            has_codebook_diagnostic = true;
             let line = doc
                 .text
                 .lines()
@@ -260,20 +282,22 @@ impl LanguageServer for Backend {
                 data: None,
             }));
         }
-        actions.push(CodeActionOrCommand::CodeAction(CodeAction {
-            title: "Add current file to ignore list".to_string(),
-            kind: Some(CodeActionKind::QUICKFIX),
-            diagnostics: None,
-            edit: None,
-            command: Some(Command {
+        if has_codebook_diagnostic {
+            actions.push(CodeActionOrCommand::CodeAction(CodeAction {
                 title: "Add current file to ignore list".to_string(),
-                command: CodebookCommand::IgnoreFile.into(),
-                arguments: Some(vec![params.text_document.uri.to_string().into()]),
-            }),
-            is_preferred: None,
-            disabled: None,
-            data: None,
-        }));
+                kind: Some(CodeActionKind::QUICKFIX),
+                diagnostics: None,
+                edit: None,
+                command: Some(Command {
+                    title: "Add current file to ignore list".to_string(),
+                    command: CodebookCommand::IgnoreFile.into(),
+                    arguments: Some(vec![params.text_document.uri.to_string().into()]),
+                }),
+                is_preferred: None,
+                disabled: None,
+                data: None,
+            }));
+        }
         match actions.is_empty() {
             true => Ok(None),
             false => Ok(Some(actions)),
@@ -313,15 +337,15 @@ impl LanguageServer for Backend {
                 Ok(None)
             }
             CodebookCommand::IgnoreFile => {
-                let config = self.config_handle();
-                let file_uri = params
+                let Some(file_uri) = params
                     .arguments
                     .first()
-                    .expect("CodebookCommand::IgnoreFile: There has to be a file URI here!")
-                    .as_str()
-                    .expect(
-                        "CodebookCommand::IgnoreFile: Argument should be convertible to a String.",
-                    );
+                    .and_then(|arg| arg.as_str())
+                else {
+                    error!("IgnoreFile command missing or invalid file URI argument");
+                    return Ok(None);
+                };
+                let config = self.config_handle();
                 let updated = self.add_ignore_file(config.as_ref(), file_uri);
                 if updated {
                     let _ = config.save();
@@ -440,30 +464,23 @@ impl Backend {
         should_save
     }
 
-    fn get_relative_path(&self, uri: &str) -> String {
-        let uri = Url::parse(uri)
-            .expect("This is a correctly formatted URL because it comes from the LSP protocol.");
-        let file_path = uri.to_file_path().unwrap_or_default();
-        let absolute_workspace_dir = &self.workspace_dir.canonicalize();
-
-        match absolute_workspace_dir {
-            Ok(dir) => match file_path.canonicalize() {
-                Ok(canon_file_path) => match canon_file_path.strip_prefix(dir) {
-                    Ok(relative) => relative.to_string_lossy().to_string(),
-                    Err(_) => file_path.to_string_lossy().to_string(),
-                },
-                Err(_) => file_path.to_string_lossy().to_string(),
-            },
-            Err(err) => {
-                info!("Could not get absolute path from workspace directory. Error: {err}.");
-                file_path.to_string_lossy().to_string()
+    fn get_relative_path(&self, uri: &str) -> Option<String> {
+        let parsed_uri = match Url::parse(uri) {
+            Ok(u) => u,
+            Err(e) => {
+                error!("Failed to parse URI '{uri}': {e}");
+                return None;
             }
-        }
+        };
+        let file_path = parsed_uri.to_file_path().unwrap_or_default();
+        Some(compute_relative_path(&self.workspace_dir, &file_path))
     }
 
     fn add_ignore_file(&self, config: &CodebookConfigFile, file_uri: &str) -> bool {
-        let relative_path = &self.get_relative_path(file_uri);
-        match config.add_ignore(relative_path) {
+        let Some(relative_path) = self.get_relative_path(file_uri) else {
+            return false;
+        };
+        match config.add_ignore(&relative_path) {
             Ok(true) => true,
             Ok(false) => {
                 info!("File {file_uri} already exists in the ignored files.");
@@ -540,6 +557,9 @@ impl Backend {
         let file_path = doc.uri.to_file_path().unwrap_or_default();
         debug!("Spell-checking file: {file_path:?}");
 
+        // Compute relative path for ignore pattern matching
+        let relative_path = compute_relative_path(&self.workspace_dir, &file_path);
+
         // Convert utf8 byte offsets to utf16
         let offsets = StringOffsets::<AllConfig>::new(&doc.text);
 
@@ -548,9 +568,8 @@ impl Backend {
         let lang_type = lang.and_then(|lang| LanguageType::from_str(lang).ok());
         debug!("Document identified as type {lang_type:?} from {lang:?}");
         let cb = self.codebook_handle();
-        let fp = file_path.clone();
         let spell_results = task::spawn_blocking(move || {
-            cb.spell_check(&doc.text, lang_type, Some(fp.to_str().unwrap_or_default()))
+            cb.spell_check(&doc.text, lang_type, Some(&relative_path))
         })
         .await;
 
@@ -584,5 +603,66 @@ impl Backend {
             .publish_diagnostics(doc.uri, diagnostics, None)
             .await;
         // debug!("Published diagnostics for: {:?}", file_path);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_compute_relative_path_within_workspace() {
+        let workspace = tempdir().unwrap();
+        let workspace_path = workspace.path();
+
+        // Create a file inside the workspace
+        let subdir = workspace_path.join("src");
+        fs::create_dir_all(&subdir).unwrap();
+        let file_path = subdir.join("test.rs");
+        fs::write(&file_path, "test").unwrap();
+
+        let result = compute_relative_path(workspace_path, &file_path);
+        assert_eq!(result, "src/test.rs");
+    }
+
+    #[test]
+    fn test_compute_relative_path_outside_workspace() {
+        let workspace = tempdir().unwrap();
+        let other_dir = tempdir().unwrap();
+
+        // Create a file outside the workspace
+        let file_path = other_dir.path().join("outside.rs");
+        fs::write(&file_path, "test").unwrap();
+
+        let result = compute_relative_path(workspace.path(), &file_path);
+        // Should return the original path since it's outside workspace
+        assert!(result.contains("outside.rs"));
+    }
+
+    #[test]
+    fn test_compute_relative_path_nonexistent_file() {
+        let workspace = tempdir().unwrap();
+        let file_path = workspace.path().join("nonexistent.rs");
+
+        let result = compute_relative_path(workspace.path(), &file_path);
+        // Should return the original path since file doesn't exist
+        assert!(result.contains("nonexistent.rs"));
+    }
+
+    #[test]
+    fn test_compute_relative_path_nested_directory() {
+        let workspace = tempdir().unwrap();
+        let workspace_path = workspace.path();
+
+        // Create a deeply nested file
+        let nested_dir = workspace_path.join("src").join("components").join("ui");
+        fs::create_dir_all(&nested_dir).unwrap();
+        let file_path = nested_dir.join("button.rs");
+        fs::write(&file_path, "test").unwrap();
+
+        let result = compute_relative_path(workspace_path, &file_path);
+        assert_eq!(result, "src/components/ui/button.rs");
     }
 }
