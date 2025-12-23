@@ -48,6 +48,7 @@ attribute
 attributes
 author
 auto
+autoplay
 awesome
 background
 badge
@@ -349,6 +350,7 @@ keyboard
 keyword
 kind
 label
+labelledby
 lang
 language
 last
@@ -448,6 +450,7 @@ og
 ol
 on
 once
+onchange
 onclick
 one
 onliner
@@ -491,6 +494,7 @@ phaser
 php
 pic
 placeholder
+playsinline
 pln
 plugin
 plugins
@@ -560,6 +564,7 @@ serif
 service
 set
 shadow
+shadowrootmode
 short
 shortcut
 should

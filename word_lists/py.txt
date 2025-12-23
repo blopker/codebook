@@ -36,6 +36,7 @@ arguments
 argv
 array
 as
+asctime
 assert
 assertequal
 assertequals
@@ -392,6 +393,7 @@ left
 len
 length
 level
+levelname
 lib
 library
 like

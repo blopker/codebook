@@ -16,6 +16,7 @@ encodings
 etag
 filesystem
 fixme
+formatters
 github
 gitlab
 gz
@@ -27,6 +28,7 @@ lru
 lsp
 macos
 msvc
+noqa
 pbkdf
 pc
 postgre
