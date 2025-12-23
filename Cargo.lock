@@ -370,7 +370,7 @@ dependencies = [
 
 [[package]]
 name = "codebook"
-version = "0.3.21"
+version = "0.3.22"
 dependencies = [
  "codebook-tree-sitter-latex",
  "codebook-tree-sitter-typst",
@@ -414,7 +414,7 @@ dependencies = [
 
 [[package]]
 name = "codebook-lsp"
-version = "0.3.21"
+version = "0.3.22"
 dependencies = [
  "cc",
  "clap",
@@ -455,7 +455,7 @@ dependencies = [
 
 [[package]]
 name = "codebook_config"
-version = "0.3.21"
+version = "0.3.22"
 dependencies = [
  "dirs",
  "glob",
@@ -468,7 +468,7 @@ dependencies = [
 
 [[package]]
 name = "codebook_downloader"
-version = "0.3.21"
+version = "0.3.22"
 dependencies = [
  "anyhow",
  "chrono",
@@ -583,7 +583,7 @@ dependencies = [
 
 [[package]]
 name = "dictionary-builder"
-version = "0.3.21"
+version = "0.3.22"
 dependencies = [
  "anyhow",
  "chrono",
