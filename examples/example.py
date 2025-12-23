@@ -1,4 +1,9 @@
 # Impurt statements with misspellings
+import copy as ccopy
+import pathlib
+
+hi = pathlib
+my_copy = ccopy
 
 # Globul constants
 MAXSIZ = 100

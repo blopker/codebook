@@ -134,6 +134,7 @@ arw
 as
 asap
 asc
+asctime
 asf
 aside
 aslist
@@ -170,6 +171,7 @@ author
 authors
 auto
 autofield
+autoplay
 autorest
 autowired
 available
@@ -984,6 +986,7 @@ foreignkey
 form
 format
 formatter
+formatters
 forms
 forward
 found
@@ -1391,6 +1394,7 @@ kw
 kwargs
 kyiv
 label
+labelledby
 labels
 lambda
 lang
@@ -1413,6 +1417,7 @@ less
 let
 letter
 level
+levelname
 lg
 lhs
 li
@@ -1718,6 +1723,7 @@ nomethod
 non
 none
 noop
+noqa
 noreferrer
 normal
 noscript
@@ -1773,6 +1779,7 @@ old
 omitempty
 on
 once
+onchange
 onclick
 oncreate
 one
@@ -1942,6 +1949,7 @@ plain
 platform
 play
 player
+playsinline
 plist
 pln
 plt
@@ -2325,6 +2333,7 @@ sgml
 sh
 sha
 shadow
+shadowrootmode
 shape
 shar
 share
