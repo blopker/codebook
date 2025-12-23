@@ -28,27 +28,37 @@ const SOURCE_NAME: &str = "Codebook";
 
 /// Computes the relative path of a file from a workspace directory.
 /// Returns the relative path if the file is within the workspace, otherwise returns the absolute path.
-fn compute_relative_path(workspace_dir: &Path, file_path: &Path) -> String {
-    let absolute_workspace_dir = workspace_dir.canonicalize();
+/// If `workspace_dir_canonical` is provided, skips canonicalizing the workspace directory (optimization).
+fn compute_relative_path(
+    workspace_dir: &Path,
+    workspace_dir_canonical: Option<&Path>,
+    file_path: &Path,
+) -> String {
+    let workspace_canonical = match workspace_dir_canonical {
+        Some(dir) => dir.to_path_buf(),
+        None => match workspace_dir.canonicalize() {
+            Ok(dir) => dir,
+            Err(err) => {
+                info!("Could not canonicalize workspace directory. Error: {err}.");
+                return file_path.to_string_lossy().to_string();
+            }
+        },
+    };
 
-    match absolute_workspace_dir {
-        Ok(dir) => match file_path.canonicalize() {
-            Ok(canon_file_path) => match canon_file_path.strip_prefix(&dir) {
-                Ok(relative) => relative.to_string_lossy().to_string(),
-                Err(_) => file_path.to_string_lossy().to_string(),
-            },
+    match file_path.canonicalize() {
+        Ok(canon_file_path) => match canon_file_path.strip_prefix(&workspace_canonical) {
+            Ok(relative) => relative.to_string_lossy().to_string(),
             Err(_) => file_path.to_string_lossy().to_string(),
         },
-        Err(err) => {
-            info!("Could not get absolute path from workspace directory. Error: {err}.");
-            file_path.to_string_lossy().to_string()
-        }
+        Err(_) => file_path.to_string_lossy().to_string(),
     }
 }
 
 pub struct Backend {
     client: Client,
     workspace_dir: PathBuf,
+    /// Cached canonicalized workspace directory for efficient relative path computation
+    workspace_dir_canonical: Option<PathBuf>,
     codebook: OnceLock<Arc<Codebook>>,
     config: OnceLock<Arc<CodebookConfigFile>>,
     document_cache: TextDocumentCache,
@@ -360,9 +370,11 @@ impl LanguageServer for Backend {
 
 impl Backend {
     pub fn new(client: Client, workspace_dir: &Path) -> Self {
+        let workspace_dir_canonical = workspace_dir.canonicalize().ok();
         Self {
             client,
             workspace_dir: workspace_dir.to_path_buf(),
+            workspace_dir_canonical,
             codebook: OnceLock::new(),
             config: OnceLock::new(),
             document_cache: TextDocumentCache::default(),
@@ -473,7 +485,11 @@ impl Backend {
             }
         };
         let file_path = parsed_uri.to_file_path().unwrap_or_default();
-        Some(compute_relative_path(&self.workspace_dir, &file_path))
+        Some(compute_relative_path(
+            &self.workspace_dir,
+            self.workspace_dir_canonical.as_deref(),
+            &file_path,
+        ))
     }
 
     fn add_ignore_file(&self, config: &CodebookConfigFile, file_uri: &str) -> bool {
@@ -558,7 +574,11 @@ impl Backend {
         debug!("Spell-checking file: {file_path:?}");
 
         // Compute relative path for ignore pattern matching
-        let relative_path = compute_relative_path(&self.workspace_dir, &file_path);
+        let relative_path = compute_relative_path(
+            &self.workspace_dir,
+            self.workspace_dir_canonical.as_deref(),
+            &file_path,
+        );
 
         // Convert utf8 byte offsets to utf16
         let offsets = StringOffsets::<AllConfig>::new(&doc.text);
@@ -623,7 +643,24 @@ mod tests {
         let file_path = subdir.join("test.rs");
         fs::write(&file_path, "test").unwrap();
 
-        let result = compute_relative_path(workspace_path, &file_path);
+        let result = compute_relative_path(workspace_path, None, &file_path);
+        assert_eq!(result, "src/test.rs");
+    }
+
+    #[test]
+    fn test_compute_relative_path_with_cached_canonical() {
+        let workspace = tempdir().unwrap();
+        let workspace_path = workspace.path();
+        let workspace_canonical = workspace_path.canonicalize().unwrap();
+
+        // Create a file inside the workspace
+        let subdir = workspace_path.join("src");
+        fs::create_dir_all(&subdir).unwrap();
+        let file_path = subdir.join("test.rs");
+        fs::write(&file_path, "test").unwrap();
+
+        // Using cached canonical path should produce the same result
+        let result = compute_relative_path(workspace_path, Some(&workspace_canonical), &file_path);
         assert_eq!(result, "src/test.rs");
     }
 
@@ -636,7 +673,7 @@ mod tests {
         let file_path = other_dir.path().join("outside.rs");
         fs::write(&file_path, "test").unwrap();
 
-        let result = compute_relative_path(workspace.path(), &file_path);
+        let result = compute_relative_path(workspace.path(), None, &file_path);
         // Should return the original path since it's outside workspace
         assert!(result.contains("outside.rs"));
     }
@@ -646,7 +683,7 @@ mod tests {
         let workspace = tempdir().unwrap();
         let file_path = workspace.path().join("nonexistent.rs");
 
-        let result = compute_relative_path(workspace.path(), &file_path);
+        let result = compute_relative_path(workspace.path(), None, &file_path);
         // Should return the original path since file doesn't exist
         assert!(result.contains("nonexistent.rs"));
     }
@@ -662,7 +699,7 @@ mod tests {
         let file_path = nested_dir.join("button.rs");
         fs::write(&file_path, "test").unwrap();
 
-        let result = compute_relative_path(workspace_path, &file_path);
+        let result = compute_relative_path(workspace_path, None, &file_path);
         assert_eq!(result, "src/components/ui/button.rs");
     }
 }
