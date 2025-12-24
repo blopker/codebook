@@ -5,7 +5,7 @@ pub mod queries;
 pub mod regexes;
 mod splitter;
 
-use crate::regexes::get_default_skip_patterns;
+use crate::{queries::LanguageType, regexes::get_default_skip_patterns};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -50,6 +50,9 @@ impl Codebook {
         let mut regex_patterns = get_default_skip_patterns().clone();
         if let Some(config_patterns) = self.config.get_ignore_patterns() {
             regex_patterns.extend(config_patterns);
+        }
+        if has_ignore_comment(text, language) {
+            return Vec::new();
         }
         parser::find_locations(
             text,
@@ -138,6 +141,37 @@ impl Codebook {
         }
         Some(collect_round_robin(&suggestions, max_results))
     }
+}
+
+fn has_ignore_comment(text: &str, language: LanguageType) -> bool {
+    let ignore_comment = match language {
+        LanguageType::Css => "/* spellchecker: disable",
+        LanguageType::HTML => "<!-- spellchecker: disable",
+        LanguageType::Latex => "% spellchecker: disable",
+        LanguageType::Haskell | LanguageType::Lua => "-- spellchecker: disable",
+        LanguageType::Bash
+        | LanguageType::Elixir
+        | LanguageType::Python
+        | LanguageType::R
+        | LanguageType::Ruby
+        | LanguageType::TOML => "# spellchecker: disable",
+        LanguageType::Text => "spellchecker: disable",
+        LanguageType::C
+        | LanguageType::Php
+        | LanguageType::CSharp
+        | LanguageType::Rust
+        | LanguageType::Cpp
+        | LanguageType::Typescript
+        | LanguageType::Go
+        | LanguageType::Typst
+        | LanguageType::Java
+        | LanguageType::Zig
+        | LanguageType::Javascript => "// spellchecker: disable",
+    };
+    text.lines()
+        .next()
+        .unwrap_or("")
+        .starts_with(ignore_comment)
 }
 
 fn collect_round_robin<T: Clone + PartialEq + Ord>(sources: &[Vec<T>], max_count: usize) -> Vec<T> {
