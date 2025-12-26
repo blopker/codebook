@@ -46,6 +46,7 @@ tree-sitter-python.workspace = true
 tree-sitter-r.workspace = true
 tree-sitter-ruby.workspace = true
 tree-sitter-rust.workspace = true
+tree-sitter-swift.workspace = true
 tree-sitter-toml-ng.workspace = true
 tree-sitter-typescript.workspace = true
 codebook-tree-sitter-typst.workspace = true
