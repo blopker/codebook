@@ -147,7 +147,7 @@ Codebook is in active development. As better dictionaries are added, words that 
 | LaTeX | ⚠️ |
 | Lua | ✅ |
 | Markdown | ✅ |
-| Odin | ✅ |
+| Odin | ⚠️ |
 | PHP | ⚠️ |
 | Plain Text | ✅ |
 | Python | ✅ |
