@@ -267,3 +267,34 @@ simple = f'check these wordz {but} {not} {the} {variables}'
         assert!(!misspelled.iter().any(|r| r.word == word));
     }
 }
+
+#[test]
+fn test_python_import_statements() {
+    utils::init_logging();
+    let processor = utils::get_processor();
+    let sample_text = r#"
+        import no_typpoa
+        import no_typpob.no_typpoc
+
+        import no_typpod as yes_typpoe
+        import no_typpof.no_typpog as yes_typpoh
+
+        from no_typpoi import no_typpoj
+        from no_typpok.no_typpol import no_typpom
+
+        from no_typpoo import no_typpop as yes_typpoq
+        from no_typpor.no_typpos import no_typpot as yes_typpou
+        from .. import no_typpov as yes_typpow
+    "#;
+    let expected = vec!["typpoe", "typpoh", "typpoq", "typpou", "typpow"];
+    let binding = processor
+        .spell_check(sample_text, Some(LanguageType::Python), None)
+        .to_vec();
+    let mut misspelled = binding
+        .iter()
+        .map(|r| r.word.as_str())
+        .collect::<Vec<&str>>();
+    misspelled.sort();
+    println!("Misspelled words: {misspelled:?}");
+    assert_eq!(misspelled, expected);
+}

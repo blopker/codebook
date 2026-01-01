@@ -8,3 +8,9 @@
     name: (identifier) @identifier)
 (assignment
     left: (identifier) @identifier)
+(import_statement
+    name: (aliased_import
+        alias: (identifier) @identifier))
+(import_from_statement
+    name: (aliased_import
+        alias: (identifier) @identifier))
