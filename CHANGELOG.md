@@ -1,3 +1,8 @@
+[0.3.23]
+
+- Python: Add Tree-sitter queries to match alias names in import statements to enable spell checking of user-defined aliases
+- Add support for the swift programming language
+
 [0.3.22]
 
 - Update dependencies
