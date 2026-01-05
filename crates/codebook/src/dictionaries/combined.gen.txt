@@ -221,6 +221,7 @@ because
 been
 before
 beforeeach
+beforeunload
 begin
 being
 below
@@ -300,10 +301,12 @@ builder
 bukkit
 bump
 bundle
+bundler
 busybox
 but
 button
 buttonelement
+buttonless
 buttons
 by
 byte
@@ -389,6 +392,7 @@ checkbox
 checkbreak
 checked
 checker
+checksums
 chevron
 child
 childnodes
@@ -533,6 +537,7 @@ cr2
 cr3
 crate
 cratecontext
+crc
 create
 created
 createelement
@@ -847,6 +852,7 @@ etc
 etcd
 ev
 even
+evenodd
 event
 eventname
 events
@@ -925,6 +931,7 @@ fieldnum
 fields
 fieldset
 fig
+figcaption
 figure
 file
 filename
@@ -1369,6 +1376,7 @@ keycode
 keyerror
 keyevent
 keyframes
+keygen
 keys
 keystore
 keyup
@@ -1723,6 +1731,7 @@ nomethod
 non
 none
 noop
+noopener
 noqa
 noreferrer
 normal
@@ -1892,6 +1901,7 @@ passed
 password
 pat
 patch
+patcher
 path
 pathbuf
 paths

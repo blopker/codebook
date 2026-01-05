@@ -2,9 +2,13 @@ aarch
 acl
 backends
 backticks
+bundler
+buttonless
 cdn
+checksums
 codebook
 cors
+crc
 csrf
 darwin
 ddns
@@ -22,6 +26,7 @@ gitlab
 gz
 hasher
 hashers
+keygen
 linter
 linux
 lru
@@ -29,6 +34,7 @@ lsp
 macos
 msvc
 noqa
+patcher
 pbkdf
 pc
 postgre

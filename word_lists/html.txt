@@ -56,6 +56,7 @@ bar
 base
 be
 before
+beforeunload
 begin
 bg
 bgcolor
@@ -207,6 +208,7 @@ entry
 enum
 equiv
 error
+evenodd
 event
 events
 example
@@ -223,6 +225,7 @@ ff
 ffffff
 field
 fieldset
+figcaption
 file
 files
 filter
@@ -435,6 +438,7 @@ nobr
 node
 noframe
 none
+noopener
 noreferrer
 normal
 noscript
