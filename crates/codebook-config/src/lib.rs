@@ -339,8 +339,18 @@ impl CodebookConfigFile {
         };
 
         #[cfg(not(windows))]
-        let global_config_path = expand_tilde(global_config_path)
-            .expect("Failed to expand tilde in: {global_config_path}");
+        let global_config_path = match expand_tilde(&global_config_path) {
+            Some(p) => p,
+            None => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!(
+                        "Failed to expand tilde in path: {}",
+                        global_config_path.display()
+                    ),
+                ));
+            }
+        };
 
         let settings = match inner.global_config.content() {
             Some(settings) => settings,

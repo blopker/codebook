@@ -1,7 +1,7 @@
 use crate::settings::ConfigSettings;
 use glob::Pattern;
 use log::error;
-use regex::Regex;
+use regex::{Regex, RegexBuilder};
 use std::env;
 use std::path::{Path, PathBuf};
 
@@ -113,14 +113,17 @@ pub(crate) fn should_flag_word(settings: &ConfigSettings, word: &str) -> bool {
 }
 
 /// Compile user-provided ignore regex patterns, dropping invalid entries.
+/// Patterns are compiled with multiline mode so `^` and `$` match line boundaries.
 pub(crate) fn build_ignore_regexes(patterns: &[String]) -> Vec<Regex> {
     patterns
         .iter()
-        .filter_map(|pattern| match Regex::new(pattern) {
-            Ok(regex) => Some(regex),
-            Err(e) => {
-                error!("Ignoring invalid regex pattern '{pattern}': {e}");
-                None
+        .filter_map(|pattern| {
+            match RegexBuilder::new(pattern).multi_line(true).build() {
+                Ok(regex) => Some(regex),
+                Err(e) => {
+                    error!("Ignoring invalid regex pattern '{pattern}': {e}");
+                    None
+                }
             }
         })
         .collect()
@@ -227,5 +230,45 @@ mod tests {
 
         restore_xdg(previous);
         drop(guard);
+    }
+
+    #[test]
+    fn test_build_ignore_regexes_valid_patterns() {
+        let patterns = vec![
+            r"\b[A-Z]{2,}\b".to_string(),
+            r"TODO:.*".to_string(),
+        ];
+
+        let compiled = build_ignore_regexes(&patterns);
+        assert_eq!(compiled.len(), 2);
+        assert!(compiled[0].is_match("HTML"));
+        assert!(compiled[1].is_match("TODO: fix this"));
+    }
+
+    #[test]
+    fn test_build_ignore_regexes_invalid_pattern_skipped() {
+        let patterns = vec![
+            r"valid.*".to_string(),
+            r"[invalid".to_string(), // Missing closing bracket
+            r"also_valid".to_string(),
+        ];
+
+        let compiled = build_ignore_regexes(&patterns);
+        // Invalid pattern should be skipped, not crash
+        assert_eq!(compiled.len(), 2);
+    }
+
+    #[test]
+    fn test_build_ignore_regexes_multiline_mode() {
+        let patterns = vec![r"^vim\..*".to_string()];
+        let compiled = build_ignore_regexes(&patterns);
+
+        let text = "let x = 1\nvim.opt.showmode = false\nlet y = 2";
+
+        // Should match line starting with vim. (multiline mode)
+        assert!(compiled[0].is_match(text));
+
+        let m = compiled[0].find(text).unwrap();
+        assert_eq!(m.as_str(), "vim.opt.showmode = false");
     }
 }

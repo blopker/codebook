@@ -1,3 +1,7 @@
+[0.3.26]
+
+- Fix potential crash when home directory is unavailable for tilde expansion in config paths
+
 [0.3.24]
 
 - Typst: Fix query to not spell-check import source strings (e.g., package paths like `@preview/package:1.0.0`)
