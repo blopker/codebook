@@ -178,7 +178,7 @@ pub fn find_locations_with_dictionary_batch(
     skip_patterns: &[Regex],
 ) -> Vec<WordLocation> {
     // For non-HashSet dictionaries, we still get deduplication benefits
-    find_locations(text, language, |word| dictionary.check(word), skip_patterns)
+    find_locations(text, language, |word| dictionary.check(word), skip_patterns, &[])
 }
 
 #[cfg(test)]

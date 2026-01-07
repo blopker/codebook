@@ -263,8 +263,7 @@ flag_words = ["todo", "fixme"]
 ignore_paths = ["target/**/*", "**/*.json", ".git/**/*"]
 
 # List of regex patterns to ignore when spell checking
-# Patterns are matched against each line of text, not individual words
-# Useful for domain-specific strings or patterns
+# For code files: patterns match against the full source, tokens within matches are skipped
 # Tip: Use single quotes for literal strings to avoid escaping backslashes
 # Default: []
 ignore_patterns = [
@@ -314,7 +313,9 @@ The `ignore_patterns` configuration allows you to define custom regex patterns t
 - Git commit hashes: `\b[0-9a-fA-F]{7,40}\b`
 - Markdown links: `\[([^\]]+)\]\(([^)]+)\)`
 
-**Line-by-Line Matching**: Regex patterns are applied to each line of text, not individual words. This means your patterns should account for the line context.
+**How Patterns Are Matched**:
+- For **plain text files**: patterns are matched against each line
+- For **code files**: patterns are matched against the full source text. Any token (identifier, string, comment) that falls within a matched range is skipped. For example, `'vim\.opt\.[a-z]+'` matches `vim.opt.showmode`, so `showmode` is skipped
 
 **TOML Literal Strings**: Use single quotes for regex patterns to avoid escaping backslashes:
 - `'\b'` for word boundaries (no escaping needed)
@@ -331,7 +332,7 @@ ignore_patterns = [
 ]
 ```
 
-**Migration Note**: If you're upgrading from an older version, patterns that used `^` and `$` anchors may need adjustment since matching now occurs line-by-line rather than word-by-word.
+**Tip**: Include the identifier in your pattern. `'vim\.opt\.[a-z]+'` skips `showmode` in `vim.opt.showmode`, but `'vim\.opt\.'` alone won't (it only matches up to the dot).
 
 ### LSP Initialization Options
 

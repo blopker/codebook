@@ -251,3 +251,61 @@ fn test_user_defined_regex_patterns() {
         "anotherbadword should be flagged as it doesn't match any pattern"
     );
 }
+
+#[test]
+fn test_pattern_matching_against_full_source() {
+    utils::init_logging();
+
+    // Create a temporary config with a pattern that matches vim.opt.* expressions
+    let temp_dir = tempfile::TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("codebook.toml");
+
+    // Pattern to match "vim.opt.<identifier>" - must include the identifier to skip it
+    let config_content = r#"
+        ignore_patterns = [
+            "vim\\.opt\\.[a-z]+"
+        ]
+    "#;
+
+    std::fs::write(&config_path, config_content).unwrap();
+
+    let config = std::sync::Arc::new(
+        codebook_config::CodebookConfigFile::load(Some(temp_dir.path())).unwrap(),
+    );
+
+    let processor = codebook::Codebook::new(config).unwrap();
+
+    // Lua code with vim.opt settings
+    let sample_text = r#"
+        vim.opt.showmode = false
+        vim.opt.relativenumber = true
+        local badword = "test"
+    "#;
+
+    let binding = processor
+        .spell_check(sample_text, Some(LanguageType::Lua), None)
+        .to_vec();
+    let mut misspelled = binding
+        .iter()
+        .map(|r| r.word.as_str())
+        .collect::<Vec<&str>>();
+    misspelled.sort();
+    println!("Misspelled words: {misspelled:?}");
+
+    // "showmode" and "relativenumber" should be skipped because they fall within
+    // the matched range of "vim.opt.showmode" and "vim.opt.relativenumber"
+    assert!(
+        !misspelled.contains(&"showmode"),
+        "showmode should be skipped - it's within the vim.opt.showmode match"
+    );
+    assert!(
+        !misspelled.contains(&"relativenumber"),
+        "relativenumber should be skipped - it's within the vim.opt.relativenumber match"
+    );
+
+    // "badword" should still be flagged - it's not within any skip range
+    assert!(
+        misspelled.contains(&"badword"),
+        "badword should be flagged - it doesn't match the pattern"
+    );
+}

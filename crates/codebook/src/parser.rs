@@ -29,7 +29,49 @@ impl SkipRange {
     }
 }
 
-/// Helper struct to handle all text position tracking in one place
+/// Find skip ranges from pattern matches in text.
+fn find_skip_ranges(text: &str, patterns: &[Regex]) -> Vec<SkipRange> {
+    if patterns.is_empty() {
+        return Vec::new();
+    }
+
+    let mut ranges = Vec::new();
+
+    for pattern in patterns {
+        for regex_match in pattern.find_iter(text) {
+            ranges.push(SkipRange {
+                start_byte: regex_match.start(),
+                end_byte: regex_match.end(),
+            });
+        }
+    }
+
+    ranges.sort_by_key(|r| r.start_byte);
+    merge_overlapping_ranges(ranges)
+}
+
+/// Merge overlapping or adjacent ranges
+fn merge_overlapping_ranges(ranges: Vec<SkipRange>) -> Vec<SkipRange> {
+    if ranges.is_empty() {
+        return ranges;
+    }
+
+    let mut merged = Vec::new();
+    let mut current = ranges[0];
+
+    for range in ranges.into_iter().skip(1) {
+        if range.start_byte <= current.end_byte {
+            current.end_byte = current.end_byte.max(range.end_byte);
+        } else {
+            merged.push(current);
+            current = range;
+        }
+    }
+    merged.push(current);
+    merged
+}
+
+/// Helper struct to handle text position tracking and word extraction
 struct TextProcessor {
     text: String,
     skip_ranges: Vec<SkipRange>,
@@ -37,48 +79,11 @@ struct TextProcessor {
 
 impl TextProcessor {
     fn new(text: &str, skip_patterns: &[Regex]) -> Self {
-        let text = text.to_string();
-        let skip_ranges = Self::find_skip_ranges(&text, skip_patterns);
-
-        Self { text, skip_ranges }
-    }
-
-    fn find_skip_ranges(text: &str, patterns: &[Regex]) -> Vec<SkipRange> {
-        let mut ranges = Vec::new();
-
-        for pattern in patterns {
-            for regex_match in pattern.find_iter(text) {
-                ranges.push(SkipRange {
-                    start_byte: regex_match.start(),
-                    end_byte: regex_match.end(),
-                });
-            }
+        let skip_ranges = find_skip_ranges(text, skip_patterns);
+        Self {
+            text: text.to_string(),
+            skip_ranges,
         }
-
-        // Sort ranges by start position and merge overlapping ones
-        ranges.sort_by_key(|r| r.start_byte);
-        Self::merge_overlapping_ranges(ranges)
-    }
-
-    fn merge_overlapping_ranges(ranges: Vec<SkipRange>) -> Vec<SkipRange> {
-        if ranges.is_empty() {
-            return ranges;
-        }
-
-        let mut merged = Vec::new();
-        let mut current = ranges[0];
-
-        for range in ranges.into_iter().skip(1) {
-            if range.start_byte <= current.end_byte {
-                // Overlapping or adjacent ranges - merge them
-                current.end_byte = current.end_byte.max(range.end_byte);
-            } else {
-                merged.push(current);
-                current = range;
-            }
-        }
-        merged.push(current);
-        merged
     }
 
     fn should_skip(&self, start_byte: usize, word_len: usize) -> bool {
@@ -168,13 +173,26 @@ pub fn find_locations(
     language: LanguageType,
     check_function: impl Fn(&str) -> bool,
     skip_patterns: &[Regex],
+    line_skip_patterns: &[Regex],
 ) -> Vec<WordLocation> {
     match language {
         LanguageType::Text => {
-            let processor = TextProcessor::new(text, skip_patterns);
+            // For text files, combine all patterns for substring matching
+            let all_patterns: Vec<Regex> = skip_patterns
+                .iter()
+                .chain(line_skip_patterns.iter())
+                .cloned()
+                .collect();
+            let processor = TextProcessor::new(text, &all_patterns);
             processor.process_words_with_check(|word| check_function(word))
         }
-        _ => find_locations_code(text, language, |word| check_function(word), skip_patterns),
+        _ => find_locations_code(
+            text,
+            language,
+            |word| check_function(word),
+            skip_patterns,
+            line_skip_patterns,
+        ),
     }
 }
 
@@ -183,6 +201,7 @@ fn find_locations_code(
     language: LanguageType,
     check_function: impl Fn(&str) -> bool,
     skip_patterns: &[Regex],
+    line_skip_patterns: &[Regex],
 ) -> Vec<WordLocation> {
     let language_setting =
         get_language_setting(language).expect("This _should_ never happen. Famous last words.");
@@ -199,12 +218,26 @@ fn find_locations_code(
     let provider = text.as_bytes();
     let mut matches_query = cursor.matches(&query, root_node, provider);
 
+    // Find skip ranges from user patterns matched against the full source text
+    // This allows patterns like 'vim\.opt\.\w+' to match across the full expression
+    let user_skip_ranges = find_skip_ranges(text, line_skip_patterns);
+
     while let Some(match_) = matches_query.next() {
         for capture in match_.captures {
             let node = capture.node;
-            let node_text = node.utf8_text(provider).unwrap();
             let node_start_byte = node.start_byte();
-            // Create processor on just this part of the document
+            let node_end_byte = node.end_byte();
+
+            // Check if the node falls within a user-defined skip range
+            if user_skip_ranges
+                .iter()
+                .any(|r| r.contains(node_start_byte) || r.contains(node_end_byte.saturating_sub(1)))
+            {
+                continue;
+            }
+
+            let node_text = node.utf8_text(provider).unwrap();
+            // Create processor with default patterns for substring matching within the node
             let processor = TextProcessor::new(node_text, skip_patterns);
             let words = processor.extract_words();
 
@@ -277,7 +310,7 @@ mod parser_tests {
     #[test]
     fn test_spell_checking() {
         let text = "HelloWorld calc_wrld";
-        let results = find_locations(text, LanguageType::Text, |_| false, &[]);
+        let results = find_locations(text, LanguageType::Text, |_| false, &[], &[]);
         println!("{results:?}");
         assert_eq!(results.len(), 4);
     }
