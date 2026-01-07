@@ -265,13 +265,13 @@ ignore_paths = ["target/**/*", "**/*.json", ".git/**/*"]
 # List of regex patterns to ignore when spell checking
 # Patterns are matched against each line of text, not individual words
 # Useful for domain-specific strings or patterns
-# Note: Backslashes must be escaped in TOML (use \\ instead of \)
+# Tip: Use single quotes for literal strings to avoid escaping backslashes
 # Default: []
 ignore_patterns = [
-    "\\b[ATCG]+\\b",             # DNA sequences
-    "\\d{3}-\\d{2}-\\d{4}",      # Social Security Number format
-    "^[A-Z]{2,}$",               # All caps words like "HTML", "CSS"
-    "https?://[^\\s]+"           # URLs
+    '\b[ATCG]+\b',             # DNA sequences
+    '\d{3}-\d{2}-\d{4}',       # Social Security Number format
+    '^[A-Z]{2,}$',             # All caps words like "HTML", "CSS"
+    'https?://[^\s]+'          # URLs
 ]
 
 # Minimum word length to check (words shorter than this are ignored)
@@ -305,29 +305,29 @@ use_global = true
 The `ignore_patterns` configuration allows you to define custom regex patterns to skip during spell checking. Here are important details about how they work:
 
 **Default Patterns**: Codebook already includes built-in regex patterns for common technical strings, so you don't need to define these yourself:
-- URLs: `https?://[^\\s]+`
+- URLs: `https?://[^\s]+`
 - Hex colors: `#[0-9a-fA-F]{3,8}` (like `#deadbeef`, `#fff`)
-- Email addresses: `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}`
-- File paths: `/[^\\s]*` (Unix) and `[A-Za-z]:\\\\[^\\s]*` (Windows)
+- Email addresses: `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`
+- File paths: `/[^\s]*` (Unix) and `[A-Za-z]:\\[^\s]*` (Windows)
 - UUIDs: `[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`
 - Base64 strings: `[A-Za-z0-9+/]{20,}={0,2}` (20+ characters)
-- Git commit hashes: `\\b[0-9a-fA-F]{7,40}\\b`
-- Markdown links: `\\[([^\\]]+)\\]\\(([^)]+)\\)`
+- Git commit hashes: `\b[0-9a-fA-F]{7,40}\b`
+- Markdown links: `\[([^\]]+)\]\(([^)]+)\)`
 
 **Line-by-Line Matching**: Regex patterns are applied to each line of text, not individual words. This means your patterns should account for the line context.
 
-**TOML Escaping**: Since configuration files use TOML format, backslashes in regex patterns must be escaped by doubling them:
-- Use `\\b` for word boundaries (not `\b`)
-- Use `\\d` for digits (not `\d`)
-- Use `\\\\` for literal backslashes (not `\\`)
+**TOML Literal Strings**: Use single quotes for regex patterns to avoid escaping backslashes:
+- `'\b'` for word boundaries (no escaping needed)
+- `'\d'` for digits (no escaping needed)
+- `'\\'` for literal backslashes
 
 **Examples**:
 ```toml
 ignore_patterns = [
-    "\\b[ATCG]+\\b",           # DNA sequences with word boundaries
-    "^\\s*//.*$",              # Comment lines starting with //
-    "https?://[^\\s]+",        # URLs (note the escaped \s)
-    "\\$[a-zA-Z_][a-zA-Z0-9_]*", # Variables starting with $
+    '\b[ATCG]+\b',           # DNA sequences with word boundaries
+    '^\s*//.*$',             # Comment lines starting with //
+    'https?://[^\s]+',       # URLs (no escaping needed)
+    '\$[a-zA-Z_][a-zA-Z0-9_]*', # Variables starting with $
 ]
 ```
 
