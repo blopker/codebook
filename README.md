@@ -314,8 +314,11 @@ The `ignore_patterns` configuration allows you to define custom regex patterns t
 - Markdown links: `\[([^\]]+)\]\(([^)]+)\)`
 
 **How Patterns Are Matched**:
-- For **plain text files**: patterns are matched against each line
-- For **code files**: patterns are matched against the full source text. Any token (identifier, string, comment) that falls within a matched range is skipped. For example, `'vim\.opt\.[a-z]+'` matches `vim.opt.showmode`, so `showmode` is skipped
+- Patterns are matched against the full source text
+- Words that fall entirely within a matched range are skipped
+- **Multiline mode is enabled**: `^` and `$` match line boundaries, not just start/end of file
+- Example: `'^vim\..*'` skips all words on lines starting with `vim.`
+- Example: `'vim\.opt\.[a-z]+'` matches `vim.opt.showmode`, so `showmode` is skipped
 
 **TOML Literal Strings**: Use single quotes for regex patterns to avoid escaping backslashes:
 - `'\b'` for word boundaries (no escaping needed)
@@ -326,9 +329,9 @@ The `ignore_patterns` configuration allows you to define custom regex patterns t
 ```toml
 ignore_patterns = [
     '\b[ATCG]+\b',           # DNA sequences with word boundaries
-    '^\s*//.*$',             # Comment lines starting with //
-    'https?://[^\s]+',       # URLs (no escaping needed)
-    '\$[a-zA-Z_][a-zA-Z0-9_]*', # Variables starting with $
+    '^vim\..*',              # Lines starting with vim.
+    '^\s*//.*',              # Lines that are // comments
+    'https?://[^\s]+',       # URLs
 ]
 ```
 
