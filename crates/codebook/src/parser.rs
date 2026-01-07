@@ -23,10 +23,12 @@ struct SkipRange {
     end_byte: usize,
 }
 
-impl SkipRange {
-    fn contains(&self, pos: usize) -> bool {
-        pos >= self.start_byte && pos < self.end_byte
-    }
+
+/// Check if a word at [start, end) is entirely within any skip range
+fn is_within_skip_range(start: usize, end: usize, skip_ranges: &[SkipRange]) -> bool {
+    skip_ranges
+        .iter()
+        .any(|r| start >= r.start_byte && end <= r.end_byte)
 }
 
 /// Find skip ranges from pattern matches in text.
@@ -87,10 +89,7 @@ impl TextProcessor {
     }
 
     fn should_skip(&self, start_byte: usize, word_len: usize) -> bool {
-        let word_end = start_byte + word_len;
-        self.skip_ranges
-            .iter()
-            .any(|range| range.contains(start_byte) || range.contains(word_end))
+        is_within_skip_range(start_byte, start_byte + word_len, &self.skip_ranges)
     }
 
     fn process_words_with_check<F>(&self, mut check_function: F) -> Vec<WordLocation>
@@ -173,26 +172,13 @@ pub fn find_locations(
     language: LanguageType,
     check_function: impl Fn(&str) -> bool,
     skip_patterns: &[Regex],
-    line_skip_patterns: &[Regex],
 ) -> Vec<WordLocation> {
     match language {
         LanguageType::Text => {
-            // For text files, combine all patterns for substring matching
-            let all_patterns: Vec<Regex> = skip_patterns
-                .iter()
-                .chain(line_skip_patterns.iter())
-                .cloned()
-                .collect();
-            let processor = TextProcessor::new(text, &all_patterns);
+            let processor = TextProcessor::new(text, skip_patterns);
             processor.process_words_with_check(|word| check_function(word))
         }
-        _ => find_locations_code(
-            text,
-            language,
-            |word| check_function(word),
-            skip_patterns,
-            line_skip_patterns,
-        ),
+        _ => find_locations_code(text, language, |word| check_function(word), skip_patterns),
     }
 }
 
@@ -201,7 +187,6 @@ fn find_locations_code(
     language: LanguageType,
     check_function: impl Fn(&str) -> bool,
     skip_patterns: &[Regex],
-    line_skip_patterns: &[Regex],
 ) -> Vec<WordLocation> {
     let language_setting =
         get_language_setting(language).expect("This _should_ never happen. Famous last words.");
@@ -218,36 +203,33 @@ fn find_locations_code(
     let provider = text.as_bytes();
     let mut matches_query = cursor.matches(&query, root_node, provider);
 
-    // Find skip ranges from user patterns matched against the full source text
-    // This allows patterns like 'vim\.opt\.\w+' to match across the full expression
-    let user_skip_ranges = find_skip_ranges(text, line_skip_patterns);
+    // Find all skip ranges from patterns matched against the full source text
+    let all_skip_ranges = find_skip_ranges(text, skip_patterns);
 
     while let Some(match_) = matches_query.next() {
         for capture in match_.captures {
             let node = capture.node;
             let node_start_byte = node.start_byte();
-            let node_end_byte = node.end_byte();
-
-            // Check if the node falls within a user-defined skip range
-            if user_skip_ranges
-                .iter()
-                .any(|r| r.contains(node_start_byte) || r.contains(node_end_byte.saturating_sub(1)))
-            {
-                continue;
-            }
 
             let node_text = node.utf8_text(provider).unwrap();
-            // Create processor with default patterns for substring matching within the node
-            let processor = TextProcessor::new(node_text, skip_patterns);
+            let processor = TextProcessor::new(node_text, &[]);
             let words = processor.extract_words();
 
-            // check words and fix locations relative to whole document
+            // Check words against global skip ranges and dictionary
             for word_pos in words {
                 if !check_function(&word_pos.word) {
                     for range in word_pos.locations {
+                        let global_start = range.start_byte + node_start_byte;
+                        let global_end = range.end_byte + node_start_byte;
+
+                        // Skip if word is entirely within a skip range
+                        if is_within_skip_range(global_start, global_end, &all_skip_ranges) {
+                            continue;
+                        }
+
                         let location = TextRange {
-                            start_byte: range.start_byte + node_start_byte,
-                            end_byte: range.end_byte + node_start_byte,
+                            start_byte: global_start,
+                            end_byte: global_end,
                         };
                         if let Some(existing_result) = word_locations.get_mut(&word_pos.word) {
                             #[cfg(debug_assertions)]
@@ -310,7 +292,7 @@ mod parser_tests {
     #[test]
     fn test_spell_checking() {
         let text = "HelloWorld calc_wrld";
-        let results = find_locations(text, LanguageType::Text, |_| false, &[], &[]);
+        let results = find_locations(text, LanguageType::Text, |_| false, &[]);
         println!("{results:?}");
         assert_eq!(results.len(), 4);
     }
