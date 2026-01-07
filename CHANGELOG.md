@@ -1,3 +1,9 @@
+[0.3.24]
+
+- Typst: Fix query to not spell-check import source strings (e.g., package paths like `@preview/package:1.0.0`)
+- Enable multiline mode for user regex patterns: `^` and `$` now match line boundaries by default
+- Patterns like `'^vim\..*'` now work to skip entire lines
+
 [0.3.23]
 
 - Python: Add Tree-sitter queries to match alias names in import statements to enable spell checking of user-defined aliases
