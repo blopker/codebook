@@ -18,6 +18,7 @@ function bumpVersionMinor(version: string) {
 }
 
 await $`git checkout main`;
+await $`git pull origin main`;
 // error if we're dirty
 try {
   await $`git diff --exit-code > /dev/null`;
