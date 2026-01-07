@@ -1,9 +1,5 @@
 {
   "permissions": {
-    "allow": [
-      "Bash(cargo test:*)",
-      "Bash(cargo clippy:*)",
-      "Bash(git -C /Users/blopker/code/codebook log --oneline -20)"
-    ]
+    "allow": ["Bash(cargo test:*)", "Bash(cargo clippy:*)"]
   }
 }

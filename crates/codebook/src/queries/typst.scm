@@ -2,7 +2,17 @@
 
 (text) @string
 
-(string) @string
+; Strings in math formulas
+(formula (string) @string)
+
+; Strings with attachments (superscript/subscript) in math
+(attach (string) @string)
+
+; Strings in content/dictionary values
+(tagged (string) @string)
+
+; Strings in groups (parenthesized expressions)
+(group (string) @string)
 
 (label) @identifier
 
