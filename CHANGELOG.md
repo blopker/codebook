@@ -1,3 +1,7 @@
+[0.3.27]
+
+- Add Odin language support
+
 [0.3.26]
 
 - Fix potential crash when home directory is unavailable for tilde expansion in config paths
