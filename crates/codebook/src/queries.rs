@@ -17,6 +17,7 @@ pub enum LanguageType {
     Javascript,
     Latex,
     Lua,
+    Odin,
     Php,
     Python,
     R,
@@ -187,7 +188,13 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         query: include_str!("queries/bash.scm"),
         extensions: &["sh", "bash"],
     },
-    // Added PHP
+    LanguageSetting {
+        type_: LanguageType::Odin,
+        ids: &["odin"],
+        dictionary_ids: &["odin"],
+        query: include_str!("queries/odin.scm"),
+        extensions: &["odin"],
+    },
     LanguageSetting {
         type_: LanguageType::Php,
         ids: &["php"],
@@ -251,6 +258,7 @@ impl LanguageSetting {
             LanguageType::Javascript => Some(tree_sitter_javascript::LANGUAGE.into()),
             LanguageType::Latex => Some(codebook_tree_sitter_latex::LANGUAGE.into()),
             LanguageType::Lua => Some(tree_sitter_lua::LANGUAGE.into()),
+            LanguageType::Odin => Some(tree_sitter_odin_codebook::LANGUAGE.into()),
             LanguageType::Php => Some(tree_sitter_php::LANGUAGE_PHP.into()),
             LanguageType::Python => Some(tree_sitter_python::LANGUAGE.into()),
             LanguageType::R => Some(tree_sitter_r::LANGUAGE.into()),

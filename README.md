@@ -135,17 +135,19 @@ Codebook is in active development. As better dictionaries are added, words that 
 | Language | Status |
 | --- | --- |
 | C | ✅ |
+| C# | ⚠️ |
 | C++ | ⚠️ |
 | CSS | ⚠️ |
 | Elixir | ⚠️ |
 | Go | ✅ |
-| HTML | ⚠️ |
 | Haskell | ⚠️ |
+| HTML | ⚠️ |
 | Java | ✅ |
 | JavaScript | ✅ |
 | LaTeX | ⚠️ |
 | Lua | ✅ |
 | Markdown | ✅ |
+| Odin | ✅ |
 | PHP | ⚠️ |
 | Plain Text | ✅ |
 | Python | ✅ |
@@ -156,7 +158,6 @@ Codebook is in active development. As better dictionaries are added, words that 
 | TypeScript | ✅ |
 | Typst | ⚠️ |
 | Zig | ✅ |
-| C# | ⚠️ |
 
 ✅ = Good to go.
 ⚠️ = Supported, but needs more testing. Help us improve!
