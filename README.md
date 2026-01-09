@@ -139,6 +139,7 @@ Codebook is in active development. As better dictionaries are added, words that 
 | C++ | ⚠️ |
 | CSS | ⚠️ |
 | Elixir | ⚠️ |
+| Erlang | ⚠️ |
 | Go | ✅ |
 | Haskell | ⚠️ |
 | HTML | ⚠️ |
