@@ -55,6 +55,7 @@ sveltejs
 sveltekit
 systemd
 todo
+ttl
 typescript
 typst
 ubuntu

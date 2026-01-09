@@ -189,7 +189,7 @@ fn test_odin_location() {
     for e in &expected {
         println!("Expecting: {e:?}");
         let miss = misspelled.iter().find(|r| r.word == e.word).unwrap();
-        // assert_eq!(miss.locations, e.locations);
+        // assert_eq!(miss.locations, e.locations); // Order not guaranteed
         assert!(miss.locations.len() == e.locations.len());
         for location in &miss.locations {
             assert!(e.locations.contains(location));

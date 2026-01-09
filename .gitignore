@@ -12,4 +12,4 @@ scratch/
 manifest.json
 dictionaries/**/source
 
-.claude
+.claude/*
