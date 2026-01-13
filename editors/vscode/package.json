@@ -49,8 +49,9 @@
   ],
   "main": "./dist/extension.js",
   "scripts": {
-    "build": "tsc -p .",
-    "watch": "tsc -w -p .",
+    "build": "esbuild src/extension.ts --bundle --outdir=dist --external:vscode --format=cjs --platform=node --sourcemap --minify",
+    "watch": "esbuild src/extension.ts --bundle --outdir=dist --external:vscode --format=cjs --platform=node --sourcemap --watch",
+    "typecheck": "tsc -p . --noEmit",
     "package": "bun run build && vsce package --no-dependencies",
     "publish": "bun run build && vsce publish --no-dependencies"
   },
@@ -89,18 +90,19 @@
     }
   },
   "dependencies": {
-    "@types/adm-zip": "^0.5.7",
-    "@types/tar": "^6.1.13",
-    "@types/which": "^3.0.4",
     "adm-zip": "^0.5.12",
     "tar": "^6.2.1",
     "vscode-languageclient": "^9.0.1",
     "which": "^4.0.0"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.7",
     "@types/node": "^20.12.7",
+    "@types/tar": "^6.1.13",
     "@types/vscode": "^1.80.0",
+    "@types/which": "^3.0.4",
     "@vscode/vsce": "^3.7.0",
+    "esbuild": "^0.27.2",
     "typescript": "^5.4.0"
   }
 }
