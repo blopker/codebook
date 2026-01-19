@@ -34,6 +34,7 @@ tree-sitter-c.workspace = true
 tree-sitter-cpp.workspace = true
 tree-sitter-css.workspace = true
 tree-sitter-elixir.workspace = true
+tree-sitter-erlang.workspace = true
 tree-sitter-go.workspace = true
 tree-sitter-haskell.workspace = true
 tree-sitter-html.workspace = true
