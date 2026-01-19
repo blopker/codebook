@@ -4,7 +4,6 @@ ack
 acosh
 algname
 algs
-analyse
 andalso
 appup
 asinh
@@ -17,8 +16,6 @@ badfile
 badkey
 badmatch
 badrpc
-behaviour
-behaviours
 bif
 bitstring
 bittype
@@ -30,7 +27,6 @@ btoken
 bxor
 cacertfile
 cacerts
-casefold
 ccm
 cfb
 chacha
@@ -51,7 +47,6 @@ cryptolib
 cth
 curvename
 cwd
-datagram
 datastr
 daystime
 dbg
@@ -241,7 +236,6 @@ exclusiveaddruse
 exdev
 exfull
 exor
-failover
 fcgi
 fdopen
 filelib
@@ -279,7 +273,6 @@ gex
 groupleader
 groupname
 grun
-gzip
 hashs
 healthz
 hib
@@ -336,7 +329,6 @@ mfargs
 mfas
 mib
 mibs
-milli
 mkeysearch
 mkeysort
 mnesia
@@ -348,7 +340,6 @@ msort
 multicall
 mwc
 nativename
-neighbours
 nfkd
 nif
 nifs
@@ -379,7 +370,6 @@ ordsets
 orelse
 oxf
 parsify
-passthrough
 patha
 pathsa
 pathsz
@@ -499,7 +489,6 @@ timetrap
 timetraps
 timeval
 tinyint
-titlecase
 tos
 tprof
 tref
@@ -510,17 +499,14 @@ ukeymerge
 ukeysort
 umerge
 unalias
-unicode
 universaltime
 unrecv
 unsetenv
-uptime
 userconfig
 usort
 varchar
 ver
 vsn
-wakeup
 wchar
 whereis
 wlongvarchar

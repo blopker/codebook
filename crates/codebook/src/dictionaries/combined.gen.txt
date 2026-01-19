@@ -82,7 +82,6 @@ amazonaws
 amp
 amr
 an
-analyse
 analytics
 anchor
 and
@@ -242,8 +241,6 @@ before
 beforeeach
 beforeunload
 begin
-behaviour
-behaviours
 being
 below
 bench
@@ -255,7 +252,6 @@ bgcolor
 bib
 bibliographystyle
 bif
-bif's
 big
 bigdecimal
 biginteger
@@ -375,7 +371,6 @@ carousel
 cart
 cartesian
 case
-casefold
 cases
 cassandra
 cast
@@ -636,7 +631,6 @@ dashed
 dat
 data
 database
-datagram
 datastr
 datatable
 datatype
@@ -1149,7 +1143,6 @@ fade
 fafafa
 fail
 failed
-failover
 fake
 faker
 false
@@ -1389,7 +1382,6 @@ guid
 gulp
 gwt
 gz
-gzip
 h264
 h265
 hadoop
@@ -1521,7 +1513,6 @@ in
 inc
 incl
 include
-indecies
 indent
 index
 indexof
@@ -1935,7 +1926,6 @@ mif
 might
 migration
 migrations
-milli
 millisecond
 min
 minecraft
@@ -2043,7 +2033,6 @@ needed
 needs
 nef
 negatable
-neighbours
 nes
 nested
 net
@@ -2281,7 +2270,6 @@ parts
 pas
 pass
 passed
-passthrough
 password
 pat
 patch
@@ -3159,7 +3147,6 @@ tinyint
 tip
 title
 titlebar
-titlecase
 tl
 tldr
 tls
@@ -3317,7 +3304,6 @@ updated
 upload
 uppercase
 upscaled
-uptime
 uri
 url
 urllib
@@ -3419,7 +3405,6 @@ vss
 vst
 vue
 wait
-wakeup
 want
 war
 warn
