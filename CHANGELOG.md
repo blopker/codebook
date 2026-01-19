@@ -1,3 +1,7 @@
+[0.3.29]
+
+- Add support for the Erlang language
+
 [0.3.27]
 
 - Add Odin language support
