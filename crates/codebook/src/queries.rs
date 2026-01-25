@@ -29,6 +29,7 @@ pub enum LanguageType {
     Text,
     Typescript,
     Typst,
+    YAML,
     Zig,
 }
 
@@ -218,6 +219,13 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         extensions: &["r", "R"],
     },
     LanguageSetting {
+        type_: LanguageType::YAML,
+        ids: &["yaml"],
+        dictionary_ids: &["yaml"],
+        query: include_str!("queries/yaml.scm"),
+        extensions: &["yaml", "yml"],
+    },
+    LanguageSetting {
         type_: LanguageType::Zig,
         ids: &["zig"],
         dictionary_ids: &["zig"],
@@ -278,6 +286,7 @@ impl LanguageSetting {
             LanguageType::Text => None,
             LanguageType::Typescript => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
             LanguageType::Typst => Some(codebook_tree_sitter_typst::LANGUAGE.into()),
+            LanguageType::YAML => Some(tree_sitter_yaml::LANGUAGE.into()),
             LanguageType::Zig => Some(tree_sitter_zig::LANGUAGE.into()),
         }
     }
