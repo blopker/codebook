@@ -250,6 +250,7 @@ Project-specific configuration is loaded from either `codebook.toml` or `.codebo
 #  - Swedish: "sv"
 #  - Danish: "da"
 #  - Vietnamese: "vi_vn"
+#  - Polish: "pl"
 dictionaries = ["en_us", "en_gb"]
 
 # Custom allowlist of words to ignore (case-insensitive)
