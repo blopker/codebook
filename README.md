@@ -249,6 +249,7 @@ Project-specific configuration is loaded from either `codebook.toml` or `.codebo
 #  - Russian: "ru"
 #  - Swedish: "sv"
 #  - Danish: "da"
+#  - Vietnamese: "vi_vn"
 #  - Polish: "pl"
 dictionaries = ["en_us", "en_gb"]
 
