@@ -116,8 +116,8 @@ static HUNSPELL_DICTIONARIES: LazyLock<Vec<HunspellRepo>> = LazyLock::new(|| {
         ),
         HunspellRepo::new(
             "vi_vn",
-            "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/main/dictionaries/vi_VN/src/hunspell/vi.aff",
-            "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/main/dictionaries/vi_VN/src/hunspell/vi.dic",
+            "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/vi_VN/src/hunspell/vi.aff",
+            "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/vi_VN/src/hunspell/vi.dic",
         ),
         HunspellRepo::new(
             "pl",
