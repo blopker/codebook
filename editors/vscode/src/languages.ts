@@ -19,6 +19,7 @@ export const SUPPORTED_LANGUAGES = [
   "toml",
   "typescript",
   "typst",
+  "yaml",
   "zig",
   "csharp"
 ] as const;
