@@ -16,15 +16,17 @@
 <img
   src="assets/example.png" alt="Example" width="400" >
 
-No setup needed. Codebook will automatically detect the language you are editing and mark issues for you. Note, Codebook will only mark issues for words that you control, where they are initially defined.
+No configuration needed. Codebook will automatically detect the language you are editing and mark issues for you. Codebook will try to only mark issues for words that you create, where they are initially defined.
 
-Please gift us a ⭐ if you find Codebook useful!
+Please give a ⭐ if you find Codebook useful!
+
+**Supported platforms:** Prebuilt archives are published for macOS (x86_64, aarch64), Linux (x86_64, aarch64), and Windows (x86_64, arm64).
 
 ## Integrations
 
 ### Zed
 
-Codebook is the most popular spell checker for Zed! To install, go to the Extension tab in Zed and look for "Codebook".
+Codebook is the most popular spell checker for Zed! To install, go to the Extension tab in Zed and look for "Codebook". Done!
 
 **Note**: The version that Zed displays in the extension menus is for the [Zed Extension](https://github.com/blopker/codebook-zed), and not the LSP version (this repo). The extension will automatically update the LSP. If that updater is broken for some reason, try uninstalling the extension and reinstalling.
 
@@ -37,18 +39,6 @@ If quickfix code actions are not showing up for specific languages, ensure your 
     // OR
     "language_servers": ["pyright", "ruff", "codebook"],
     "format_on_save": "on"
-  }
-},
-```
-
-To enable DEBUG logs, add this to your settings.json:
-
-```json
-"lsp": {
-  "codebook": {
-    "initialization_options": {
-      "logLevel": "debug"
-    }
   }
 },
 ```
@@ -95,8 +85,30 @@ First, [install Codebook](#installation), and ensure that `codebook-lsp` is inst
 Then, add the following to your Neovim configuration:
 
 ```sh
-vim.lsp.enable('cookbook')
+vim.lsp.enable('codebook')
 ```
+
+### VS Code (Unreleased)
+
+A VS Code extension lives in `editors/vscode`. The extension manages
+the `codebook-lsp` binary for you, starts it with the right flags, and exposes a
+few configuration toggles (`codebook.binaryPath`, `codebook.enablePrerelease`,
+and `codebook.logLevel`).
+
+To try it locally:
+
+```sh
+cd editors/vscode
+bun install       # or npm install
+bun run build
+bun run package   # or npm run package
+code --install-extension codebook-vscode-*.vsix
+```
+
+Once the extension is installed it will activate automatically for every
+supported language.
+
+**Note**: This extension is a work in progress and is not in the Marketplace yet. If you try it out, we'd love feedback!
 
 ### Other Editors
 
@@ -123,26 +135,30 @@ Codebook is in active development. As better dictionaries are added, words that 
 | Language | Status |
 | --- | --- |
 | C | ✅ |
+| C# | ⚠️ |
 | C++ | ⚠️ |
 | CSS | ⚠️ |
 | Elixir | ⚠️ |
+| Erlang | ⚠️ |
 | Go | ✅ |
-| HTML | ⚠️ |
 | Haskell | ⚠️ |
+| HTML | ⚠️ |
 | Java | ✅ |
 | JavaScript | ✅ |
 | LaTeX | ⚠️ |
 | Lua | ✅ |
 | Markdown | ✅ |
+| Odin | ✅ |
 | PHP | ⚠️ |
 | Plain Text | ✅ |
 | Python | ✅ |
 | Ruby | ✅ |
 | Rust | ✅ |
+| Swift | ⚠️ |
 | TOML | ✅ |
 | TypeScript | ✅ |
+| Typst | ⚠️ |
 | Zig | ✅ |
-| C# | ⚠️ |
 
 ✅ = Good to go.
 ⚠️ = Supported, but needs more testing. Help us improve!
@@ -157,7 +173,9 @@ If you are a Zed user, you may skip this step and consult the [Zed section](#zed
 ### Manual
 
 1. Download the latest release for your architecture from the [releases](https://github.com/blopker/codebook/releases) page.
-2. Extract the binary from the tarball, and move it somewhere on your system `$PATH`.
+   - Prebuilt archives are published for macOS (x86_64, aarch64), Linux (x86_64, aarch64), and Windows (x86_64, arm64).
+   - Windows artifacts are provided as `.zip` files; macOS and Linux artifacts are `.tar.gz`.
+2. Extract the binary from the archive, and move it somewhere on your system `$PATH`.
   - `~/.local/bin/codebook-lsp`
   - `/usr/bin/codebook-lsp`
   - Etc...
@@ -205,13 +223,15 @@ Codebook supports both global and project-specific configuration. Configuration 
 The global configuration applies to all projects by default. Location depends on your operating system:
 
 - **Linux/macOS**: `$XDG_CONFIG_HOME/codebook/codebook.toml` or `~/.config/codebook/codebook.toml`
-- **Windows**: `%APPDATA%\codebook\codebook.toml`
+- **Windows**: `%APPDATA%\codebook\codebook.toml` or `%APPDATA%\Roaming\codebook\codebook.toml`
+
+You can override this location if you sync your config elsewhere by providing `initializationOptions.globalConfigPath` from your LSP client. When no override is provided, the OS-specific default above is used.
 
 ### Project Configuration
 
 Project-specific configuration is loaded from either `codebook.toml` or `.codebook.toml` in the project root. Codebook searches for this file starting from the current directory and moving up to parent directories.
 
-**Note:** Codebook picks which config to use on startup. If a config file is manually created or renamed (like switching between `codebook.toml` and `.codebook.toml`), restart your editor for the new file to be recognized.
+**Note:** Codebook picks which config to use on startup. If a config file is manually created or renamed (like switching between `codebook.toml` and `.codebook.toml`), restart your editor (or the LSP server) for the new file to be recognized.
 
 ### Configuration Options
 
@@ -229,6 +249,8 @@ Project-specific configuration is loaded from either `codebook.toml` or `.codebo
 #  - Russian: "ru"
 #  - Swedish: "sv"
 #  - Danish: "da"
+#  - Vietnamese: "vi_vn"
+#  - Polish: "pl"
 dictionaries = ["en_us", "en_gb"]
 
 # Custom allowlist of words to ignore (case-insensitive)
@@ -245,15 +267,14 @@ flag_words = ["todo", "fixme"]
 ignore_paths = ["target/**/*", "**/*.json", ".git/**/*"]
 
 # List of regex patterns to ignore when spell checking
-# Patterns are matched against each line of text, not individual words
-# Useful for domain-specific strings or patterns
-# Note: Backslashes must be escaped in TOML (use \\ instead of \)
+# For code files: patterns match against the full source, tokens within matches are skipped
+# Tip: Use single quotes for literal strings to avoid escaping backslashes
 # Default: []
 ignore_patterns = [
-    "\\b[ATCG]+\\b",             # DNA sequences
-    "\\d{3}-\\d{2}-\\d{4}",      # Social Security Number format
-    "^[A-Z]{2,}$",               # All caps words like "HTML", "CSS"
-    "https?://[^\\s]+"           # URLs
+    '\b[ATCG]+\b',             # DNA sequences
+    '\d{3}-\d{2}-\d{4}',       # Social Security Number format
+    '^[A-Z]{2,}$',             # All caps words like "HTML", "CSS"
+    'https?://[^\s]+'          # URLs
 ]
 
 # Minimum word length to check (words shorter than this are ignored)
@@ -287,33 +308,58 @@ use_global = true
 The `ignore_patterns` configuration allows you to define custom regex patterns to skip during spell checking. Here are important details about how they work:
 
 **Default Patterns**: Codebook already includes built-in regex patterns for common technical strings, so you don't need to define these yourself:
-- URLs: `https?://[^\\s]+`
+- URLs: `https?://[^\s]+`
 - Hex colors: `#[0-9a-fA-F]{3,8}` (like `#deadbeef`, `#fff`)
-- Email addresses: `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}`
-- File paths: `/[^\\s]*` (Unix) and `[A-Za-z]:\\\\[^\\s]*` (Windows)
+- Email addresses: `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`
+- File paths: `/[^\s]*` (Unix) and `[A-Za-z]:\\[^\s]*` (Windows)
 - UUIDs: `[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`
 - Base64 strings: `[A-Za-z0-9+/]{20,}={0,2}` (20+ characters)
-- Git commit hashes: `\\b[0-9a-fA-F]{7,40}\\b`
-- Markdown links: `\\[([^\\]]+)\\]\\(([^)]+)\\)`
+- Git commit hashes: `\b[0-9a-fA-F]{7,40}\b`
+- Markdown links: `\[([^\]]+)\]\(([^)]+)\)`
 
-**Line-by-Line Matching**: Regex patterns are applied to each line of text, not individual words. This means your patterns should account for the line context.
+**How Patterns Are Matched**:
+- Patterns are matched against the full source text
+- Words that fall entirely within a matched range are skipped
+- **Multiline mode is enabled**: `^` and `$` match line boundaries, not just start/end of file
+- Example: `'^vim\..*'` skips all words on lines starting with `vim.`
+- Example: `'vim\.opt\.[a-z]+'` matches `vim.opt.showmode`, so `showmode` is skipped
 
-**TOML Escaping**: Since configuration files use TOML format, backslashes in regex patterns must be escaped by doubling them:
-- Use `\\b` for word boundaries (not `\b`)
-- Use `\\d` for digits (not `\d`)
-- Use `\\\\` for literal backslashes (not `\\`)
+**TOML Literal Strings**: Use single quotes for regex patterns to avoid escaping backslashes:
+- `'\b'` for word boundaries (no escaping needed)
+- `'\d'` for digits (no escaping needed)
+- `'\\'` for literal backslashes
 
 **Examples**:
 ```toml
 ignore_patterns = [
-    "\\b[ATCG]+\\b",           # DNA sequences with word boundaries
-    "^\\s*//.*$",              # Comment lines starting with //
-    "https?://[^\\s]+",        # URLs (note the escaped \s)
-    "\\$[a-zA-Z_][a-zA-Z0-9_]*", # Variables starting with $
+    '\b[ATCG]+\b',           # DNA sequences with word boundaries
+    '^vim\..*',              # Lines starting with vim.
+    '^\s*//.*',              # Lines that are // comments
+    'https?://[^\s]+',       # URLs
 ]
 ```
 
-**Migration Note**: If you're upgrading from an older version, patterns that used `^` and `$` anchors may need adjustment since matching now occurs line-by-line rather than word-by-word.
+**Tip**: Include the identifier in your pattern. `'vim\.opt\.[a-z]+'` skips `showmode` in `vim.opt.showmode`, but `'vim\.opt\.'` alone won't (it only matches up to the dot).
+
+### LSP Initialization Options
+
+Editors can pass `initializationOptions` when starting the Codebook LSP for LSP-specific options. Refer to your editor's documentation for how to apply these options. All values are optional, omit them for the default behavior:
+
+- `logLevel` (`"trace" | "debug" | "info" | "warn" | "error"`, default `"info"`): sets the verbosity of logs.
+- `globalConfigPath` (string): overrides the auto-detected global `codebook.toml` path, useful if you sync configs from another location. On macOS and Linux, the `~/` prefix for the current user's home directory is supported.
+- `checkWhileTyping` (bool, default `true`): when `false`, spelling diagnostics are only published on save instead of each keystroke. This is useful for example if performance is a problem, or the real-time diagnostics are annoying (sorry!).
+- `diagnosticSeverity` (`"error" | "warning" | "information" | "hint"`, default `"information"`): sets the severity of spell check diagnostics.
+
+Example payload:
+
+```json
+{
+  "logLevel": "debug",
+  "globalConfigPath": "~/dotfiles/codebook.toml",
+  "checkWhileTyping": false,
+  "diagnosticSeverity": "information"
+}
+```
 
 ## Goals
 
@@ -326,6 +372,8 @@ No remote calls for spell checking or analytics. Once dictionaries are cached, C
 ### Don't be annoying
 
 Codebook should have high signal and low noise. It should only highlight words that users have control over. For example, a misspelled word in an imported function should not be highlighted as the user can't do anything about it.
+
+As a consequence, Codebook only marks issues for terms where they are defined, and not where they are used. Correcting both the definition (flagged by Codebook) and all subsequent uses should be done by other language specific tooling - usually available as a LSP for that language.
 
 ### Efficient
 
@@ -450,14 +498,6 @@ You can also test with real code files to verify that Codebook correctly identif
 
 If you've successfully added support for a new language, please consider contributing it back to Codebook with a pull request!
 
-## Roadmap
-
-- [X] Support more languages than US English
-- [X] Support custom project dictionaries
-- [X] Support per file extension dictionaries
-- [X] Add code actions to correct spelling
-- [X] Support hierarchical global and project configuration
-
 ## Running Tests
 
 Run test with `make test` after cloning. Integration tests are also available with `make integration_test`, but requires BunJS to run.
@@ -474,7 +514,7 @@ Run test with `make test` after cloning. Integration tests are also available wi
 
 ## Release
 
-To update the Language server:
+To publish a new version:
 
 1. Update and commit changelog with new version number
 1. Run `make release-lsp`

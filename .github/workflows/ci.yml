@@ -58,6 +58,13 @@ jobs:
             bin: codebook-lsp.exe
             name: codebook-lsp-x86_64-pc-windows-msvc.zip
             command: build
+          - release_for: Windows-arm64
+            os: windows-latest
+            target: aarch64-pc-windows-msvc
+            project: codebook-lsp
+            bin: codebook-lsp.exe
+            name: codebook-lsp-aarch64-pc-windows-msvc.zip
+            command: build
           - release_for: macOS-x86_64
             os: macOS-latest
             target: x86_64-apple-darwin

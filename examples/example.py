@@ -1,4 +1,9 @@
 # Impurt statements with misspellings
+import copy as ccopy
+import pathlib
+
+hi = pathlib
+my_copy = ccopy
 
 # Globul constants
 MAXSIZ = 100
@@ -54,7 +59,7 @@ def calculatr(numbr1: int, numbr2, operashun):
 # Dekorator with misspellings
 def debugg_dekorator(funkshun):
     def wrappr(*args, **kwargs):
-        print(f"Callin {funkshun.__name__}")
+        print(f"callin {funkshun.__name__}")
         return funkshun(*args, **kwargs)
 
     return wrappr

@@ -32,11 +32,6 @@ pub fn get_default_skip_patterns() -> &'static Vec<Regex> {
     &DEFAULT_SKIP_PATTERNS
 }
 
-/// Compile user-provided regex patterns from strings
-pub fn compile_user_patterns(patterns: &[String]) -> Result<Vec<Regex>, regex::Error> {
-    patterns.iter().map(|pattern| Regex::new(pattern)).collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -71,26 +66,5 @@ mod tests {
         assert!(email_pattern.is_match("user@example.com"));
         assert!(email_pattern.is_match("test.email+tag@domain.co.uk"));
         assert!(!email_pattern.is_match("not an email"));
-    }
-
-    #[test]
-    fn test_compile_user_patterns() {
-        let user_patterns = vec![
-            r"\b[A-Z]{2,}\b".to_string(), // All caps words
-            r"TODO:.*".to_string(),       // TODO comments
-        ];
-
-        let compiled = compile_user_patterns(&user_patterns).unwrap();
-        assert_eq!(compiled.len(), 2);
-
-        assert!(compiled[0].is_match("HTML"));
-        assert!(compiled[1].is_match("TODO: fix this"));
-    }
-
-    #[test]
-    fn test_invalid_user_pattern() {
-        let invalid_patterns = vec![r"[invalid".to_string()]; // Missing closing bracket
-
-        assert!(compile_user_patterns(&invalid_patterns).is_err());
     }
 }

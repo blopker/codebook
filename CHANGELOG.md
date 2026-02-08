@@ -1,5 +1,58 @@
-[0.3.15]
-Unreleased
+[0.3.29]
+
+- Add support for the Erlang language
+
+[0.3.27]
+
+- Add Odin language support
+
+[0.3.26]
+
+- Fix potential crash when home directory is unavailable for tilde expansion in config paths
+
+[0.3.24]
+
+- Typst: Fix query to not spell-check import source strings (e.g., package paths like `@preview/package:1.0.0`)
+- Enable multiline mode for user regex patterns: `^` and `$` now match line boundaries by default
+- Patterns like `'^vim\..*'` now work to skip entire lines
+
+[0.3.23]
+
+- Python: Add Tree-sitter queries to match alias names in import statements to enable spell checking of user-defined aliases
+- Add support for the swift programming language
+
+[0.3.22]
+
+- Update dependencies
+
+[0.3.21]
+
+- Add "Ignore current file" code action
+- Allow user to set diagnostic severity in LSP init options
+- Fix missing open/close in LSP server capabilities
+- Python: Fix assignment query to only check the left-hand side identifier
+- New VS Code extension (work in progress)
+
+[0.3.20]
+
+- Add `checkWhileTyping` to initialization options. When set to `false`, Codebook will only check for spelling issues when saving.
+
+[0.3.19]
+
+- Add Windows ARM64 release artifacts
+- Move dictionary cache directory to platform-specific data directories instead of `/tmp`, which can get cleaned up by the OS.
+- Allow overriding the global `codebook.toml` path via LSP initialization option `globalConfigPath`
+
+[0.3.18]
+
+- Fixed f-string issues in Python
+- Only emit important logs on startup before LSP handshake initialization
+
+[0.3.17]
+
+- Add Typst support
+
+[0.3.16]
 
 - Rust: remove char_literal query
 - Add the Danish dictionary (`da`)

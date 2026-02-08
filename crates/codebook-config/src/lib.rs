@@ -1,6 +1,7 @@
 mod helpers;
 mod settings;
 mod watched_file;
+use crate::helpers::expand_tilde;
 use crate::settings::ConfigSettings;
 use crate::watched_file::WatchedFile;
 use log::debug;
@@ -64,7 +65,7 @@ impl Default for CodebookConfigFile {
 
         Self {
             inner: RwLock::new(inner),
-            cache_dir: env::temp_dir().join(CACHE_DIR),
+            cache_dir: helpers::default_cache_dir(),
         }
     }
 }
@@ -72,24 +73,40 @@ impl Default for CodebookConfigFile {
 impl CodebookConfigFile {
     /// Load configuration by searching for both global and project-specific configs
     pub fn load(current_dir: Option<&Path>) -> Result<Self, io::Error> {
+        Self::load_with_global_config(current_dir, None)
+    }
+
+    /// Load configuration with an explicit global config override.
+    pub fn load_with_global_config(
+        current_dir: Option<&Path>,
+        global_config_path: Option<PathBuf>,
+    ) -> Result<Self, io::Error> {
         debug!("Initializing CodebookConfig");
 
         if let Some(current_dir) = current_dir {
             let current_dir = Path::new(current_dir);
-            Self::load_configs(current_dir)
+            Self::load_configs(current_dir, global_config_path)
         } else {
             let current_dir = env::current_dir()?;
-            Self::load_configs(&current_dir)
+            Self::load_configs(&current_dir, global_config_path)
         }
     }
 
     /// Load both global and project configuration
-    fn load_configs(start_dir: &Path) -> Result<Self, io::Error> {
+    fn load_configs(
+        start_dir: &Path,
+        global_config_override: Option<PathBuf>,
+    ) -> Result<Self, io::Error> {
         let config = Self::default();
         let mut inner = config.inner.write().unwrap();
 
         // First, try to load global config
-        if let Some(global_path) = Self::find_global_config_path() {
+        let global_config_path = match global_config_override {
+            Some(path) => Some(path.to_path_buf()),
+            None => Self::find_global_config_path(),
+        };
+
+        if let Some(global_path) = global_config_path {
             let global_config = WatchedFile::new(Some(global_path.clone()));
 
             if global_path.exists() {
@@ -321,6 +338,20 @@ impl CodebookConfigFile {
             None => return Ok(()),
         };
 
+        #[cfg(not(windows))]
+        let global_config_path = match expand_tilde(&global_config_path) {
+            Some(p) => p,
+            None => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!(
+                        "Failed to expand tilde in path: {}",
+                        global_config_path.display()
+                    ),
+                ));
+            }
+        };
+
         let settings = match inner.global_config.content() {
             Some(settings) => settings,
             None => return Ok(()),
@@ -508,7 +539,7 @@ impl Default for CodebookConfigMemory {
     fn default() -> Self {
         Self {
             settings: RwLock::new(ConfigSettings::default()),
-            cache_dir: env::temp_dir().join(CACHE_DIR),
+            cache_dir: helpers::default_cache_dir(),
         }
     }
 }
@@ -517,7 +548,7 @@ impl CodebookConfigMemory {
     pub fn new(settings: ConfigSettings) -> Self {
         Self {
             settings: RwLock::new(settings),
-            cache_dir: env::temp_dir().join(CACHE_DIR),
+            cache_dir: helpers::default_cache_dir(),
         }
     }
 }
@@ -806,11 +837,37 @@ mod tests {
             "#
         )?;
 
-        let config = CodebookConfigFile::load_configs(&sub_sub_dir)?;
+        let config = CodebookConfigFile::load_configs(&sub_sub_dir, None)?;
         assert!(config.snapshot().words.contains(&"testword".to_string()));
 
         // Check that the config file path is stored
         assert_eq!(config.project_config_path(), Some(config_path));
+        Ok(())
+    }
+
+    #[test]
+    fn test_global_config_override_is_used() -> Result<(), io::Error> {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace_dir = temp_dir.path().join("workspace");
+        fs::create_dir_all(&workspace_dir)?;
+        let custom_global_dir = temp_dir.path().join("global");
+        fs::create_dir_all(&custom_global_dir)?;
+        let override_path = custom_global_dir.join("codebook.toml");
+
+        fs::write(
+            &override_path,
+            r#"
+            words = ["customword"]
+            "#,
+        )?;
+
+        let config = CodebookConfigFile::load_with_global_config(
+            Some(workspace_dir.as_path()),
+            Some(override_path.clone()),
+        )?;
+
+        assert_eq!(config.global_config_path(), Some(override_path));
+        assert!(config.is_allowed_word("customword"));
         Ok(())
     }
 

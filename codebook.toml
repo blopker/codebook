@@ -15,6 +15,7 @@ words = [
     "spellbook",
     "vscode",
     "wooorm",
+    "wrooom",
     "xdg",
 ]
 flag_words = [
@@ -22,8 +23,8 @@ flag_words = [
     "fixme",
 ]
 ignore_paths = [
-    "target/**/*",
     "**/*.json",
     ".git/**/*",
+    "target/**/*",
 ]
 ignore_patterns = ['\b[ATCG]+\b']

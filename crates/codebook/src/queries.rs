@@ -10,6 +10,7 @@ pub enum LanguageType {
     Cpp,
     Css,
     Elixir,
+    Erlang,
     Go,
     HTML,
     Haskell,
@@ -17,14 +18,17 @@ pub enum LanguageType {
     Javascript,
     Latex,
     Lua,
+    Odin,
     Php,
     Python,
     R,
     Ruby,
     Rust,
+    Swift,
     TOML,
     Text,
     Typescript,
+    Typst,
     Zig,
 }
 
@@ -86,6 +90,13 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         dictionary_ids: &["elixir"],
         query: include_str!("queries/elixir.scm"),
         extensions: &["ex", "exs"],
+    },
+    LanguageSetting {
+        type_: LanguageType::Erlang,
+        ids: &["erlang"],
+        dictionary_ids: &["erlang"],
+        query: include_str!("queries/erlang.scm"),
+        extensions: &["erl", "hrl"],
     },
     LanguageSetting {
         type_: LanguageType::Python,
@@ -151,6 +162,13 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         extensions: &["go"],
     },
     LanguageSetting {
+        type_: LanguageType::Swift,
+        ids: &["swift"],
+        dictionary_ids: &["swift"],
+        query: include_str!("queries/swift.scm"),
+        extensions: &["swift"],
+    },
+    LanguageSetting {
         type_: LanguageType::TOML,
         ids: &["toml"],
         dictionary_ids: &["toml"],
@@ -178,7 +196,13 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         query: include_str!("queries/bash.scm"),
         extensions: &["sh", "bash"],
     },
-    // Added PHP
+    LanguageSetting {
+        type_: LanguageType::Odin,
+        ids: &["odin"],
+        dictionary_ids: &["odin"],
+        query: include_str!("queries/odin.scm"),
+        extensions: &["odin"],
+    },
     LanguageSetting {
         type_: LanguageType::Php,
         ids: &["php"],
@@ -207,6 +231,13 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         query: include_str!("queries/csharp.scm"),
         extensions: &["cs"],
     },
+    LanguageSetting {
+        type_: LanguageType::Typst,
+        ids: &["typst"],
+        dictionary_ids: &["typst"],
+        query: include_str!("queries/typst.scm"),
+        extensions: &["typ"],
+    },
 ];
 
 #[derive(Debug)]
@@ -228,21 +259,25 @@ impl LanguageSetting {
             LanguageType::Cpp => Some(tree_sitter_cpp::LANGUAGE.into()),
             LanguageType::Css => Some(tree_sitter_css::LANGUAGE.into()),
             LanguageType::Elixir => Some(tree_sitter_elixir::LANGUAGE.into()),
+            LanguageType::Erlang => Some(tree_sitter_erlang::LANGUAGE.into()),
             LanguageType::Go => Some(tree_sitter_go::LANGUAGE.into()),
             LanguageType::HTML => Some(tree_sitter_html::LANGUAGE.into()),
             LanguageType::Haskell => Some(tree_sitter_haskell::LANGUAGE.into()),
             LanguageType::Java => Some(tree_sitter_java::LANGUAGE.into()),
             LanguageType::Javascript => Some(tree_sitter_javascript::LANGUAGE.into()),
-            LanguageType::Latex => Some(codebook_tree_sitter_latex::language()),
+            LanguageType::Latex => Some(codebook_tree_sitter_latex::LANGUAGE.into()),
             LanguageType::Lua => Some(tree_sitter_lua::LANGUAGE.into()),
+            LanguageType::Odin => Some(tree_sitter_odin_codebook::LANGUAGE.into()),
             LanguageType::Php => Some(tree_sitter_php::LANGUAGE_PHP.into()),
             LanguageType::Python => Some(tree_sitter_python::LANGUAGE.into()),
             LanguageType::R => Some(tree_sitter_r::LANGUAGE.into()),
             LanguageType::Ruby => Some(tree_sitter_ruby::LANGUAGE.into()),
             LanguageType::Rust => Some(tree_sitter_rust::LANGUAGE.into()),
+            LanguageType::Swift => Some(tree_sitter_swift::LANGUAGE.into()),
             LanguageType::TOML => Some(tree_sitter_toml_ng::LANGUAGE.into()),
             LanguageType::Text => None,
             LanguageType::Typescript => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
+            LanguageType::Typst => Some(codebook_tree_sitter_typst::LANGUAGE.into()),
             LanguageType::Zig => Some(tree_sitter_zig::LANGUAGE.into()),
         }
     }

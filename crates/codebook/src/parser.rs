@@ -23,13 +23,57 @@ struct SkipRange {
     end_byte: usize,
 }
 
-impl SkipRange {
-    fn contains(&self, pos: usize) -> bool {
-        pos >= self.start_byte && pos < self.end_byte
-    }
+
+/// Check if a word at [start, end) is entirely within any skip range
+fn is_within_skip_range(start: usize, end: usize, skip_ranges: &[SkipRange]) -> bool {
+    skip_ranges
+        .iter()
+        .any(|r| start >= r.start_byte && end <= r.end_byte)
 }
 
-/// Helper struct to handle all text position tracking in one place
+/// Find skip ranges from pattern matches in text.
+fn find_skip_ranges(text: &str, patterns: &[Regex]) -> Vec<SkipRange> {
+    if patterns.is_empty() {
+        return Vec::new();
+    }
+
+    let mut ranges = Vec::new();
+
+    for pattern in patterns {
+        for regex_match in pattern.find_iter(text) {
+            ranges.push(SkipRange {
+                start_byte: regex_match.start(),
+                end_byte: regex_match.end(),
+            });
+        }
+    }
+
+    ranges.sort_by_key(|r| r.start_byte);
+    merge_overlapping_ranges(ranges)
+}
+
+/// Merge overlapping or adjacent ranges
+fn merge_overlapping_ranges(ranges: Vec<SkipRange>) -> Vec<SkipRange> {
+    if ranges.is_empty() {
+        return ranges;
+    }
+
+    let mut merged = Vec::new();
+    let mut current = ranges[0];
+
+    for range in ranges.into_iter().skip(1) {
+        if range.start_byte <= current.end_byte {
+            current.end_byte = current.end_byte.max(range.end_byte);
+        } else {
+            merged.push(current);
+            current = range;
+        }
+    }
+    merged.push(current);
+    merged
+}
+
+/// Helper struct to handle text position tracking and word extraction
 struct TextProcessor {
     text: String,
     skip_ranges: Vec<SkipRange>,
@@ -37,55 +81,15 @@ struct TextProcessor {
 
 impl TextProcessor {
     fn new(text: &str, skip_patterns: &[Regex]) -> Self {
-        let text = text.to_string();
-        let skip_ranges = Self::find_skip_ranges(&text, skip_patterns);
-
-        Self { text, skip_ranges }
-    }
-
-    fn find_skip_ranges(text: &str, patterns: &[Regex]) -> Vec<SkipRange> {
-        let mut ranges = Vec::new();
-
-        for pattern in patterns {
-            for regex_match in pattern.find_iter(text) {
-                ranges.push(SkipRange {
-                    start_byte: regex_match.start(),
-                    end_byte: regex_match.end(),
-                });
-            }
+        let skip_ranges = find_skip_ranges(text, skip_patterns);
+        Self {
+            text: text.to_string(),
+            skip_ranges,
         }
-
-        // Sort ranges by start position and merge overlapping ones
-        ranges.sort_by_key(|r| r.start_byte);
-        Self::merge_overlapping_ranges(ranges)
-    }
-
-    fn merge_overlapping_ranges(ranges: Vec<SkipRange>) -> Vec<SkipRange> {
-        if ranges.is_empty() {
-            return ranges;
-        }
-
-        let mut merged = Vec::new();
-        let mut current = ranges[0];
-
-        for range in ranges.into_iter().skip(1) {
-            if range.start_byte <= current.end_byte {
-                // Overlapping or adjacent ranges - merge them
-                current.end_byte = current.end_byte.max(range.end_byte);
-            } else {
-                merged.push(current);
-                current = range;
-            }
-        }
-        merged.push(current);
-        merged
     }
 
     fn should_skip(&self, start_byte: usize, word_len: usize) -> bool {
-        let word_end = start_byte + word_len;
-        self.skip_ranges
-            .iter()
-            .any(|range| range.contains(start_byte) || range.contains(word_end))
+        is_within_skip_range(start_byte, start_byte + word_len, &self.skip_ranges)
     }
 
     fn process_words_with_check<F>(&self, mut check_function: F) -> Vec<WordLocation>
@@ -199,31 +203,44 @@ fn find_locations_code(
     let provider = text.as_bytes();
     let mut matches_query = cursor.matches(&query, root_node, provider);
 
+    // Find all skip ranges from patterns matched against the full source text
+    let all_skip_ranges = find_skip_ranges(text, skip_patterns);
+
     while let Some(match_) = matches_query.next() {
         for capture in match_.captures {
             let node = capture.node;
-            let node_text = node.utf8_text(provider).unwrap();
             let node_start_byte = node.start_byte();
-            // Create processor on just this part of the document
-            let processor = TextProcessor::new(node_text, skip_patterns);
+
+            let node_text = node.utf8_text(provider).unwrap();
+            let processor = TextProcessor::new(node_text, &[]);
             let words = processor.extract_words();
 
-            // check words and fix locations relative to whole document
+            // Check words against global skip ranges and dictionary
             for word_pos in words {
                 if !check_function(&word_pos.word) {
                     for range in word_pos.locations {
+                        let global_start = range.start_byte + node_start_byte;
+                        let global_end = range.end_byte + node_start_byte;
+
+                        // Skip if word is entirely within a skip range
+                        if is_within_skip_range(global_start, global_end, &all_skip_ranges) {
+                            continue;
+                        }
+
                         let location = TextRange {
-                            start_byte: range.start_byte + node_start_byte,
-                            end_byte: range.end_byte + node_start_byte,
+                            start_byte: global_start,
+                            end_byte: global_end,
                         };
                         if let Some(existing_result) = word_locations.get_mut(&word_pos.word) {
-                            let added = existing_result.insert(location);
                             #[cfg(debug_assertions)]
-                            if !added {
-                                let word = word_pos.word.clone();
-                                panic!(
-                                    "Two of the same locations found. Make a better query. Word: {word}, Location: {location:?}"
-                                )
+                            {
+                                let added = existing_result.insert(location);
+                                if !added {
+                                    let word = word_pos.word.clone();
+                                    panic!(
+                                        "Two of the same locations found. Make a better query. Word: {word}, Location: {location:?}"
+                                    )
+                                }
                             }
                         } else {
                             let mut set = HashSet::new();

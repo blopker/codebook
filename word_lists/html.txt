@@ -48,6 +48,7 @@ attribute
 attributes
 author
 auto
+autoplay
 awesome
 background
 badge
@@ -55,6 +56,7 @@ bar
 base
 be
 before
+beforeunload
 begin
 bg
 bgcolor
@@ -206,6 +208,7 @@ entry
 enum
 equiv
 error
+evenodd
 event
 events
 example
@@ -222,6 +225,7 @@ ff
 ffffff
 field
 fieldset
+figcaption
 file
 files
 filter
@@ -279,6 +283,7 @@ header
 heading
 height
 help
+hgroup
 hidden
 hide
 hierarchy
@@ -348,6 +353,7 @@ keyboard
 keyword
 kind
 label
+labelledby
 lang
 language
 last
@@ -432,6 +438,7 @@ nobr
 node
 noframe
 none
+noopener
 noreferrer
 normal
 noscript
@@ -447,6 +454,7 @@ og
 ol
 on
 once
+onchange
 onclick
 one
 onliner
@@ -490,6 +498,7 @@ phaser
 php
 pic
 placeholder
+playsinline
 pln
 plugin
 plugins
@@ -559,6 +568,7 @@ serif
 service
 set
 shadow
+shadowrootmode
 short
 shortcut
 should

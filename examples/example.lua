@@ -137,5 +137,12 @@ local function safeOperation(input)
     end
 end
 
+local vm
+vim.opt.showmode = false
+vim.g.loaded_netrw = nil
+vim.g['netrw_winsize'] = 30
+vim.cmd [[noautocmd sil norm! "vy]]
+vim.fn.jobstart(cmd, { term = true, pty = true })
+
 -- Return the module
 return module

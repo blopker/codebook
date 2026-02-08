@@ -1,5 +1,6 @@
 use log::{Level, LevelFilter, Log, Metadata, Record};
 use std::collections::VecDeque;
+use std::io::{self, IsTerminal};
 use std::sync::{Mutex, OnceLock};
 use tokio::sync::mpsc::{self, Sender};
 use tower_lsp::Client;
@@ -12,6 +13,7 @@ pub struct LspLogger {
     level: Mutex<LevelFilter>,
     // Buffer for storing logs before LSP client is available
     buffer: Mutex<VecDeque<LogMessage>>,
+    stderr_is_tty: bool,
 }
 
 struct LogMessage {
@@ -35,10 +37,12 @@ impl LspLogger {
     /// Initialize the logger early without an LSP client
     /// Logs will be sent to stderr and buffered
     pub fn init_early(level: LevelFilter) -> Result<(), log::SetLoggerError> {
+        let stderr_is_tty = io::stderr().is_terminal();
         let logger = Box::leak(Box::new(LspLogger {
             sender: Mutex::new(None),
             level: Mutex::new(level),
             buffer: Mutex::new(VecDeque::with_capacity(BUFFER_SIZE)),
+            stderr_is_tty,
         }));
 
         // Try to set the logger, ignore if already initialized
@@ -125,8 +129,10 @@ impl Log for LspLogger {
             // Send log message to channel, ignore if channel is full
             let _ = sender.try_send(log_msg);
         } else {
-            // No LSP client yet, log to stderr and buffer
-            eprintln!("{}", message);
+            // No LSP client yet, log to stderr when interactive or the log level is important
+            if self.stderr_is_tty || matches!(log_msg.level, Level::Warn | Level::Error) {
+                eprintln!("{}", message);
+            }
 
             // Drop the sender guard before locking buffer to avoid potential deadlock
             drop(sender_guard);

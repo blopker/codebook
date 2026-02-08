@@ -1,5 +1,5 @@
 (comment) @comment
-(string) @string
+(string_content) @string
 (function_definition
     name: (identifier) @identifier)
 (function_definition
@@ -7,4 +7,10 @@
 (class_definition
     name: (identifier) @identifier)
 (assignment
-    (identifier) @identifier)
+    left: (identifier) @identifier)
+(import_statement
+    name: (aliased_import
+        alias: (identifier) @identifier))
+(import_from_statement
+    name: (aliased_import
+        alias: (identifier) @identifier))
