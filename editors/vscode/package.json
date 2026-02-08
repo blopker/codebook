@@ -44,6 +44,7 @@
     "onLanguage:toml",
     "onLanguage:typescript",
     "onLanguage:typst",
+    "onLanguage:yaml",
     "onLanguage:zig",
     "onLanguage:csharp"
   ],
