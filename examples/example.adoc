@@ -1,0 +1,39 @@
+= Dokument Tytle
+Doc Writer <doc@example.com>
+:reproducibel:
+:lissting-captun: Lissting
+:sorce-highliter: rouge
+:toc:
+// Uncomment next line to add a title page (or set doctype to book)
+//:title-page:
+// Uncomment next line to set page size (default is A4)
+//:pdf-page-size: Letter
+
+An example of a basik https://asciidoc.org[AscieDoc] dokument prepared by {author}.
+
+== Introductin
+
+A paragraf followed by an unorderd list{empty}footnote:[AscieDoc supports unorderd, ordered, and descripshun lists.] with skware bullets.footnote:[You may choose from skware, disc, and sircle for the bullet style.]
+
+[square]
+* item 1
+* item 2
+* item 3
+
+== Main
+
+Here's how you say "`Hello, World!`" in Prawn:
+
+.Create a basic PDF document using Prawn
+[source,ruby]
+----
+require 'prawn'
+
+Prawn::Document.generate 'example.pdf' do
+  text 'Hello, World!'
+end
+----
+
+== Conclushun
+
+That's all, folks!
