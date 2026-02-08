@@ -82,8 +82,8 @@ impl DictionaryManager {
     }
 
     fn get_text_dictionary(&self, repo: TextRepo) -> Option<Arc<dyn Dictionary>> {
-        if repo.text.is_some() {
-            return Some(Arc::new(TextDictionary::new(repo.text.unwrap())));
+        if let Some(text) = repo.text {
+            return Some(Arc::new(TextDictionary::new(text)));
         }
         let text_path = match self.downloader.get(&repo.url.unwrap()) {
             Ok(path) => path,

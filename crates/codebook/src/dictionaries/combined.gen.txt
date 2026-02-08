@@ -143,6 +143,7 @@ arw
 as
 asap
 asc
+ascii
 asctime
 asf
 aside
@@ -255,7 +256,6 @@ bgcolor
 bib
 bibliographystyle
 bif
-bif's
 big
 bigdecimal
 biginteger
@@ -1521,7 +1521,6 @@ in
 inc
 incl
 include
-indecies
 indent
 index
 indexof

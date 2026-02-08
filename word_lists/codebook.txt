@@ -1,5 +1,6 @@
 aarch
 acl
+ascii
 backends
 backticks
 bundler
