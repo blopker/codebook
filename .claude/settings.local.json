@@ -9,7 +9,11 @@
       "Bash(gh pr diff:*)",
       "WebSearch",
       "mcp__kagi__kagi_summarizer",
-      "Bash(cargo run:*)"
+      "Bash(cargo run:*)",
+      "Bash(git remote get-url:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh repo view:*)"
     ]
   }
 }
