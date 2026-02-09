@@ -1,3 +1,14 @@
+[0.3.30]
+
+- Add YAML support
+- Improve Python query for type hints
+- Add Latvian dictionary (`lv`)
+- Add Vietnamese dictionary (`vi`)
+- Add Polish dictionary (`pl`)
+- Add Latin (`la`), Ancient Greek (`grc`), and Sanskrit (`sa`) dictionary paths
+- Use vendored dictionaries
+- Update dependencies
+
 [0.3.29]
 
 - Add support for the Erlang language
