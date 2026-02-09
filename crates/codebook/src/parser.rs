@@ -23,7 +23,6 @@ struct SkipRange {
     end_byte: usize,
 }
 
-
 /// Check if a word at [start, end) is entirely within any skip range
 fn is_within_skip_range(start: usize, end: usize, skip_ranges: &[SkipRange]) -> bool {
     skip_ranges

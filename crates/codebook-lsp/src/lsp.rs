@@ -348,11 +348,7 @@ impl LanguageServer for Backend {
                 Ok(None)
             }
             CodebookCommand::IgnoreFile => {
-                let Some(file_uri) = params
-                    .arguments
-                    .first()
-                    .and_then(|arg| arg.as_str())
-                else {
+                let Some(file_uri) = params.arguments.first().and_then(|arg| arg.as_str()) else {
                     error!("IgnoreFile command missing or invalid file URI argument");
                     return Ok(None);
                 };

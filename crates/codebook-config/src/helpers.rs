@@ -117,15 +117,15 @@ pub(crate) fn should_flag_word(settings: &ConfigSettings, word: &str) -> bool {
 pub(crate) fn build_ignore_regexes(patterns: &[String]) -> Vec<Regex> {
     patterns
         .iter()
-        .filter_map(|pattern| {
-            match RegexBuilder::new(pattern).multi_line(true).build() {
+        .filter_map(
+            |pattern| match RegexBuilder::new(pattern).multi_line(true).build() {
                 Ok(regex) => Some(regex),
                 Err(e) => {
                     error!("Ignoring invalid regex pattern '{pattern}': {e}");
                     None
                 }
-            }
-        })
+            },
+        )
         .collect()
 }
 
@@ -234,10 +234,7 @@ mod tests {
 
     #[test]
     fn test_build_ignore_regexes_valid_patterns() {
-        let patterns = vec![
-            r"\b[A-Z]{2,}\b".to_string(),
-            r"TODO:.*".to_string(),
-        ];
+        let patterns = vec![r"\b[A-Z]{2,}\b".to_string(), r"TODO:.*".to_string()];
 
         let compiled = build_ignore_regexes(&patterns);
         assert_eq!(compiled.len(), 2);

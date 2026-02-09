@@ -4,7 +4,12 @@
       "Bash(cargo test:*)",
       "Bash(cargo clippy:*)",
       "Bash(git fetch:*)",
-      "Bash(git show:*)"
+      "Bash(git show:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)",
+      "WebSearch",
+      "mcp__kagi__kagi_summarizer",
+      "Bash(cargo run:*)"
     ]
   }
 }

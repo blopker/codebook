@@ -37,7 +37,7 @@ def memry_allocaton(siz):
         return None
 
 
-def calculatr(numbr1: int, numbr2, operashun):
+def calculatr(numbr1: int, numbr2: float, operashun: str = "+") -> int:
     resalt = 0
 
     if operashun == "+":
@@ -54,6 +54,22 @@ def calculatr(numbr1: int, numbr2, operashun):
             return -1
 
     return resalt
+
+
+# Typed funktion with komplicated type hints
+def prosess_items(itemz: list[str], filtr: Callable[[str], bool], fallbak: str | None = None) -> dict[str, int]:
+    resalts = {}
+    for itm in itemz:
+        if filtr(itm):
+            resalts[itm] = len(itm)
+    return resalts
+
+
+# Generik funktion (PEP 695)
+def first_elemnt[T](colecshun: Sequence[T], defalt: T | None = None) -> T | None:
+    if colecshun:
+        return colecshun[0]
+    return defalt
 
 
 # Dekorator with misspellings

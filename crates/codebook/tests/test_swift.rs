@@ -46,7 +46,19 @@ fn test_swift_simple() {
         }
     "#;
     let expected = vec![
-        "Moar", "Thig", "comented", "enumrable", "frm", "helo", "inented", "lne", "lteral", "nunber", "opttions", "sepaate", "wors"
+        "Moar",
+        "Thig",
+        "comented",
+        "enumrable",
+        "frm",
+        "helo",
+        "inented",
+        "lne",
+        "lteral",
+        "nunber",
+        "opttions",
+        "sepaate",
+        "wors",
     ];
     let binding = processor
         .spell_check(sample_text, Some(LanguageType::Swift), None)

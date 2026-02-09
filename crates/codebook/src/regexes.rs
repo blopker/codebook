@@ -20,8 +20,8 @@ lazy_static! {
         Regex::new(r"[A-Za-z0-9+/]{20,}={0,2}").expect("Valid Base64 regex"),
         // Git commit hashes (7+ hex characters)
         Regex::new(r"\b[0-9a-fA-F]{7,40}\b").expect("Valid git hash regex"),
-        // Markdown/HTML links
-        Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").expect("Valid markdown link regex"),
+        // Markdown/HTML links (URL part must not contain spaces)
+        Regex::new(r"\[([^\]]+)\]\([^\s)]+\)").expect("Valid markdown link regex"),
     ];
 }
 
