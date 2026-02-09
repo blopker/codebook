@@ -1,8 +1,8 @@
-mod helpers;
-mod settings;
+pub mod helpers;
+pub mod settings;
 mod watched_file;
 use crate::helpers::expand_tilde;
-use crate::settings::ConfigSettings;
+pub use crate::settings::ConfigSettings;
 use crate::watched_file::WatchedFile;
 use log::debug;
 use log::info;
@@ -31,6 +31,12 @@ pub trait CodebookConfig: Sync + Send + Debug {
     fn get_ignore_patterns(&self) -> Option<Vec<Regex>>;
     fn get_min_word_length(&self) -> usize;
     fn cache_dir(&self) -> &Path;
+
+    /// Resolve settings with overrides applied for a specific file path.
+    /// Returns None if no overrides match (callers should use base config methods).
+    fn resolve_for_file(&self, _relative_path: &Path) -> Option<Arc<ConfigSettings>> {
+        None
+    }
 }
 
 /// Internal mutable state
@@ -526,6 +532,22 @@ impl CodebookConfig for CodebookConfigFile {
 
     fn cache_dir(&self) -> &Path {
         &self.cache_dir
+    }
+
+    /// Resolve settings with overrides applied for a specific file path.
+    fn resolve_for_file(&self, relative_path: &Path) -> Option<Arc<ConfigSettings>> {
+        let snapshot = self.snapshot();
+        if snapshot.overrides.is_empty() {
+            return None;
+        }
+        if !snapshot
+            .overrides
+            .iter()
+            .any(|o| o.matches_path(relative_path))
+        {
+            return None;
+        }
+        Some(Arc::new(snapshot.resolve_for_path(relative_path)))
     }
 }
 
@@ -1120,6 +1142,265 @@ mod tests {
         assert!(!config.is_allowed_word("globalword1")); // Not used from global
         assert!(config.should_flag_word("projecttodo")); // From project
         assert!(!config.should_flag_word("globaltodo")); // Not used from global
+
+        Ok(())
+    }
+
+    // --- Override integration tests ---
+
+    #[test]
+    fn test_resolve_for_file_no_overrides() {
+        let config = CodebookConfigFile::default();
+        {
+            let mut inner = config.inner.write().unwrap();
+            let settings = ConfigSettings {
+                words: vec!["base".to_string()],
+                ..Default::default()
+            };
+            inner.project_config = inner.project_config.clone().with_content_value(settings);
+            CodebookConfigFile::rebuild_snapshot(&mut inner);
+        }
+
+        // No overrides, should return None
+        assert!(config
+            .resolve_for_file(Path::new("src/main.rs"))
+            .is_none());
+    }
+
+    #[test]
+    fn test_resolve_for_file_with_matching_override() -> Result<(), io::Error> {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("codebook.toml");
+        let mut file = File::create(&config_path)?;
+        write!(
+            file,
+            r#"
+            words = ["base"]
+
+            [[overrides]]
+            paths = ["**/*.md"]
+            extra_words = ["markdown"]
+            "#
+        )?;
+
+        let config = load_from_file(ConfigType::Project, &config_path)?;
+
+        // .md file should get override
+        let resolved = config.resolve_for_file(Path::new("README.md"));
+        assert!(resolved.is_some());
+        let settings = resolved.unwrap();
+        assert!(settings.is_allowed_word("base"));
+        assert!(settings.is_allowed_word("markdown"));
+
+        // .rs file should not match
+        assert!(config
+            .resolve_for_file(Path::new("src/main.rs"))
+            .is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_resolve_for_file_global_and_project_overrides() -> Result<(), io::Error> {
+        let global_temp = TempDir::new().unwrap();
+        let project_temp = TempDir::new().unwrap();
+
+        // Global config with an override
+        let global_config_path = global_temp.path().join("codebook.toml");
+        fs::write(
+            &global_config_path,
+            r#"
+            words = ["globalbase"]
+
+            [[overrides]]
+            paths = ["**/*.md"]
+            extra_words = ["fromglobal"]
+            "#,
+        )?;
+
+        // Project config with an override
+        let project_config_path = project_temp.path().join("codebook.toml");
+        fs::write(
+            &project_config_path,
+            r#"
+            words = ["projectbase"]
+
+            [[overrides]]
+            paths = ["**/*.md"]
+            extra_words = ["fromproject"]
+            "#,
+        )?;
+
+        // Load both configs
+        let config = CodebookConfigFile::default();
+        {
+            let mut inner = config.inner.write().unwrap();
+            if let Ok(global_settings) =
+                CodebookConfigFile::load_settings_from_file(&global_config_path)
+            {
+                inner.global_config = WatchedFile::new(Some(global_config_path))
+                    .with_content_value(global_settings);
+            }
+            if let Ok(project_settings) =
+                CodebookConfigFile::load_settings_from_file(&project_config_path)
+            {
+                inner.project_config = WatchedFile::new(Some(project_config_path))
+                    .with_content_value(project_settings);
+            }
+            let effective = CodebookConfigFile::calculate_effective_settings(
+                &inner.project_config,
+                &inner.global_config,
+            );
+            inner.snapshot = Arc::new(effective);
+        }
+
+        // Resolve for a .md file — both overrides should apply
+        let resolved = config.resolve_for_file(Path::new("docs/guide.md"));
+        assert!(resolved.is_some());
+        let settings = resolved.unwrap();
+        assert!(settings.is_allowed_word("globalbase"));
+        assert!(settings.is_allowed_word("projectbase"));
+        assert!(settings.is_allowed_word("fromglobal"));
+        assert!(settings.is_allowed_word("fromproject"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_resolve_for_file_use_global_false_ignores_global_overrides() -> Result<(), io::Error> {
+        let global_temp = TempDir::new().unwrap();
+        let project_temp = TempDir::new().unwrap();
+
+        let global_config_path = global_temp.path().join("codebook.toml");
+        fs::write(
+            &global_config_path,
+            r#"
+            words = ["globalbase"]
+
+            [[overrides]]
+            paths = ["**/*.md"]
+            extra_words = ["fromglobal"]
+            "#,
+        )?;
+
+        let project_config_path = project_temp.path().join("codebook.toml");
+        fs::write(
+            &project_config_path,
+            r#"
+            words = ["projectbase"]
+            use_global = false
+
+            [[overrides]]
+            paths = ["**/*.md"]
+            extra_words = ["fromproject"]
+            "#,
+        )?;
+
+        let config = CodebookConfigFile::default();
+        {
+            let mut inner = config.inner.write().unwrap();
+            if let Ok(global_settings) =
+                CodebookConfigFile::load_settings_from_file(&global_config_path)
+            {
+                inner.global_config = WatchedFile::new(Some(global_config_path))
+                    .with_content_value(global_settings);
+            }
+            if let Ok(project_settings) =
+                CodebookConfigFile::load_settings_from_file(&project_config_path)
+            {
+                inner.project_config = WatchedFile::new(Some(project_config_path))
+                    .with_content_value(project_settings);
+            }
+            let effective = CodebookConfigFile::calculate_effective_settings(
+                &inner.project_config,
+                &inner.global_config,
+            );
+            inner.snapshot = Arc::new(effective);
+        }
+
+        // With use_global = false, global overrides should be ignored
+        let resolved = config.resolve_for_file(Path::new("README.md"));
+        assert!(resolved.is_some());
+        let settings = resolved.unwrap();
+        assert!(settings.is_allowed_word("projectbase"));
+        assert!(settings.is_allowed_word("fromproject"));
+        // Global words and overrides should NOT be present
+        assert!(!settings.is_allowed_word("globalbase"));
+        assert!(!settings.is_allowed_word("fromglobal"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_save_preserves_overrides() -> Result<(), io::Error> {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("codebook.toml");
+        fs::write(
+            &config_path,
+            r#"
+            words = ["base"]
+
+            [[overrides]]
+            paths = ["**/*.md"]
+            extra_words = ["markdown"]
+            "#,
+        )?;
+
+        let config = load_from_file(ConfigType::Project, &config_path)?;
+
+        // Add a word and save
+        config.add_word("newword")?;
+        config.save()?;
+
+        // Reload and verify overrides are preserved
+        let reloaded = load_from_file(ConfigType::Project, &config_path)?;
+        assert!(reloaded.is_allowed_word("base"));
+        assert!(reloaded.is_allowed_word("newword"));
+
+        // Override should still work
+        let resolved = reloaded.resolve_for_file(Path::new("README.md"));
+        assert!(resolved.is_some());
+        assert!(resolved.unwrap().is_allowed_word("markdown"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_reload_picks_up_override_changes() -> Result<(), io::Error> {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("codebook.toml");
+        fs::write(
+            &config_path,
+            r#"
+            words = ["base"]
+            "#,
+        )?;
+
+        let config = load_from_file(ConfigType::Project, &config_path)?;
+
+        // No overrides initially
+        assert!(config
+            .resolve_for_file(Path::new("README.md"))
+            .is_none());
+
+        // Update config with overrides
+        fs::write(
+            &config_path,
+            r#"
+            words = ["base"]
+
+            [[overrides]]
+            paths = ["**/*.md"]
+            extra_words = ["markdown"]
+            "#,
+        )?;
+
+        config.reload()?;
+
+        // Now overrides should apply
+        let resolved = config.resolve_for_file(Path::new("README.md"));
+        assert!(resolved.is_some());
+        assert!(resolved.unwrap().is_allowed_word("markdown"));
 
         Ok(())
     }

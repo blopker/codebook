@@ -9,7 +9,8 @@ use crate::regexes::get_default_skip_patterns;
 use std::path::Path;
 use std::sync::Arc;
 
-use codebook_config::CodebookConfig;
+use codebook_config::helpers::build_ignore_regexes;
+use codebook_config::{CodebookConfig, ConfigSettings};
 use dictionaries::{dictionary, manager::DictionaryManager};
 use dictionary::Dictionary;
 use log::debug;
@@ -37,33 +38,57 @@ impl Codebook {
         language: Option<queries::LanguageType>,
         file_path: Option<&str>,
     ) -> Vec<parser::WordLocation> {
+        // ignore_paths is evaluated BEFORE overrides
         if let Some(file_path) = file_path
             && self.config.should_ignore_path(Path::new(file_path))
         {
             return Vec::new();
         }
-        // get needed dictionary names
-        // get needed dictionaries
-        // call spell check on each dictionary
+
+        // Resolve per-file settings (applies matching overrides)
+        let resolved =
+            file_path.and_then(|fp| self.config.resolve_for_file(Path::new(fp)));
+
         let language = self.resolve_language(language, file_path);
-        let dictionaries = self.get_dictionaries(Some(language));
+
+        // Get dictionaries using resolved settings if overrides apply
+        let dictionaries = match &resolved {
+            Some(settings) => self.get_dictionaries_from_settings(settings, Some(language)),
+            None => self.get_dictionaries(Some(language)),
+        };
+
         // Combine default and user patterns
         let mut all_patterns = get_default_skip_patterns().clone();
-        if let Some(user_patterns) = self.config.get_ignore_patterns() {
+        if let Some(ref settings) = resolved {
+            all_patterns.extend(build_ignore_regexes(&settings.ignore_patterns));
+        } else if let Some(user_patterns) = self.config.get_ignore_patterns() {
             all_patterns.extend(user_patterns);
         }
+
         parser::find_locations(
             text,
             language,
             |word| {
-                if self.config.should_flag_word(word) {
-                    return false;
-                }
-                if word.len() < self.config.get_min_word_length() {
-                    return true;
-                }
-                if self.config.is_allowed_word(word) {
-                    return true;
+                if let Some(ref settings) = resolved {
+                    if settings.should_flag_word(word) {
+                        return false;
+                    }
+                    if word.len() < settings.get_min_word_length() {
+                        return true;
+                    }
+                    if settings.is_allowed_word(word) {
+                        return true;
+                    }
+                } else {
+                    if self.config.should_flag_word(word) {
+                        return false;
+                    }
+                    if word.len() < self.config.get_min_word_length() {
+                        return true;
+                    }
+                    if self.config.is_allowed_word(word) {
+                        return true;
+                    }
                 }
                 for dictionary in &dictionaries {
                     if dictionary.check(word) {
@@ -101,10 +126,27 @@ impl Codebook {
             dictionary_ids.extend(language_dictionary_ids);
         };
         dictionary_ids.extend(DEFAULT_DICTIONARIES.iter().map(|f| f.to_string()));
+        self.load_dictionaries(&dictionary_ids)
+    }
+
+    fn get_dictionaries_from_settings(
+        &self,
+        settings: &ConfigSettings,
+        language: Option<queries::LanguageType>,
+    ) -> Vec<Arc<dyn Dictionary>> {
+        let mut dictionary_ids = settings.dictionary_ids();
+        if let Some(lang) = language {
+            dictionary_ids.extend(lang.dictionary_ids());
+        };
+        dictionary_ids.extend(DEFAULT_DICTIONARIES.iter().map(|f| f.to_string()));
+        self.load_dictionaries(&dictionary_ids)
+    }
+
+    fn load_dictionaries(&self, dictionary_ids: &[String]) -> Vec<Arc<dyn Dictionary>> {
         let mut dictionaries = Vec::with_capacity(dictionary_ids.len());
         debug!("Checking text with dictionaries: {dictionary_ids:?}");
         for dictionary_id in dictionary_ids {
-            let dictionary = self.manager.get_dictionary(&dictionary_id);
+            let dictionary = self.manager.get_dictionary(dictionary_id);
             if let Some(d) = dictionary {
                 dictionaries.push(d);
             }
