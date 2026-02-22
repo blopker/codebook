@@ -29,6 +29,7 @@ pub enum LanguageType {
     Text,
     Typescript,
     Typst,
+    VHDL,
     YAML,
     Zig,
 }
@@ -246,6 +247,13 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         query: include_str!("queries/typst.scm"),
         extensions: &["typ"],
     },
+    LanguageSetting {
+        type_: LanguageType::VHDL,
+        ids: &["vhdl"],
+        dictionary_ids: &["vhdl"],
+        query: include_str!("queries/vhdl.scm"),
+        extensions: &["vhd", "vhdl"],
+    },
 ];
 
 #[derive(Debug)]
@@ -286,6 +294,7 @@ impl LanguageSetting {
             LanguageType::Text => None,
             LanguageType::Typescript => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
             LanguageType::Typst => Some(codebook_tree_sitter_typst::LANGUAGE.into()),
+            LanguageType::VHDL => Some(tree_sitter_vhdl::LANGUAGE.into()),
             LanguageType::YAML => Some(tree_sitter_yaml::LANGUAGE.into()),
             LanguageType::Zig => Some(tree_sitter_zig::LANGUAGE.into()),
         }

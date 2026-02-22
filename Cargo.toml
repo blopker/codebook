@@ -65,6 +65,7 @@ tree-sitter-swift = "<0.8.0"
 tree-sitter-toml-ng = "<0.8.0"
 tree-sitter-typescript = "0.23.2"
 tree-sitter-yaml = "0.7.2"
+tree-sitter-vhdl = { git = "https://github.com/jpt13653903/tree-sitter-vhdl", tag = "v1.3.1" }
 tree-sitter-zig = "<2"
 tree-sitter-c-sharp= "<0.24.0"
 codebook-tree-sitter-latex = "<0.7.0"
