@@ -90,14 +90,24 @@ pub(crate) fn dictionary_ids(settings: &ConfigSettings) -> Vec<String> {
     }
 }
 
+fn match_pattern(pattern: &[String], path_str: &str) -> bool {
+    pattern.iter().any(|pattern| {
+        Pattern::new(pattern)
+            .map(|p| p.matches(path_str))
+            .unwrap_or(false)
+    })
+}
+
+/// Determine wheter a path should be included based on the configured glob patterns.
+pub(crate) fn should_include_path(settings: &ConfigSettings, path: &Path) -> bool {
+    let path_str = path.to_string_lossy();
+    match_pattern(&settings.include_paths, &path_str)
+}
+
 /// Determine whether a path should be ignored based on the configured glob patterns.
 pub(crate) fn should_ignore_path(settings: &ConfigSettings, path: &Path) -> bool {
     let path_str = path.to_string_lossy();
-    settings.ignore_paths.iter().any(|pattern| {
-        Pattern::new(pattern)
-            .map(|p| p.matches(&path_str))
-            .unwrap_or(false)
-    })
+    match_pattern(&settings.ignore_paths, &path_str)
 }
 
 /// Check if a word is explicitly allowed.

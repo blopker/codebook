@@ -26,6 +26,7 @@ pub trait CodebookConfig: Sync + Send + Debug {
     fn add_ignore(&self, file: &str) -> Result<bool, io::Error>;
     fn get_dictionary_ids(&self) -> Vec<String>;
     fn should_ignore_path(&self, path: &Path) -> bool;
+    fn should_include_path(&self, path: &Path) -> bool;
     fn is_allowed_word(&self, word: &str) -> bool;
     fn should_flag_word(&self, word: &str) -> bool;
     fn get_ignore_patterns(&self) -> Option<Vec<Regex>>;
@@ -496,6 +497,12 @@ impl CodebookConfig for CodebookConfigFile {
         helpers::should_ignore_path(&snapshot, path)
     }
 
+    /// Check if a path is included based on the effective configuration
+    fn should_include_path(&self, path: &Path) -> bool {
+        let snapshot = self.snapshot();
+        helpers::should_include_path(&snapshot, path)
+    }
+
     /// Check if a word is in the effective allowlist
     fn is_allowed_word(&self, word: &str) -> bool {
         let snapshot = self.snapshot();
@@ -578,6 +585,11 @@ impl CodebookConfig for CodebookConfigMemory {
     fn get_dictionary_ids(&self) -> Vec<String> {
         let snapshot = self.snapshot();
         helpers::dictionary_ids(&snapshot)
+    }
+
+    fn should_include_path(&self, path: &Path) -> bool {
+        let snapshot = self.snapshot();
+        helpers::should_include_path(&snapshot, path)
     }
 
     fn should_ignore_path(&self, path: &Path) -> bool {
