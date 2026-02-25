@@ -427,6 +427,7 @@ dependencies = [
  "codebook_config",
  "env_logger",
  "fs2",
+ "glob",
  "log",
  "lru",
  "serde",
@@ -436,6 +437,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tower-lsp",
+ "walkdir",
 ]
 
 [[package]]
