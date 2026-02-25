@@ -47,12 +47,12 @@ If quickfix code actions are not showing up for specific languages, ensure your 
 
 Codebook can also be enabled for the [Helix
 editor](https://helix-editor.com/) by adding the LSP to the
-[language.toml](https://docs.helix-editor.com/languages.html) configuration
+[languages.toml](https://docs.helix-editor.com/languages.html) configuration
 file.
 
 First, [install Codebook](#installation), and ensure that `codebook-lsp` is installed into your `$PATH`.
 
-Then, add into the Helix config file:
+Then, add into the Helix `languages.toml` configuration file:
 
 ```toml
 [language-server.codebook]
