@@ -491,16 +491,16 @@ impl CodebookConfig for CodebookConfigFile {
         helpers::dictionary_ids(&snapshot)
     }
 
-    /// Check if a path should be ignored based on the effective configuration
-    fn should_ignore_path(&self, path: &Path) -> bool {
-        let snapshot = self.snapshot();
-        helpers::should_ignore_path(&snapshot, path)
-    }
-
     /// Check if a path is included based on the effective configuration
     fn should_include_path(&self, path: &Path) -> bool {
         let snapshot = self.snapshot();
         helpers::should_include_path(&snapshot, path)
+    }
+
+    /// Check if a path should be ignored based on the effective configuration
+    fn should_ignore_path(&self, path: &Path) -> bool {
+        let snapshot = self.snapshot();
+        helpers::should_ignore_path(&snapshot, path)
     }
 
     /// Check if a word is in the effective allowlist
