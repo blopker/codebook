@@ -1,4 +1,3 @@
-
 <br />
 <div align="center">
   <a href="https://github.com/blopker/codebook"> <img
@@ -132,35 +131,35 @@ Codebook is in active development. As better dictionaries are added, words that 
 
 ### Supported Programming Languages
 
-| Language | Status |
-| --- | --- |
-| C | ✅ |
-| C# | ⚠️ |
-| C++ | ⚠️ |
-| CSS | ⚠️ |
-| Elixir | ⚠️ |
-| Erlang | ⚠️ |
-| Go | ✅ |
-| Haskell | ⚠️ |
-| HTML | ⚠️ |
-| Java | ✅ |
-| JavaScript | ✅ |
-| LaTeX | ⚠️ |
-| Lua | ✅ |
-| Markdown | ✅ |
-| Odin | ✅ |
-| PHP | ⚠️ |
-| Plain Text | ✅ |
-| Python | ✅ |
-| Ruby | ✅ |
-| Rust | ✅ |
-| Swift | ⚠️ |
-| TOML | ✅ |
-| TypeScript | ✅ |
-| Typst | ⚠️ |
-| VHDL | ⚠️ |
-| YAML | ⚠️ |
-| Zig | ✅ |
+| Language   | Status |
+| ---------- | ------ |
+| C          | ✅     |
+| C#         | ⚠️     |
+| C++        | ⚠️     |
+| CSS        | ⚠️     |
+| Elixir     | ⚠️     |
+| Erlang     | ⚠️     |
+| Go         | ✅     |
+| Haskell    | ⚠️     |
+| HTML       | ⚠️     |
+| Java       | ✅     |
+| JavaScript | ✅     |
+| LaTeX      | ⚠️     |
+| Lua        | ✅     |
+| Markdown   | ✅     |
+| Odin       | ✅     |
+| PHP        | ⚠️     |
+| Plain Text | ✅     |
+| Python     | ✅     |
+| Ruby       | ✅     |
+| Rust       | ✅     |
+| Swift      | ⚠️     |
+| TOML       | ✅     |
+| TypeScript | ✅     |
+| Typst      | ⚠️     |
+| VHDL       | ⚠️     |
+| YAML       | ⚠️     |
+| Zig        | ✅     |
 
 ✅ = Good to go.
 ⚠️ = Supported, but needs more testing. Help us improve!
@@ -178,9 +177,10 @@ If you are a Zed user, you may skip this step and consult the [Zed section](#zed
    - Prebuilt archives are published for macOS (x86_64, aarch64), Linux (x86_64, aarch64), and Windows (x86_64, arm64).
    - Windows artifacts are provided as `.zip` files; macOS and Linux artifacts are `.tar.gz`.
 2. Extract the binary from the archive, and move it somewhere on your system `$PATH`.
-  - `~/.local/bin/codebook-lsp`
-  - `/usr/bin/codebook-lsp`
-  - Etc...
+
+- `~/.local/bin/codebook-lsp`
+- `/usr/bin/codebook-lsp`
+- Etc...
 
 ### Eget Installation
 
@@ -311,6 +311,7 @@ use_global = true
 The `ignore_patterns` configuration allows you to define custom regex patterns to skip during spell checking. Here are important details about how they work:
 
 **Default Patterns**: Codebook already includes built-in regex patterns for common technical strings, so you don't need to define these yourself:
+
 - URLs: `https?://[^\s]+`
 - Hex colors: `#[0-9a-fA-F]{3,8}` (like `#deadbeef`, `#fff`)
 - Email addresses: `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`
@@ -321,6 +322,7 @@ The `ignore_patterns` configuration allows you to define custom regex patterns t
 - Markdown links: `\[([^\]]+)\]\(([^)]+)\)`
 
 **How Patterns Are Matched**:
+
 - Patterns are matched against the full source text
 - Words that fall entirely within a matched range are skipped
 - **Multiline mode is enabled**: `^` and `$` match line boundaries, not just start/end of file
@@ -328,11 +330,13 @@ The `ignore_patterns` configuration allows you to define custom regex patterns t
 - Example: `'vim\.opt\.[a-z]+'` matches `vim.opt.showmode`, so `showmode` is skipped
 
 **TOML Literal Strings**: Use single quotes for regex patterns to avoid escaping backslashes:
+
 - `'\b'` for word boundaries (no escaping needed)
 - `'\d'` for digits (no escaping needed)
 - `'\\'` for literal backslashes
 
 **Examples**:
+
 ```toml
 ignore_patterns = [
     '\b[ATCG]+\b',           # DNA sequences with word boundaries
@@ -411,6 +415,7 @@ To add a new Hunspell-compatible dictionary:
 1. Locate the `HUNSPELL_DICTIONARIES` static vector (for Hunspell dictionaries) or `TEXT_DICTIONARIES` (for plain text word lists)
 
 1. Add a new entry using the appropriate constructor. For Hunspell dictionaries:
+
    ```rs /dev/null/example.rs#L1-5
    HunspellRepo::new(
        "nl_nl",  // Dictionary name in snake_case
@@ -437,7 +442,6 @@ To add a new Hunspell-compatible dictionary:
 
 For plain text dictionaries, use `TextRepo::new()` instead and add to `TEXT_DICTIONARIES`.
 
-
 ## Adding New Programming Language Support
 
 Codebook uses Tree-sitter support additional programming languages. Here's how to add support for a new language:
@@ -460,6 +464,7 @@ To write an effective query, you need to understand the Abstract Syntax Tree (AS
 - [Tree-sitter Visualizer](https://blopker.github.io/ts-visualizer/): Visualize the AST of your code in a more detailed way
 
 A good approach is to:
+
 1. Write sample code with identifiers, strings, and comments
 2. Paste it into the playground/visualizer
 3. Observe the node types used for each element
@@ -483,6 +488,7 @@ Make sure the appropriate Tree-sitter grammar is added as a dependency in `Cargo
 ### 5. Test Your Implementation
 
 Run the tests to ensure your query is valid:
+
 ```bash
 cargo test -p codebook queries::tests::test_all_queries_are_valid
 ```
@@ -506,6 +512,7 @@ If you've successfully added support for a new language, please consider contrib
 Run test with `make test` after cloning. Integration tests are also available with `make integration_test`, but requires BunJS to run.
 
 ## Acknowledgments
+
 - Harper: https://writewithharper.com/
 - Harper Zed: https://github.com/Stef16Robbe/harper_zed
 - Spellbook: https://github.com/helix-editor/spellbook
