@@ -157,7 +157,7 @@ Codebook is in active development. As better dictionaries are added, words that 
 | TOML       | ✅     |
 | TypeScript | ✅     |
 | Typst      | ⚠️     |
-| VHDL       | ❌     |
+| VHDL       | ⚠️     |
 | YAML       | ⚠️     |
 | Zig        | ✅     |
 
