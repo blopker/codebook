@@ -3,9 +3,16 @@ use crate::splitter::{self};
 use crate::queries::{LanguageType, get_language_setting};
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
+use std::sync::{LazyLock, Mutex};
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
 use unicode_segmentation::UnicodeSegmentation;
+
+/// Global parser cache protected by a mutex. Serializes all tree-sitter
+/// operations (create, parse, destroy) to protect external scanners that
+/// use global mutable C state (e.g. tree-sitter-vhdl's static TokenTree).
+static PARSER_CACHE: LazyLock<Mutex<HashMap<LanguageType, Parser>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 #[derive(Debug, Clone, Copy, PartialEq, Ord, Eq, PartialOrd, Hash)]
 pub struct TextRange {
@@ -189,14 +196,23 @@ fn find_locations_code(
 ) -> Vec<WordLocation> {
     let language_setting =
         get_language_setting(language).expect("This _should_ never happen. Famous last words.");
-    let mut parser = Parser::new();
-    let language = language_setting.language().unwrap();
-    parser.set_language(&language).unwrap();
 
-    let tree = parser.parse(text, None).unwrap();
+    // Parse under global lock to protect external scanners with global C state.
+    // The lock covers create + parse; Tree is fully owned after parse returns.
+    let tree = {
+        let mut cache = PARSER_CACHE.lock().unwrap();
+        let parser = cache.entry(language).or_insert_with(|| {
+            let mut parser = Parser::new();
+            let lang = language_setting.language().unwrap();
+            parser.set_language(&lang).unwrap();
+            parser
+        });
+        parser.parse(text, None).unwrap()
+    };
+
     let root_node = tree.root_node();
-
-    let query = Query::new(&language, language_setting.query).unwrap();
+    let lang = language_setting.language().unwrap();
+    let query = Query::new(&lang, language_setting.query).unwrap();
     let mut cursor = QueryCursor::new();
     let mut word_locations: HashMap<String, HashSet<TextRange>> = HashMap::new();
     let provider = text.as_bytes();
