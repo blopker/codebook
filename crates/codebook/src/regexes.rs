@@ -16,8 +16,8 @@ lazy_static! {
         // UUID
         Regex::new(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
             .expect("Valid UUID regex"),
-        // Base64 strings (rough pattern for long base64 sequences)
-        Regex::new(r"[A-Za-z0-9+/]{20,}={0,2}").expect("Valid Base64 regex"),
+        // Base64 strings (requires trailing = padding to avoid false positives)
+        Regex::new(r"[A-Za-z0-9+/]{20,}={1,2}").expect("Valid Base64 regex"),
         // Git commit hashes (7+ hex characters)
         Regex::new(r"\b[0-9a-fA-F]{7,40}\b").expect("Valid git hash regex"),
         // Markdown/HTML links (URL part must not contain spaces)
@@ -56,6 +56,22 @@ mod tests {
         assert!(hex_pattern.is_match("#123456"));
         assert!(!hex_pattern.is_match("deadbeef")); // Without #
         assert!(!hex_pattern.is_match("#gg")); // Invalid hex
+    }
+
+    #[test]
+    fn test_base64_pattern() {
+        let patterns = get_default_skip_patterns();
+        let base64_pattern = &patterns[6]; // Base64 pattern
+
+        // Real base64 strings (with padding)
+        assert!(base64_pattern.is_match("dGVzdCBiYXNlNjQgZW5jb2Rpbmc=")); // "test base64 encoding"
+        assert!(base64_pattern.is_match("SGVsbG8gV29ybGQhIFRoaXMgaXM=")); // long enough base64
+        // No padding = no match
+        assert!(!base64_pattern.is_match("dGVzdCBiYXNlNjQgZW5jb2Rpbmc"));
+
+        // Path-like strings should NOT match
+        assert!(!base64_pattern.is_match("administraton/dashboard"));
+        assert!(!base64_pattern.is_match("some/long/path/to/a/file"));
     }
 
     #[test]
