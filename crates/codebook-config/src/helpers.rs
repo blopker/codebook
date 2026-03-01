@@ -114,7 +114,7 @@ pub(crate) fn should_flag_word(settings: &ConfigSettings, word: &str) -> bool {
 
 /// Compile user-provided ignore regex patterns, dropping invalid entries.
 /// Patterns are compiled with multiline mode so `^` and `$` match line boundaries.
-pub(crate) fn build_ignore_regexes(patterns: &[String]) -> Vec<Regex> {
+pub fn build_ignore_regexes(patterns: &[String]) -> Vec<Regex> {
     patterns
         .iter()
         .filter_map(
