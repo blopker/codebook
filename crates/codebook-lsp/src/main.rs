@@ -1,5 +1,6 @@
 mod file_cache;
 mod init_options;
+mod lint;
 mod lsp;
 mod lsp_logger;
 
@@ -30,6 +31,15 @@ enum Commands {
     Serve {},
     /// Remove server cache
     Clean {},
+    /// Check files for spelling errors
+    Lint {
+        /// Files or glob patterns to spell-check
+        #[arg(required = true)]
+        files: Vec<String>,
+        /// Only report each misspelled word once, ignoring duplicates across files
+        #[arg(short = 'u', long)]
+        unique: bool,
+    },
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -57,6 +67,11 @@ async fn main() {
             let config = CodebookConfigFile::default();
             info!("Cleaning: {:?}", config.cache_dir);
             config.clean_cache()
+        }
+        Some(Commands::Lint { files, unique }) => {
+            if lint::run_lint(files, root, *unique) {
+                std::process::exit(1);
+            }
         }
         None => {}
     }
