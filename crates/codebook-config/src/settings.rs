@@ -13,6 +13,10 @@ pub struct ConfigSettings {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub flag_words: Vec<String>,
 
+    /// Glob patterns for paths to include
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub include_paths: Vec<String>,
+
     /// Glob patterns for paths to ignore
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ignore_paths: Vec<String>,
@@ -58,6 +62,7 @@ impl Default for ConfigSettings {
             dictionaries: vec![],
             words: Vec::new(),
             flag_words: Vec::new(),
+            include_paths: Vec::new(),
             ignore_paths: Vec::new(),
             ignore_patterns: Vec::new(),
             use_global: true,
@@ -83,6 +88,8 @@ impl<'de> Deserialize<'de> for ConfigSettings {
             #[serde(default)]
             flag_words: Vec<String>,
             #[serde(default)]
+            include_paths: Vec<String>,
+            #[serde(default)]
             ignore_paths: Vec<String>,
             #[serde(default)]
             ignore_patterns: Vec<String>,
@@ -97,6 +104,7 @@ impl<'de> Deserialize<'de> for ConfigSettings {
             dictionaries: to_lowercase_vec(helper.dictionaries),
             words: to_lowercase_vec(helper.words),
             flag_words: to_lowercase_vec(helper.flag_words),
+            include_paths: helper.include_paths,
             ignore_paths: helper.ignore_paths,
             ignore_patterns: helper.ignore_patterns,
             use_global: helper.use_global,
@@ -112,6 +120,7 @@ impl ConfigSettings {
         self.dictionaries.extend(other.dictionaries);
         self.words.extend(other.words);
         self.flag_words.extend(other.flag_words);
+        self.include_paths.extend(other.include_paths);
         self.ignore_paths.extend(other.ignore_paths);
         self.ignore_patterns.extend(other.ignore_patterns);
 
@@ -133,6 +142,7 @@ impl ConfigSettings {
         sort_and_dedup(&mut self.dictionaries);
         sort_and_dedup(&mut self.words);
         sort_and_dedup(&mut self.flag_words);
+        sort_and_dedup(&mut self.include_paths);
         sort_and_dedup(&mut self.ignore_paths);
         sort_and_dedup(&mut self.ignore_patterns);
     }
@@ -154,6 +164,7 @@ mod tests {
         assert_eq!(config.dictionaries, Vec::<String>::new());
         assert_eq!(config.words, Vec::<String>::new());
         assert_eq!(config.flag_words, Vec::<String>::new());
+        assert_eq!(config.include_paths, Vec::<String>::new());
         assert_eq!(config.ignore_paths, Vec::<String>::new());
         assert_eq!(config.ignore_patterns, Vec::<String>::new());
         assert!(config.use_global);
@@ -166,6 +177,7 @@ mod tests {
         dictionaries = ["EN_US", "en_GB"]
         words = ["CodeBook", "Rust"]
         flag_words = ["TODO", "FIXME"]
+        include_paths = ["src/**/*.rs", "lib/"]
         ignore_paths = ["**/*.md", "target/"]
         ignore_patterns = ["^```.*$", "^//.*$"]
         use_global = false
@@ -176,6 +188,7 @@ mod tests {
         assert_eq!(config.dictionaries, vec!["en_us", "en_gb"]);
         assert_eq!(config.words, vec!["codebook", "rust"]);
         assert_eq!(config.flag_words, vec!["todo", "fixme"]);
+        assert_eq!(config.include_paths, vec!["src/**/*.rs", "lib/"]);
         assert_eq!(config.ignore_paths, vec!["**/*.md", "target/"]);
 
         // Don't test the exact order, just check that both elements are present
@@ -225,6 +238,7 @@ mod tests {
             dictionaries: vec!["en_us".to_string()],
             words: vec!["codebook".to_string()],
             flag_words: vec!["todo".to_string()],
+            include_paths: vec!["src/".to_string()],
             ignore_paths: vec!["**/*.md".to_string()],
             ignore_patterns: vec!["^```.*$".to_string()],
             use_global: true,
@@ -235,6 +249,7 @@ mod tests {
             dictionaries: vec!["en_gb".to_string(), "en_us".to_string()],
             words: vec!["rust".to_string()],
             flag_words: vec!["fixme".to_string()],
+            include_paths: vec!["lib/".to_string(), "src/".to_string()],
             ignore_paths: vec!["target/".to_string()],
             ignore_patterns: vec!["^//.*$".to_string()],
             use_global: false,
@@ -247,6 +262,7 @@ mod tests {
         assert_eq!(base.dictionaries, vec!["en_gb", "en_us"]);
         assert_eq!(base.words, vec!["codebook", "rust"]);
         assert_eq!(base.flag_words, vec!["fixme", "todo"]);
+        assert_eq!(base.include_paths, vec!["lib/", "src/"]);
         assert_eq!(base.ignore_paths, vec!["**/*.md", "target/"]);
 
         // Don't test the exact order, just check that both elements are present
@@ -294,6 +310,7 @@ mod tests {
                 "rust".to_string(),
             ],
             flag_words: vec!["fixme".to_string(), "todo".to_string(), "fixme".to_string()],
+            include_paths: vec![],
             ignore_paths: vec![
                 "target/".to_string(),
                 "**/*.md".to_string(),
