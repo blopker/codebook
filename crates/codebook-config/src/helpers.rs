@@ -81,6 +81,18 @@ pub(crate) fn insert_ignore(settings: &mut ConfigSettings, file: &str) -> bool {
     true
 }
 
+/// Insert a path into the include list, returning true when it was newly added.
+pub(crate) fn insert_include(settings: &mut ConfigSettings, file: &str) -> bool {
+    let file = file.to_string();
+    if settings.include_paths.contains(&file) {
+        return false;
+    }
+    settings.include_paths.push(file);
+    settings.include_paths.sort();
+    settings.include_paths.dedup();
+    true
+}
+
 /// Resolve configured dictionary IDs, providing a default when none are set.
 pub(crate) fn dictionary_ids(settings: &ConfigSettings) -> Vec<String> {
     if settings.dictionaries.is_empty() {
@@ -98,8 +110,11 @@ fn match_pattern(pattern: &[String], path_str: &str) -> bool {
     })
 }
 
-/// Determine wheter a path should be included based on the configured glob patterns.
+/// Determine whether a path should be included based on the configured glob patterns.
 pub(crate) fn should_include_path(settings: &ConfigSettings, path: &Path) -> bool {
+    if settings.include_paths.is_empty() {
+        return true;
+    }
     let path_str = path.to_string_lossy();
     match_pattern(&settings.include_paths, &path_str)
 }
