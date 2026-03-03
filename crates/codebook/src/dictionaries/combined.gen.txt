@@ -443,6 +443,7 @@ chm
 choices
 chosen
 chrome
+chrono
 chunk
 chzn
 circle
@@ -2087,6 +2088,9 @@ noerror
 nofile
 noframe
 nolink
+nolintbegin
+nolintend
+nolintnextline
 nomatch
 nomethod
 non
@@ -2123,6 +2127,7 @@ ntoa
 null
 nullable
 nullpointerexception
+nullptr
 num
 number
 numpy
@@ -3193,6 +3198,7 @@ tostring
 total
 touch
 tp
+tparam
 tpl
 tprof
 tr

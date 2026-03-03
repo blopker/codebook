@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use tree_sitter::Language;
 
-#[derive(Debug, Clone, PartialEq, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub enum LanguageType {
     Bash,
     C,

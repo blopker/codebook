@@ -57,12 +57,18 @@ def calculatr(numbr1: int, numbr2: float, operashun: str = "+") -> int:
 
 
 # Typed funktion with komplicated type hints
-def prosess_items(itemz: list[str], filtr: Callable[[str], bool], fallbak: str | None = None) -> dict[str, int]:
+def prosess_items(
+    itemz: list[str], filtr: Callable[[str], bool], fallbak: str | None = None
+) -> dict[str, int]:
     resalts = {}
     for itm in itemz:
         if filtr(itm):
             resalts[itm] = len(itm)
     return resalts
+
+
+a = "getConseGroupSale"
+b = "getConsezGroupSale"
 
 
 # Generik funktion (PEP 695)
@@ -76,6 +82,7 @@ def first_elemnt[T](colecshun: Sequence[T], defalt: T | None = None) -> T | None
 def debugg_dekorator(funkshun):
     def wrappr(*args, **kwargs):
         print(f"callin {funkshun.__name__}")
+        a = "callin"
         return funkshun(*args, **kwargs)
 
     return wrappr
