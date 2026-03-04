@@ -18,6 +18,22 @@ fn fatal(msg: impl std::fmt::Display) -> ! {
     std::process::exit(2);
 }
 
+/// Computes a workspace-relative path string for a given file. Falls back to
+/// the absolute path if the file is outside the workspace or canonicalization fails.
+fn relative_to_root(root: &Path, path: &Path) -> String {
+    let root_canonical = match root.canonicalize() {
+        Ok(r) => r,
+        Err(_) => return path.to_string_lossy().to_string(),
+    };
+    match path.canonicalize() {
+        Ok(canon) => match canon.strip_prefix(&root_canonical) {
+            Ok(rel) => rel.to_string_lossy().to_string(),
+            Err(_) => path.to_string_lossy().to_string(),
+        },
+        Err(_) => path.to_string_lossy().to_string(),
+    }
+}
+
 /// Returns `true` if any spelling errors were found.
 pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> bool {
     let config = Arc::new(
@@ -31,28 +47,27 @@ pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> b
     let codebook = Codebook::new(config.clone())
         .unwrap_or_else(|e| fatal(format!("failed to initialize: {e}")));
 
-    let resolved = resolve_paths(files);
+    let resolved = resolve_paths(files, root);
 
     let mut seen_words: HashSet<String> = HashSet::new();
     let mut total_errors = 0usize;
     let mut files_with_errors = 0usize;
 
     for path in &resolved {
-        let error_count = check_file(path, &codebook, &mut seen_words, unique, suggest);
+        let relative = relative_to_root(root, path);
+        let error_count = check_file(path, &relative, &codebook, &mut seen_words, unique, suggest);
         if error_count > 0 {
             total_errors += error_count;
             files_with_errors += 1;
         }
     }
 
-    if total_errors > 0 {
-        let unique_label = if unique { "unique " } else { "" };
-        eprintln!(
-            "Found {} {unique_label}spelling error(s) in {} file(s).",
-            total_errors.if_supports_color(Stream::Stderr, |t| t.style(BOLD)),
-            files_with_errors.if_supports_color(Stream::Stderr, |t| t.style(BOLD)),
-        );
-    }
+    let unique_label = if unique { "unique " } else { "" };
+    eprintln!(
+        "Found {} {unique_label}spelling error(s) in {} file(s).",
+        total_errors.if_supports_color(Stream::Stderr, |t| t.style(BOLD)),
+        files_with_errors.if_supports_color(Stream::Stderr, |t| t.style(BOLD)),
+    );
 
     total_errors > 0
 }
@@ -60,8 +75,10 @@ pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> b
 /// Spell-checks a single file and prints any diagnostics to stdout.
 ///
 /// Returns the number of errors found (0 if the file was clean or unreadable).
+/// `relative` is the workspace-relative path used for display and ignore matching.
 fn check_file(
     path: &Path,
+    relative: &str,
     codebook: &Codebook,
     seen_words: &mut HashSet<String>,
     unique: bool,
@@ -79,10 +96,9 @@ fn check_file(
         }
     };
 
-    let raw = path.to_string_lossy();
-    let display = raw.strip_prefix("./").unwrap_or(&raw);
+    let display = relative.strip_prefix("./").unwrap_or(relative);
 
-    let mut locations = codebook.spell_check(&text, None, path.to_str());
+    let mut locations = codebook.spell_check(&text, None, Some(relative));
     // Sort by first occurrence in the file.
     locations.sort_by_key(|l| l.locations.first().map(|r| r.start_byte).unwrap_or(0));
 
@@ -100,7 +116,14 @@ fn check_file(
             None
         };
 
-        for range in &wl.locations {
+        // In unique mode only emit the first occurrence of each word
+        let ranges = if unique {
+            &wl.locations[..1]
+        } else {
+            &wl.locations[..]
+        };
+
+        for range in ranges {
             let before = &text[..range.start_byte.min(text.len())];
             let line = before.bytes().filter(|&b| b == b'\n').count() + 1;
             let col = before
@@ -179,15 +202,17 @@ fn print_config_source(config: &CodebookConfigFile) {
 }
 
 /// Resolves a mix of file paths, directories, and glob patterns into a sorted,
-/// deduplicated list of file paths.
-fn resolve_paths(patterns: &[String]) -> Vec<PathBuf> {
+/// deduplicated list of file paths. Non-absolute patterns are resolved relative to root.
+fn resolve_paths(patterns: &[String], root: &Path) -> Vec<PathBuf> {
     let mut paths = Vec::new();
     for pattern in patterns {
         let p = PathBuf::from(pattern);
+        let p = if p.is_absolute() { p } else { root.join(&p) };
         if p.is_dir() {
             collect_dir(&p, &mut paths);
         } else {
-            match glob::glob(pattern) {
+            let pattern = p.to_string_lossy();
+            match glob::glob(&pattern) {
                 Ok(entries) => {
                     let mut matched = false;
                     for entry in entries.flatten() {
