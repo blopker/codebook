@@ -39,15 +39,21 @@ enum Commands {
         /// Only report each misspelled word once, ignoring duplicates across files
         #[arg(short = 'u', long)]
         unique: bool,
+        /// Show spelling suggestions for each misspelled word
+        #[arg(short = 's', long)]
+        suggest: bool,
     },
 }
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     // Initialize logger early with stderr output and buffering
-    // Default to INFO level, will be adjusted when LSP client connects
+    // Default to INFO for LSP, WARN for lint (to suppress LSP-oriented noise)
+    let is_lint = std::env::args().nth(1).as_deref() == Some("lint");
     let log_level = match env::var("RUST_LOG").as_deref() {
         Ok("debug") => LevelFilter::Debug,
+        Ok("info") => LevelFilter::Info,
+        _ if is_lint => LevelFilter::Warn,
         _ => LevelFilter::Info,
     };
     LspLogger::init_early(log_level).expect("Failed to initialize early logger");
@@ -68,8 +74,12 @@ async fn main() {
             info!("Cleaning: {:?}", config.cache_dir);
             config.clean_cache()
         }
-        Some(Commands::Lint { files, unique }) => {
-            if lint::run_lint(files, root, *unique) {
+        Some(Commands::Lint {
+            files,
+            unique,
+            suggest,
+        }) => {
+            if lint::run_lint(files, root, *unique, *suggest) {
                 std::process::exit(1);
             }
         }
