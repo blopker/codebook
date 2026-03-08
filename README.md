@@ -265,12 +265,12 @@ words = ["codebook", "rustc"]
 # Default: []
 flag_words = ["todo", "fixme"]
 
-# List of glob patterns for paths to include when spell checking (whitelist)
+# List of glob patterns for paths to include when spell checking (allowlist)
 # Only files matching one of these patterns will be spell-checked.
 # Default: [] (empty = include everything)
 include_paths = ["src/**/*.rs", "lib/**/*.rs"]
 
-# List of glob patterns for paths to ignore when spell checking (blacklist)
+# List of glob patterns for paths to ignore when spell checking (blocklist)
 # Takes precedence over include_paths.
 # Default: []
 ignore_paths = ["target/**/*", "**/*.json", ".git/**/*"]

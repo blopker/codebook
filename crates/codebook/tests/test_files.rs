@@ -19,7 +19,7 @@ fn test_ignore_file() {
 }
 
 #[test]
-fn test_include_paths_whitelist() {
+fn test_include_paths_allowlist() {
     utils::init_logging();
     let processor = utils::get_processor_with_include("**/*.rs");
     assert!(

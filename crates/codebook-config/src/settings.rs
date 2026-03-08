@@ -233,6 +233,20 @@ mod tests {
     }
 
     #[test]
+    fn test_serialization_roundtrip_include_paths() {
+        let config = ConfigSettings {
+            include_paths: vec!["src/**/*.rs".to_string(), "lib/".to_string()],
+            ..Default::default()
+        };
+
+        let serialized = toml::to_string(&config).unwrap();
+        assert!(serialized.contains("include_paths"));
+
+        let deserialized: ConfigSettings = toml::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.include_paths, vec!["src/**/*.rs", "lib/"]);
+    }
+
+    #[test]
     fn test_merge() {
         let mut base = ConfigSettings {
             dictionaries: vec!["en_us".to_string()],

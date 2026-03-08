@@ -38,11 +38,11 @@ impl Codebook {
         file_path: Option<&str>,
     ) -> Vec<parser::WordLocation> {
         if let Some(file_path) = file_path {
-            // ignore_paths is a blacklist and has higher precedence than include_paths
+            // ignore_paths is a blocklist and has higher precedence than include_paths
             if self.config.should_ignore_path(Path::new(file_path)) {
                 return Vec::new();
             }
-            // include_paths is a whitelist; empty list means "include everything"
+            // include_paths is an allowlist; empty list means "include everything"
             if !self.config.should_include_path(Path::new(file_path)) {
                 return Vec::new();
             }
