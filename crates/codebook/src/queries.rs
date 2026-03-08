@@ -84,7 +84,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         ids: &["cpp", "c++"],
         dictionary_ids: &["cpp"],
         query: include_str!("queries/cpp.scm"),
-        extensions: &["cpp", "cc", "cxx", "hpp", "hh", "hxx"],
+        extensions: &["cpp", "cc", "cxx", "hpp", "hh", "hxx", "cppm", "ixx", "mxx"],
     },
     LanguageSetting {
         type_: LanguageType::Elixir,
