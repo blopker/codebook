@@ -1,3 +1,19 @@
+[0.3.32]
+
+- Add Ukrainian dictionary (`uk`)
+- Add `include_paths` option to only allow specific files & paths
+- Add C++ modules extension (`.cppm`)
+- Fix bug where duplicate word misspellings were ignored in release builds
+- Relax base64 regex
+- Update dependencies
+
+[0.3.31]
+
+- Add VHDL language support
+- Add C and C++ word list
+- Fix thread unsafe tree-sitter parsers by adding mutex
+- Regenerate wordlist
+
 [0.3.30]
 
 - Add YAML support
@@ -12,6 +28,10 @@
 [0.3.29]
 
 - Add support for the Erlang language
+
+[0.3.28]
+
+- Fix test regression
 
 [0.3.27]
 
