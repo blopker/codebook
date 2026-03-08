@@ -3082,8 +3082,9 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter-vhdl"
-version = "1.3.1"
-source = "git+https://github.com/jpt13653903/tree-sitter-vhdl?tag=v1.3.1#ec2cb14f68053cf49d1d18cd5742af8e81771ebb"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0feb025ddf87c45bb98335ef2a2493cac08ec6b74d33201d1bf75df2be08de23"
 dependencies = [
  "cc",
  "tree-sitter-language",

@@ -247,16 +247,12 @@ fn find_locations_code(
                             end_byte: global_end,
                         };
                         if let Some(existing_result) = word_locations.get_mut(&word_pos.word) {
-                            #[cfg(debug_assertions)]
-                            {
-                                let added = existing_result.insert(location);
-                                if !added {
-                                    let word = word_pos.word.clone();
-                                    panic!(
-                                        "Two of the same locations found. Make a better query. Word: {word}, Location: {location:?}"
-                                    )
-                                }
-                            }
+                            let added = existing_result.insert(location);
+                            debug_assert!(
+                                added,
+                                "Two of the same locations found. Make a better query. Word: {}, Location: {:?}",
+                                word_pos.word, location
+                            );
                         } else {
                             let mut set = HashSet::new();
                             set.insert(location);
@@ -406,6 +402,19 @@ mod parser_tests {
         } else {
             panic!("Word 'badword' not found in the text");
         }
+    }
+
+    #[test]
+    fn test_duplicate_word_locations() {
+        // Use a code language to exercise find_locations_code path
+        let text = "// wrld foo wrld";
+        let results = find_locations(text, LanguageType::Rust, |_| false, &[]);
+        let wrld = results.iter().find(|loc| loc.word == "wrld").unwrap();
+        assert_eq!(
+            wrld.locations.len(),
+            2,
+            "Expected two locations for repeated word 'wrld'"
+        );
     }
 
     // Something is up with the HTML tree-sitter package
