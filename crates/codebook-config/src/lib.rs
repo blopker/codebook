@@ -24,8 +24,10 @@ pub trait CodebookConfig: Sync + Send + Debug {
     fn add_word(&self, word: &str) -> Result<bool, io::Error>;
     fn add_word_global(&self, word: &str) -> Result<bool, io::Error>;
     fn add_ignore(&self, file: &str) -> Result<bool, io::Error>;
+    fn add_include(&self, file: &str) -> Result<bool, io::Error>;
     fn get_dictionary_ids(&self) -> Vec<String>;
     fn should_ignore_path(&self, path: &Path) -> bool;
+    fn should_include_path(&self, path: &Path) -> bool;
     fn is_allowed_word(&self, word: &str) -> bool;
     fn should_flag_word(&self, word: &str) -> bool;
     fn get_ignore_patterns(&self) -> Option<Vec<Regex>>;
@@ -484,10 +486,21 @@ impl CodebookConfig for CodebookConfigFile {
         Ok(self.update_project_settings(|settings| helpers::insert_ignore(settings, file)))
     }
 
+    /// Add a file to the include list
+    fn add_include(&self, file: &str) -> Result<bool, io::Error> {
+        Ok(self.update_project_settings(|settings| helpers::insert_include(settings, file)))
+    }
+
     /// Get dictionary IDs from effective configuration
     fn get_dictionary_ids(&self) -> Vec<String> {
         let snapshot = self.snapshot();
         helpers::dictionary_ids(&snapshot)
+    }
+
+    /// Check if a path is included based on the effective configuration
+    fn should_include_path(&self, path: &Path) -> bool {
+        let snapshot = self.snapshot();
+        helpers::should_include_path(&snapshot, path)
     }
 
     /// Check if a path should be ignored based on the effective configuration
@@ -575,9 +588,19 @@ impl CodebookConfig for CodebookConfigMemory {
         Ok(helpers::insert_ignore(&mut settings, file))
     }
 
+    fn add_include(&self, file: &str) -> Result<bool, io::Error> {
+        let mut settings = self.settings.write().unwrap();
+        Ok(helpers::insert_include(&mut settings, file))
+    }
+
     fn get_dictionary_ids(&self) -> Vec<String> {
         let snapshot = self.snapshot();
         helpers::dictionary_ids(&snapshot)
+    }
+
+    fn should_include_path(&self, path: &Path) -> bool {
+        let snapshot = self.snapshot();
+        helpers::should_include_path(&snapshot, path)
     }
 
     fn should_ignore_path(&self, path: &Path) -> bool {
@@ -894,6 +917,38 @@ mod tests {
 
         assert!(config.should_ignore_path("target/debug/build".as_ref()));
         assert!(!config.should_ignore_path("src/main.rs".as_ref()));
+    }
+
+    #[test]
+    fn test_should_include_path() {
+        // Empty include_paths: everything is included
+        let config = CodebookConfigFile::default();
+        assert!(config.should_include_path("src/main.rs".as_ref()));
+        assert!(config.should_include_path("target/debug/build".as_ref()));
+
+        // Non-empty include_paths: only matching paths are included
+        let config = CodebookConfigFile::default();
+        {
+            let mut inner = config.inner.write().unwrap();
+            let mut settings = inner
+                .project_config
+                .content()
+                .cloned()
+                .unwrap_or_else(ConfigSettings::default);
+            settings.include_paths.push("**/*.rs".to_string());
+            inner.project_config = inner.project_config.clone().with_content_value(settings);
+
+            // Recalculate effective settings
+            let effective = CodebookConfigFile::calculate_effective_settings(
+                &inner.project_config,
+                &inner.global_config,
+            );
+            inner.snapshot = Arc::new(effective);
+        }
+
+        assert!(config.should_include_path("src/main.rs".as_ref()));
+        assert!(!config.should_include_path("src/main.py".as_ref()));
+        assert!(!config.should_include_path("README.md".as_ref()));
     }
 
     #[test]

@@ -32,7 +32,8 @@ The data model for configuration settings:
 - `dictionaries`: List of dictionary IDs for spell-checking
 - `words`: Custom allowlist of words that should be considered correct
 - `flag_words`: Words that should always be flagged as problematic
-- `ignore_paths`: Glob patterns for file paths to exclude
+- `include_paths`: Glob patterns for file paths to include (allowlist); empty means include everything
+- `ignore_paths`: Glob patterns for file paths to exclude (blocklist); takes precedence over `include_paths`
 - `ignore_patterns`: Regex patterns for text content to ignore
 - `use_global`: Whether to incorporate global configuration (project-config only)
 
@@ -98,11 +99,12 @@ Maintains a temporary cache directory that can be cleaned as needed.
 The crate exposes the following main integration points:
 
 1. `CodebookConfig::load()`: Load both global and project configurations
-3. Core validation methods:
+2. Core validation methods:
    - `is_allowed_word()`
    - `should_flag_word()`
+   - `should_include_path()`
    - `should_ignore_path()`
-4. Configuration manipulation methods:
+3. Configuration manipulation methods:
    - `add_word()`: Add words to project allowlist only
    - `add_word_global()`: Add words to global allowlist only
    - `save()`: Save project configuration only
@@ -117,6 +119,9 @@ let config = CodebookConfig::load(None)?;
 
 // Check if a path should be ignored (uses effective settings)
 let should_ignore = config.should_ignore_path("target/debug/build");
+
+// Check if a path passes the include allowlist (uses effective settings)
+let should_include = config.should_include_path("src/main.rs");
 
 // Check if a word is allowed (uses effective settings)
 let is_allowed = config.is_allowed_word("rustc");
@@ -147,7 +152,13 @@ words = ["codebook", "rustc"]
 # Words that should always be flagged
 flag_words = ["todo", "fixme"]
 
-# Glob patterns for paths to ignore
+# Glob patterns for paths to include (allowlist)
+# Only files matching one of these patterns will be spell-checked.
+# Default: [] (empty = include everything)
+include_paths = ["src/**/*.rs", "lib/"]
+
+# Glob patterns for paths to ignore (blocklist)
+# Takes precedence over include_paths.
 ignore_paths = ["target/**/*", "**/*.md"]
 
 # Regex patterns for text to ignore

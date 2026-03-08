@@ -19,6 +19,50 @@ fn test_ignore_file() {
 }
 
 #[test]
+fn test_include_paths_allowlist() {
+    utils::init_logging();
+    let processor = utils::get_processor_with_include("**/*.rs");
+    assert!(
+        !processor
+            .spell_check("badword", Some(LanguageType::Text), Some("src/main.rs"))
+            .is_empty()
+    );
+    assert!(
+        processor
+            .spell_check("badword", Some(LanguageType::Text), Some("src/main.py"))
+            .is_empty()
+    );
+}
+
+#[test]
+fn test_include_paths_empty_includes_everything() {
+    utils::init_logging();
+    let processor = utils::get_processor();
+    assert!(
+        !processor
+            .spell_check("badword", Some(LanguageType::Text), Some("src/main.rs"))
+            .is_empty()
+    );
+    assert!(
+        !processor
+            .spell_check("badword", Some(LanguageType::Text), Some("src/main.py"))
+            .is_empty()
+    );
+}
+
+#[test]
+fn test_ignore_paths_takes_precedence_over_include_paths() {
+    utils::init_logging();
+    let processor = utils::get_processor_with_include_and_ignore("**/*.rs", "**/*.rs");
+    assert_eq!(
+        processor
+            .spell_check("badword", Some(LanguageType::Text), Some("src/main.rs"))
+            .len(),
+        0
+    );
+}
+
+#[test]
 fn test_example_files_word_locations() {
     utils::init_logging();
     let files: Vec<(&str, Vec<WordLocation>)> = vec![
