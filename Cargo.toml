@@ -12,6 +12,7 @@ documentation = "https://github.com/blopker/codebook"
 license = "MIT"
 edition = "2024"
 
+# Note, all dependencies MUST be available on crates.io, no git imports, or Codebook cannot be released as a crate.
 [workspace.dependencies]
 anyhow = "1.0.71"
 chrono = { version = "0.4", features = ["serde"] }
