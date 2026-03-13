@@ -7,7 +7,7 @@ import * as https from "node:https";
 import type { IncomingMessage } from "node:http";
 import { pipeline } from "node:stream/promises";
 import AdmZip from "adm-zip";
-import tar from "tar";
+import * as tar from "tar";
 import which from "which";
 
 const BINARY_BASENAME = "codebook-lsp";
