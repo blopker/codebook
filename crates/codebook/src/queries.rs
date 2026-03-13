@@ -117,7 +117,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::Javascript,
-        ids: &["javascript", "javascriptreact"],
+        ids: &["javascript", "javascriptreact", "jsx"],
         dictionary_ids: &["javascript", "javascriptreact"],
         query: include_str!("queries/javascript.scm"),
         extensions: &["js", "jsx"],
@@ -138,7 +138,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::Tsx,
-        ids: &["typescriptreact"],
+        ids: &["typescriptreact", "tsx"],
         dictionary_ids: &["typescriptreact"],
         query: include_str!("queries/typescript.scm"),
         extensions: &["tsx"],
