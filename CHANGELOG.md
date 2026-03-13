@@ -1,3 +1,8 @@
+[0.3.33]
+
+- Fix TSX/JSX language detection in editors that use non-VS Code language IDs (e.g., Zed)
+- Update dependencies
+
 [0.3.32]
 
 - Add Ukrainian dictionary (`uk`)
