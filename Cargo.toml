@@ -30,6 +30,7 @@ regex = "1.11.1"
 reqwest = { version = "^0.13.0", default-features = false, features = ["blocking", "rustls", "json"] }
 rustls = { version = "<0.24", features = ["aws-lc-rs"] }
 rustls-platform-verifier = "0.6.0"
+webpki-roots = "<2"
 serde = { version = "1", features = ["derive", "serde_derive"] }
 serde_json = "1"
 sha2 = "0.10.6"

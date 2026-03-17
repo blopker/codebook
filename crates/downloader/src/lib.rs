@@ -4,6 +4,7 @@ use log::info;
 use reqwest::blocking::{Client, Response};
 use reqwest::header::{IF_MODIFIED_SINCE, LAST_MODIFIED};
 use rustls::ClientConfig;
+#[cfg(not(target_os = "android"))]
 use rustls_platform_verifier::BuilderVerifierExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -54,20 +55,45 @@ impl Downloader {
 
     fn client(&self) -> &Client {
         self._client.get_or_init(|| {
-            // Set up rustls_platform_verifier to use OS cert chains (proxy support)
             let arc_crypto_provider =
                 std::sync::Arc::new(rustls::crypto::aws_lc_rs::default_provider());
-            let config = ClientConfig::builder_with_provider(arc_crypto_provider)
-                .with_safe_default_protocol_versions()
-                .unwrap()
-                .with_platform_verifier()
-                .unwrap()
-                .with_no_client_auth();
+            let config = Self::build_tls_config(arc_crypto_provider);
             reqwest::blocking::Client::builder()
                 .use_preconfigured_tls(config)
                 .build()
-                .expect("Failed to build http client")
+                .expect("codebook: failed to build HTTP client")
         })
+    }
+
+    #[cfg(not(target_os = "android"))]
+    fn build_tls_config(crypto_provider: std::sync::Arc<rustls::crypto::CryptoProvider>) -> ClientConfig {
+        // Try OS cert chains first (proxy support), fall back to bundled Mozilla roots
+        ClientConfig::builder_with_provider(crypto_provider.clone())
+            .with_safe_default_protocol_versions()
+            .expect("codebook: failed to configure TLS protocol versions")
+            .with_platform_verifier()
+            .map(|config| config.with_no_client_auth())
+            .unwrap_or_else(|e| {
+                log::warn!("Platform verifier unavailable, using bundled roots: {e}");
+                Self::build_webpki_tls_config(crypto_provider)
+            })
+    }
+
+    #[cfg(target_os = "android")]
+    fn build_tls_config(crypto_provider: std::sync::Arc<rustls::crypto::CryptoProvider>) -> ClientConfig {
+        // Android (Termux) doesn't support rustls-platform-verifier without JNI,
+        // so use bundled Mozilla CA roots directly.
+        Self::build_webpki_tls_config(crypto_provider)
+    }
+
+    fn build_webpki_tls_config(crypto_provider: std::sync::Arc<rustls::crypto::CryptoProvider>) -> ClientConfig {
+        let mut root_store = rustls::RootCertStore::empty();
+        root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+        ClientConfig::builder_with_provider(crypto_provider)
+            .with_safe_default_protocol_versions()
+            .expect("codebook: failed to configure TLS protocol versions")
+            .with_root_certificates(root_store)
+            .with_no_client_auth()
     }
 
     fn metadata(&self) -> &RwLock<Metadata> {
