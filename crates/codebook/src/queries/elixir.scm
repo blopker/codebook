@@ -8,17 +8,17 @@
   (quoted_atom)
   (keyword)
   (quoted_keyword)
-] @string.special.symbol
+] @string.special
 (comment) @comment
 
-(alias) @identifier
+(alias) @identifier.type
 
 (call
     (arguments
         (identifier) @identifier))
 
 (call
-    (identifier) @identifier)
+    (identifier) @identifier.function)
 
 (binary_operator
-    left: (identifier) @identifier)
+    left: (identifier) @identifier.variable)
