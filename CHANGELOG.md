@@ -1,3 +1,7 @@
+[0.3.34]
+
+- Fix crash in Termux by falling back to bundled Mozilla CA roots on Android (#230)
+
 [0.3.33]
 
 - Fix TSX/JSX language detection in editors that use non-VS Code language IDs (e.g., Zed)
