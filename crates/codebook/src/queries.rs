@@ -361,4 +361,54 @@ mod tests {
             );
         }
     }
+
+    /// Allowed full capture names. Any capture in a .scm file must be one of these.
+    /// The special "language" tag is used internally (e.g., ruby heredocs) and is
+    /// not exposed for user filtering.
+    const ALLOWED_TAGS: &[&str] = &[
+        "comment",
+        "comment.line",
+        "comment.block",
+        "string",
+        "string.special",
+        "string.heredoc",
+        "identifier",
+        "identifier.function",
+        "identifier.type",
+        "identifier.parameter",
+        "identifier.field",
+        "identifier.variable",
+        "identifier.constant",
+        "identifier.module",
+        "language",
+    ];
+
+    #[test]
+    fn test_all_capture_names_use_allowed_tags() {
+        for language_setting in LANGUAGE_SETTINGS {
+            if language_setting.type_ == LanguageType::Text {
+                continue;
+            }
+
+            let language = language_setting
+                .language()
+                .unwrap_or_else(|| panic!("Failed to get language for {:?}", language_setting.type_));
+
+            let query = Query::new(&language, language_setting.query).unwrap_or_else(|e| {
+                panic!(
+                    "Invalid query for language {:?}: {:?}",
+                    language_setting.type_, e
+                )
+            });
+
+            for name in query.capture_names() {
+                assert!(
+                    ALLOWED_TAGS.contains(&name.as_ref()),
+                    "Language {:?} uses unknown capture tag @{name}. \
+                     Allowed tags: {ALLOWED_TAGS:?}",
+                    language_setting.type_,
+                );
+            }
+        }
+    }
 }
