@@ -2,7 +2,8 @@ mod helpers;
 mod settings;
 mod watched_file;
 use crate::helpers::expand_tilde;
-use crate::settings::ConfigSettings;
+pub use crate::settings::ConfigSettings;
+
 use crate::watched_file::WatchedFile;
 use log::debug;
 use log::info;
@@ -32,6 +33,7 @@ pub trait CodebookConfig: Sync + Send + Debug {
     fn should_flag_word(&self, word: &str) -> bool;
     fn get_ignore_patterns(&self) -> Option<Vec<Regex>>;
     fn get_min_word_length(&self) -> usize;
+    fn should_check_tag(&self, tag: &str) -> bool;
     fn cache_dir(&self) -> &Path;
 }
 
@@ -537,6 +539,10 @@ impl CodebookConfig for CodebookConfigFile {
         helpers::min_word_length(&self.snapshot())
     }
 
+    fn should_check_tag(&self, tag: &str) -> bool {
+        self.snapshot().should_check_tag(tag)
+    }
+
     fn cache_dir(&self) -> &Path {
         &self.cache_dir
     }
@@ -625,6 +631,10 @@ impl CodebookConfig for CodebookConfigMemory {
 
     fn get_min_word_length(&self) -> usize {
         helpers::min_word_length(&self.snapshot())
+    }
+
+    fn should_check_tag(&self, tag: &str) -> bool {
+        self.snapshot().should_check_tag(tag)
     }
 
     fn cache_dir(&self) -> &Path {

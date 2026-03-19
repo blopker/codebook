@@ -177,6 +177,7 @@ pub fn find_locations(
     text: &str,
     language: LanguageType,
     check_function: impl Fn(&str) -> bool,
+    tag_filter: impl Fn(&str) -> bool,
     skip_patterns: &[Regex],
 ) -> Vec<WordLocation> {
     match language {
@@ -184,7 +185,13 @@ pub fn find_locations(
             let processor = TextProcessor::new(text, skip_patterns);
             processor.process_words_with_check(|word| check_function(word))
         }
-        _ => find_locations_code(text, language, |word| check_function(word), skip_patterns),
+        _ => find_locations_code(
+            text,
+            language,
+            |word| check_function(word),
+            &tag_filter,
+            skip_patterns,
+        ),
     }
 }
 
@@ -192,6 +199,7 @@ fn find_locations_code(
     text: &str,
     language: LanguageType,
     check_function: impl Fn(&str) -> bool,
+    tag_filter: &dyn Fn(&str) -> bool,
     skip_patterns: &[Regex],
 ) -> Vec<WordLocation> {
     let language_setting =
@@ -213,6 +221,7 @@ fn find_locations_code(
     let root_node = tree.root_node();
     let lang = language_setting.language().unwrap();
     let query = Query::new(&lang, language_setting.query).unwrap();
+    let capture_names = query.capture_names();
     let mut cursor = QueryCursor::new();
     let mut word_locations: HashMap<String, HashSet<TextRange>> = HashMap::new();
     let provider = text.as_bytes();
@@ -223,6 +232,12 @@ fn find_locations_code(
 
     while let Some(match_) = matches_query.next() {
         for capture in match_.captures {
+            // Filter by tag
+            let tag = &capture_names[capture.index as usize];
+            if !tag_filter(tag) {
+                continue;
+            }
+
             let node = capture.node;
             let node_start_byte = node.start_byte();
 
@@ -303,7 +318,7 @@ mod parser_tests {
     #[test]
     fn test_spell_checking() {
         let text = "HelloWorld calc_wrld";
-        let results = find_locations(text, LanguageType::Text, |_| false, &[]);
+        let results = find_locations(text, LanguageType::Text, |_| false, |_| true, &[]);
         println!("{results:?}");
         assert_eq!(results.len(), 4);
     }
@@ -408,7 +423,7 @@ mod parser_tests {
     fn test_duplicate_word_locations() {
         // Use a code language to exercise find_locations_code path
         let text = "// wrld foo wrld";
-        let results = find_locations(text, LanguageType::Rust, |_| false, &[]);
+        let results = find_locations(text, LanguageType::Rust, |_| false, |_| true, &[]);
         let wrld = results.iter().find(|loc| loc.word == "wrld").unwrap();
         assert_eq!(
             wrld.locations.len(),
