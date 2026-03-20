@@ -45,6 +45,11 @@ impl FromStr for LanguageType {
                     return Ok(language.type_);
                 }
             }
+            for ext in language.extensions.iter() {
+                if s == *ext {
+                    return Ok(language.type_);
+                }
+            }
         }
         Ok(LanguageType::Text)
     }
@@ -209,7 +214,15 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::Bash,
-        ids: &["bash", "shellscript", "sh", "shell script"],
+        ids: &[
+            "bash",
+            "shellscript",
+            "sh",
+            "shell script",
+            "shell",
+            "zsh",
+            "fish",
+        ],
         dictionary_ids: &["bash"],
         query: include_str!("queries/bash.scm"),
         extensions: &["sh", "bash"],
@@ -237,7 +250,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::YAML,
-        ids: &["yaml"],
+        ids: &["yaml", "yml"],
         dictionary_ids: &["yaml"],
         query: include_str!("queries/yaml.scm"),
         extensions: &["yaml", "yml"],
@@ -403,9 +416,9 @@ mod tests {
                 continue;
             }
 
-            let language = language_setting
-                .language()
-                .unwrap_or_else(|| panic!("Failed to get language for {:?}", language_setting.type_));
+            let language = language_setting.language().unwrap_or_else(|| {
+                panic!("Failed to get language for {:?}", language_setting.type_)
+            });
 
             let query = Query::new(&language, language_setting.query).unwrap_or_else(|e| {
                 panic!(
@@ -416,11 +429,43 @@ mod tests {
 
             for name in query.capture_names() {
                 assert!(
-                    ALLOWED_TAGS.contains(&name.as_ref()),
+                    ALLOWED_TAGS.contains(name),
                     "Language {:?} uses unknown capture tag @{name}. \
                      Allowed tags: {ALLOWED_TAGS:?}",
                     language_setting.type_,
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn test_no_overlap_in_ids_and_extensions() {
+        use std::collections::HashMap;
+
+        // Map every id and extension to the language that owns it
+        let mut seen: HashMap<&str, LanguageType> = HashMap::new();
+
+        for setting in LANGUAGE_SETTINGS {
+            for &id in setting.ids {
+                if let Some(&prev) = seen.get(id) {
+                    panic!(
+                        "Duplicate id/extension {id:?}: used by both {:?} and {:?}",
+                        prev, setting.type_
+                    );
+                }
+                seen.insert(id, setting.type_);
+            }
+            for &ext in setting.extensions {
+                if let Some(&prev) = seen.get(ext) {
+                    // Allow overlap within the same language (e.g. "hs" in both ids and extensions)
+                    if prev != setting.type_ {
+                        panic!(
+                            "Duplicate id/extension {ext:?}: used by both {:?} and {:?}",
+                            prev, setting.type_
+                        );
+                    }
+                }
+                seen.insert(ext, setting.type_);
             }
         }
     }

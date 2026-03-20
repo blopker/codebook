@@ -37,36 +37,15 @@ pub fn extract_regions(text: &str, language: LanguageType) -> Vec<TextRegion> {
 }
 
 /// Map markdown info strings to LanguageType.
-/// Handles common aliases beyond what LanguageType::from_str covers.
+/// Uses LanguageType::from_str which checks ids and file extensions
+/// in LANGUAGE_SETTINGS. Returns None for unknown or empty strings.
 fn resolve_info_string(info: &str) -> Option<LanguageType> {
     let trimmed = info.trim().to_lowercase();
     if trimmed.is_empty() {
         return None;
     }
-    // Try common aliases first
-    let lang = match trimmed.as_str() {
-        "py" => Some(LanguageType::Python),
-        "js" => Some(LanguageType::Javascript),
-        "ts" => Some(LanguageType::Typescript),
-        "tsx" => Some(LanguageType::Tsx),
-        "jsx" => Some(LanguageType::Javascript),
-        "sh" | "zsh" | "fish" | "shell" => Some(LanguageType::Bash),
-        "yml" => Some(LanguageType::YAML),
-        "c++" | "cc" | "cxx" | "hpp" => Some(LanguageType::Cpp),
-        "cs" => Some(LanguageType::CSharp),
-        "rb" => Some(LanguageType::Ruby),
-        "rs" => Some(LanguageType::Rust),
-        "tex" => Some(LanguageType::Latex),
-        _ => None,
-    };
-
-    if lang.is_some() {
-        return lang;
-    }
-
-    // Fall back to from_str which handles VS Code language IDs
     match LanguageType::from_str(&trimmed) {
-        Ok(LanguageType::Text) => None, // from_str returns Text for unknown, treat as unknown
+        Ok(LanguageType::Text) => None, // from_str returns Text for unknown
         Ok(lang) => Some(lang),
         Err(_) => None,
     }
@@ -80,13 +59,11 @@ fn extract_markdown_regions(text: &str) -> Vec<TextRegion> {
 
     let tree = {
         let mut cache = REGION_PARSER_CACHE.lock().unwrap();
-        let parser = cache
-            .entry(LanguageType::Markdown)
-            .or_insert_with(|| {
-                let mut parser = Parser::new();
-                parser.set_language(&lang).unwrap();
-                parser
-            });
+        let parser = cache.entry(LanguageType::Markdown).or_insert_with(|| {
+            let mut parser = Parser::new();
+            parser.set_language(&lang).unwrap();
+            parser
+        });
         parser.parse(text, None).unwrap()
     };
 
@@ -112,11 +89,7 @@ fn extract_markdown_regions(text: &str) -> Vec<TextRegion> {
 }
 
 /// Recursively walk markdown AST to find prose and code block regions.
-fn walk_markdown_node(
-    node: tree_sitter::Node,
-    source: &[u8],
-    regions: &mut Vec<TextRegion>,
-) {
+fn walk_markdown_node(node: tree_sitter::Node, source: &[u8], regions: &mut Vec<TextRegion>) {
     match node.kind() {
         "fenced_code_block" => {
             // Find info_string and code_fence_content children
@@ -142,20 +115,26 @@ fn walk_markdown_node(
                 }
             }
 
-            if let Some((start, end)) = code_content {
-                if start < end {
-                    if let Some(info) = info_string {
-                        if let Some(lang) = resolve_info_string(&info) {
-                            regions.push(TextRegion {
-                                start_byte: start,
-                                end_byte: end,
-                                language: lang,
-                            });
-                        }
-                        // If info string is unknown, skip the code block entirely
-                    }
-                    // If no info string, skip the code block entirely
-                }
+            if let Some((start, end)) = code_content
+                && start < end
+                && let Some(info) = info_string
+                && let Some(lang) = resolve_info_string(&info)
+            {
+                regions.push(TextRegion {
+                    start_byte: start,
+                    end_byte: end,
+                    language: lang,
+                });
+            }
+        }
+        "html_block" => {
+            // Block-level HTML — treat as an HTML region
+            if node.start_byte() < node.end_byte() {
+                regions.push(TextRegion {
+                    start_byte: node.start_byte(),
+                    end_byte: node.end_byte(),
+                    language: LanguageType::HTML,
+                });
             }
         }
         "inline" => {
@@ -232,7 +211,10 @@ mod tests {
             .iter()
             .filter(|r| r.language == LanguageType::Markdown)
             .collect();
-        assert!(md_regions.len() >= 2, "Expected at least 2 markdown prose regions");
+        assert!(
+            md_regions.len() >= 2,
+            "Expected at least 2 markdown prose regions"
+        );
     }
 
     #[test]
@@ -256,6 +238,25 @@ mod tests {
     }
 
     #[test]
+    fn test_markdown_html_block() {
+        let text = "# Hello\n\n<div class=\"foo\">\n  <p>A paragraph</p>\n</div>\n\nMore text.\n";
+        let regions = extract_regions(text, LanguageType::Markdown);
+        println!("Regions: {regions:#?}");
+
+        let html_regions: Vec<_> = regions
+            .iter()
+            .filter(|r| r.language == LanguageType::HTML)
+            .collect();
+        assert_eq!(html_regions.len(), 1, "Expected one HTML region");
+
+        let md_regions: Vec<_> = regions
+            .iter()
+            .filter(|r| r.language == LanguageType::Markdown)
+            .collect();
+        assert!(md_regions.len() >= 2, "Expected heading + paragraph prose regions");
+    }
+
+    #[test]
     fn test_resolve_info_string_aliases() {
         assert_eq!(resolve_info_string("py"), Some(LanguageType::Python));
         assert_eq!(resolve_info_string("js"), Some(LanguageType::Javascript));
@@ -272,7 +273,10 @@ mod tests {
     #[test]
     fn test_resolve_info_string_vscode_ids() {
         assert_eq!(resolve_info_string("python"), Some(LanguageType::Python));
-        assert_eq!(resolve_info_string("javascript"), Some(LanguageType::Javascript));
+        assert_eq!(
+            resolve_info_string("javascript"),
+            Some(LanguageType::Javascript)
+        );
         assert_eq!(resolve_info_string("rust"), Some(LanguageType::Rust));
         assert_eq!(resolve_info_string("bash"), Some(LanguageType::Bash));
         assert_eq!(resolve_info_string("go"), Some(LanguageType::Go));
@@ -283,8 +287,14 @@ mod tests {
         let text = "Text.\n\n```bash\nmkdir dir\n```\n\n```python\nx = 1\n```\n\nEnd.\n";
         let regions = extract_regions(text, LanguageType::Markdown);
 
-        let bash_regions: Vec<_> = regions.iter().filter(|r| r.language == LanguageType::Bash).collect();
-        let python_regions: Vec<_> = regions.iter().filter(|r| r.language == LanguageType::Python).collect();
+        let bash_regions: Vec<_> = regions
+            .iter()
+            .filter(|r| r.language == LanguageType::Bash)
+            .collect();
+        let python_regions: Vec<_> = regions
+            .iter()
+            .filter(|r| r.language == LanguageType::Python)
+            .collect();
 
         assert_eq!(bash_regions.len(), 1);
         assert_eq!(python_regions.len(), 1);
@@ -294,8 +304,14 @@ mod tests {
     fn test_markdown_code_block_content_correct() {
         let text = "Hello.\n\n```python\ndef foo():\n    pass\n```\n";
         let regions = extract_regions(text, LanguageType::Markdown);
-        let py = regions.iter().find(|r| r.language == LanguageType::Python).unwrap();
+        let py = regions
+            .iter()
+            .find(|r| r.language == LanguageType::Python)
+            .unwrap();
         let content = &text[py.start_byte..py.end_byte];
-        assert!(content.contains("def foo()"), "Expected python code, got: {content:?}");
+        assert!(
+            content.contains("def foo()"),
+            "Expected python code, got: {content:?}"
+        );
     }
 }
