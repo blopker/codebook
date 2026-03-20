@@ -488,4 +488,5 @@ mod tests {
         assert_eq!(bw.start_byte, 7);
         assert_eq!(bw.end_byte, 14);
     }
+
 }

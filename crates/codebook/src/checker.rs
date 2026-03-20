@@ -13,25 +13,6 @@ pub struct WordCandidate {
     pub end_byte: usize,
 }
 
-/// Check if a word should be flagged based on config and dictionaries.
-/// Returns true if the word is correct (should NOT be flagged).
-fn is_word_correct(
-    word: &str,
-    dictionaries: &[std::sync::Arc<dyn Dictionary>],
-    config: &dyn CodebookConfig,
-) -> bool {
-    if config.should_flag_word(word) {
-        return false;
-    }
-    if word.len() < config.get_min_word_length() {
-        return true;
-    }
-    if config.is_allowed_word(word) {
-        return true;
-    }
-    dictionaries.iter().any(|dict| dict.check(word))
-}
-
 /// Check candidate words against dictionaries and config rules.
 /// Returns WordLocations for misspelled words, grouping all locations
 /// of the same word together.
@@ -40,14 +21,9 @@ pub fn check_words(
     dictionaries: &[std::sync::Arc<dyn Dictionary>],
     config: &dyn CodebookConfig,
 ) -> Vec<WordLocation> {
-    // Group misspelled candidates by word, deduplicating identical spans.
-    // Only misspelled words are inserted, matching the old behavior where
-    // the debug_assert caught query bugs producing duplicate misspelling locations.
+    // Group candidates by word text, deduplicating identical spans.
     let mut word_positions: HashMap<&str, HashSet<TextRange>> = HashMap::new();
     for candidate in candidates {
-        if is_word_correct(&candidate.word, dictionaries, config) {
-            continue;
-        }
         let location = TextRange {
             start_byte: candidate.start_byte,
             end_byte: candidate.end_byte,
@@ -64,10 +40,26 @@ pub fn check_words(
         );
     }
 
-    word_positions
-        .into_iter()
-        .map(|(word, positions)| WordLocation::new(word.to_string(), positions.into_iter().collect()))
-        .collect()
+    // Check each unique word once
+    let mut results = Vec::new();
+    for (word, positions) in word_positions {
+        let positions: Vec<TextRange> = positions.into_iter().collect();
+        if config.should_flag_word(word) {
+            results.push(WordLocation::new(word.to_string(), positions));
+            continue;
+        }
+        if word.len() < config.get_min_word_length() {
+            continue;
+        }
+        if config.is_allowed_word(word) {
+            continue;
+        }
+        let is_correct = dictionaries.iter().any(|dict| dict.check(word));
+        if !is_correct {
+            results.push(WordLocation::new(word.to_string(), positions));
+        }
+    }
+    results
 }
 
 #[cfg(test)]
