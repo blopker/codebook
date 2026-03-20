@@ -1,5 +1,5 @@
 use crate::checker::WordCandidate;
-use crate::queries::{LanguageType, get_language_setting};
+use crate::queries::{LanguageType, LANGUAGE_SETTINGS, get_language_setting};
 use crate::splitter;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
@@ -14,6 +14,40 @@ use unicode_segmentation::UnicodeSegmentation;
 /// use global mutable C state (e.g. tree-sitter-vhdl's static TokenTree).
 static PARSER_CACHE: LazyLock<Mutex<HashMap<LanguageType, Parser>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Pre-compiled query for a language, with its capture names.
+struct CompiledQuery {
+    query: Query,
+    capture_names: Vec<String>,
+}
+
+/// All tree-sitter queries compiled eagerly at startup. Since queries come
+/// from static `include_str!` data, they never change at runtime. Compiling
+/// them once here means bad queries panic immediately rather than hiding
+/// until a user opens that file type.
+static COMPILED_QUERIES: LazyLock<HashMap<LanguageType, CompiledQuery>> = LazyLock::new(|| {
+    let mut map = HashMap::new();
+    for setting in LANGUAGE_SETTINGS {
+        let Some(lang) = setting.language() else {
+            continue;
+        };
+        if setting.query.is_empty() {
+            continue;
+        }
+        let query = Query::new(&lang, setting.query).unwrap_or_else(|e| {
+            panic!(
+                "Failed to compile query for {:?}: {e}",
+                setting.type_
+            )
+        });
+        let capture_names = query.capture_names().iter().map(|s| s.to_string()).collect();
+        map.insert(setting.type_, CompiledQuery {
+            query,
+            capture_names,
+        });
+    }
+    map
+});
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Ord, Eq, PartialOrd, Hash)]
@@ -166,18 +200,12 @@ fn extract_recursive(
     };
 
     let root_node = tree.root_node();
-    let lang = language_setting.language().unwrap();
-    // Query compilation is cheap (microseconds for small .scm files).
-    // Caching would conflict with the recursive mutex on PARSER_CACHE.
-    let query = Query::new(&lang, language_setting.query).unwrap();
-    let capture_names: Vec<String> = query
-        .capture_names()
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
+    let compiled = COMPILED_QUERIES.get(&language).expect(
+        "Language has a LanguageSetting but no compiled query — this should not happen",
+    );
     let mut cursor = QueryCursor::new();
     let provider = region_text.as_bytes();
-    let mut matches_query = cursor.matches(&query, root_node, provider);
+    let mut matches_query = cursor.matches(&compiled.query, root_node, provider);
 
     while let Some(match_) = matches_query.next() {
         // First pass: look for dynamic injection pairs in this match
@@ -185,7 +213,7 @@ fn extract_recursive(
         let mut injection_language_text: Option<String> = None;
 
         for capture in match_.captures {
-            let tag = &capture_names[capture.index as usize];
+            let tag = &compiled.capture_names[capture.index as usize];
             if tag == "injection.content" {
                 injection_content = Some(capture.node);
             } else if tag == "injection.language" {
@@ -222,7 +250,7 @@ fn extract_recursive(
 
         // Second pass: handle text captures and static injections
         for capture in match_.captures {
-            let tag = &capture_names[capture.index as usize];
+            let tag = &compiled.capture_names[capture.index as usize];
             let node = capture.node;
             let node_start = node.start_byte() + start_byte;
             let node_end = node.end_byte() + start_byte;
