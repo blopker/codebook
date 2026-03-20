@@ -170,15 +170,19 @@ def calculat_age():
 
 #[test]
 fn test_injection_no_filters_returns_all() {
-    let words = check(
-        MARKDOWN_WITH_PYTHON,
-        LanguageType::Markdown,
-        vec![],
-        vec![],
+    let words = check(MARKDOWN_WITH_PYTHON, LanguageType::Markdown, vec![], vec![]);
+    assert!(
+        words.contains(&"commet".to_string()),
+        "missing comment typo from injected python"
     );
-    assert!(words.contains(&"commet".to_string()), "missing comment typo from injected python");
-    assert!(words.contains(&"calculat".to_string()), "missing identifier typo from injected python");
-    assert!(words.contains(&"strng".to_string()), "missing string typo from injected python");
+    assert!(
+        words.contains(&"calculat".to_string()),
+        "missing identifier typo from injected python"
+    );
+    assert!(
+        words.contains(&"strng".to_string()),
+        "missing string typo from injected python"
+    );
 }
 
 #[test]
@@ -191,9 +195,18 @@ fn test_injection_include_comments_only() {
         vec!["comment"],
         vec![],
     );
-    assert!(words.contains(&"commet".to_string()), "comment typo should be found");
-    assert!(!words.contains(&"calculat".to_string()), "identifier should be excluded in injected region");
-    assert!(!words.contains(&"strng".to_string()), "string should be excluded in injected region");
+    assert!(
+        words.contains(&"commet".to_string()),
+        "comment typo should be found"
+    );
+    assert!(
+        !words.contains(&"calculat".to_string()),
+        "identifier should be excluded in injected region"
+    );
+    assert!(
+        !words.contains(&"strng".to_string()),
+        "string should be excluded in injected region"
+    );
 }
 
 #[test]
@@ -206,9 +219,18 @@ fn test_injection_exclude_identifiers() {
         vec![],
         vec!["identifier"],
     );
-    assert!(words.contains(&"commet".to_string()), "comment should still be checked");
-    assert!(words.contains(&"strng".to_string()), "string should still be checked");
-    assert!(!words.contains(&"calculat".to_string()), "identifier should be excluded in injected region");
+    assert!(
+        words.contains(&"commet".to_string()),
+        "comment should still be checked"
+    );
+    assert!(
+        words.contains(&"strng".to_string()),
+        "string should still be checked"
+    );
+    assert!(
+        !words.contains(&"calculat".to_string()),
+        "identifier should be excluded in injected region"
+    );
 }
 
 #[test]
@@ -221,9 +243,18 @@ fn test_injection_include_strings_only() {
         vec!["string"],
         vec![],
     );
-    assert!(words.contains(&"strng".to_string()), "string typo in injected python should be found");
-    assert!(!words.contains(&"commet".to_string()), "comment should be excluded");
-    assert!(!words.contains(&"calculat".to_string()), "identifier should be excluded");
+    assert!(
+        words.contains(&"strng".to_string()),
+        "string typo in injected python should be found"
+    );
+    assert!(
+        !words.contains(&"commet".to_string()),
+        "comment should be excluded"
+    );
+    assert!(
+        !words.contains(&"calculat".to_string()),
+        "identifier should be excluded"
+    );
 }
 
 #[test]

@@ -118,11 +118,7 @@ mod tests {
         let dict = Arc::new(TextDictionary::new("hello\n"));
         let config = Arc::new(codebook_config::CodebookConfigMemory::default());
         // Same word at the exact same position — should be deduplicated
-        let candidates = make_candidates(&[
-            ("wrld", 0, 4),
-            ("wrld", 0, 4),
-            ("wrld", 0, 4),
-        ]);
+        let candidates = make_candidates(&[("wrld", 0, 4), ("wrld", 0, 4), ("wrld", 0, 4)]);
         let results = check_words(&candidates, &[dict], config.as_ref());
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].word, "wrld");

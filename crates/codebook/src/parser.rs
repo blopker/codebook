@@ -1,5 +1,5 @@
 use crate::checker::WordCandidate;
-use crate::queries::{LanguageType, LANGUAGE_SETTINGS, get_language_setting};
+use crate::queries::{LANGUAGE_SETTINGS, LanguageType, get_language_setting};
 use crate::splitter;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
@@ -34,21 +34,23 @@ static COMPILED_QUERIES: LazyLock<HashMap<LanguageType, CompiledQuery>> = LazyLo
         if setting.query.is_empty() {
             continue;
         }
-        let query = Query::new(&lang, setting.query).unwrap_or_else(|e| {
-            panic!(
-                "Failed to compile query for {:?}: {e}",
-                setting.type_
-            )
-        });
-        let capture_names = query.capture_names().iter().map(|s| s.to_string()).collect();
-        map.insert(setting.type_, CompiledQuery {
-            query,
-            capture_names,
-        });
+        let query = Query::new(&lang, setting.query)
+            .unwrap_or_else(|e| panic!("Failed to compile query for {:?}: {e}", setting.type_));
+        let capture_names = query
+            .capture_names()
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        map.insert(
+            setting.type_,
+            CompiledQuery {
+                query,
+                capture_names,
+            },
+        );
     }
     map
 });
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Ord, Eq, PartialOrd, Hash)]
 pub struct TextRange {
@@ -200,9 +202,9 @@ fn extract_recursive(
     };
 
     let root_node = tree.root_node();
-    let compiled = COMPILED_QUERIES.get(&language).expect(
-        "Language has a LanguageSetting but no compiled query — this should not happen",
-    );
+    let compiled = COMPILED_QUERIES
+        .get(&language)
+        .expect("Language has a LanguageSetting but no compiled query — this should not happen");
     let mut cursor = QueryCursor::new();
     let provider = region_text.as_bytes();
     let mut matches_query = cursor.matches(&compiled.query, root_node, provider);
@@ -356,11 +358,11 @@ mod tests {
     fn test_extract_words_plain_text() {
         let text = "HelloWorld calc_wrld";
         let (words, langs) = extract_all_words(text, LanguageType::Text, &|_| true, &[]);
-        let word_strs: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
-        assert!(word_strs.contains(&"Hello"));
-        assert!(word_strs.contains(&"World"));
-        assert!(word_strs.contains(&"calc"));
-        assert!(word_strs.contains(&"wrld"));
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
+        assert!(word_strings.contains(&"Hello"));
+        assert!(word_strings.contains(&"World"));
+        assert!(word_strings.contains(&"calc"));
+        assert!(word_strings.contains(&"wrld"));
         assert_eq!(words.len(), 4);
         assert!(langs.contains(&LanguageType::Text));
     }
@@ -369,10 +371,10 @@ mod tests {
     fn test_extract_words_contraction() {
         let text = "I'm a contraction, wouldn't you agree'?";
         let (words, _) = extract_all_words(text, LanguageType::Text, &|_| true, &[]);
-        let word_strs: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
         let expected = ["I'm", "a", "contraction", "wouldn't", "you", "agree"];
         for e in &expected {
-            assert!(word_strs.contains(e), "Expected word '{e}' not found");
+            assert!(word_strings.contains(e), "Expected word '{e}' not found");
         }
     }
 
@@ -381,9 +383,9 @@ mod tests {
         let text = "// a comment\nfn main() {}";
         let (words, langs) = extract_all_words(text, LanguageType::Rust, &|_| true, &[]);
         assert!(!words.is_empty());
-        let word_strs: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
         assert!(
-            word_strs.contains(&"comment"),
+            word_strings.contains(&"comment"),
             "Should find 'comment' in Rust comment"
         );
         assert!(langs.contains(&LanguageType::Rust));
@@ -398,10 +400,10 @@ mod tests {
             &|tag| tag.starts_with("comment"),
             &[],
         );
-        let word_strs: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
-        assert!(word_strs.contains(&"comment"));
-        assert!(!word_strs.contains(&"string"));
-        assert!(!word_strs.contains(&"value"));
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
+        assert!(word_strings.contains(&"comment"));
+        assert!(!word_strings.contains(&"string"));
+        assert!(!word_strings.contains(&"value"));
     }
 
     #[test]
@@ -409,11 +411,11 @@ mod tests {
         let text = "check https://example.com this";
         let url_pattern = Regex::new(r"https?://[^\s]+").unwrap();
         let (words, _) = extract_all_words(text, LanguageType::Text, &|_| true, &[url_pattern]);
-        let word_strs: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
-        assert!(word_strs.contains(&"check"));
-        assert!(word_strs.contains(&"this"));
-        assert!(!word_strs.contains(&"https"));
-        assert!(!word_strs.contains(&"example"));
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
+        assert!(word_strings.contains(&"check"));
+        assert!(word_strings.contains(&"this"));
+        assert!(!word_strings.contains(&"https"));
+        assert!(!word_strings.contains(&"example"));
     }
 
     #[test]
@@ -438,27 +440,27 @@ mod tests {
     fn test_markdown_injection_extracts_code_words() {
         let text = "# Hello\n\n```python\ndef some_functin(): pass\n```\n";
         let (words, _) = extract_all_words(text, LanguageType::Markdown, &|_| true, &[]);
-        let word_strs: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
-        assert!(word_strs.contains(&"functin"));
-        assert!(word_strs.contains(&"Hello"));
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
+        assert!(word_strings.contains(&"functin"));
+        assert!(word_strings.contains(&"Hello"));
     }
 
     #[test]
     fn test_markdown_unknown_language_skipped() {
         let text = "# Hello\n\n```unknownlang\nbadwwword\n```\n";
         let (words, _) = extract_all_words(text, LanguageType::Markdown, &|_| true, &[]);
-        let word_strs: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
-        assert!(!word_strs.contains(&"badwwword"));
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
+        assert!(!word_strings.contains(&"badwwword"));
     }
 
     #[test]
     fn test_markdown_html_block_injection() {
         let text = "# Hello\n\n<div>\n  <p>A misspeled word</p>\n</div>\n\nMore text.\n";
         let (words, langs) = extract_all_words(text, LanguageType::Markdown, &|_| true, &[]);
-        let word_strs: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
         assert!(langs.contains(&LanguageType::HTML));
-        assert!(word_strs.contains(&"misspeled"));
-        assert!(!word_strs.contains(&"div"));
+        assert!(word_strings.contains(&"misspeled"));
+        assert!(!word_strings.contains(&"div"));
     }
 
     #[test]
@@ -480,9 +482,9 @@ mod tests {
         crate::logging::init_test_logging();
         let text = "©<div>badword</div>";
         let (words, _) = extract_all_words(text, LanguageType::Text, &|_| true, &[]);
-        let badword = words.iter().find(|w| w.word == "badword");
-        assert!(badword.is_some(), "Expected 'badword' to be found");
-        let bw = badword.unwrap();
+        let bad_word = words.iter().find(|w| w.word == "badword");
+        assert!(bad_word.is_some(), "Expected 'badword' to be found");
+        let bw = bad_word.unwrap();
         assert_eq!(bw.start_byte, 7);
         assert_eq!(bw.end_byte, 14);
     }
