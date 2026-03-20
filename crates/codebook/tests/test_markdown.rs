@@ -202,10 +202,15 @@ More text.
     let misspelled = processor
         .spell_check(sample_text, Some(LanguageType::Markdown), None)
         .to_vec();
-    let words: Vec<&str> = misspelled.iter().map(|r| r.word.as_str()).collect();
-    println!("Misspelled words: {words:?}");
-    // wrld should be flagged as a function name typo in both languages
-    assert!(words.contains(&"wrld"));
+    println!("Misspelled words: {misspelled:?}");
+    // wrld should be flagged from both code blocks — verify two locations
+    let wrld = misspelled.iter().find(|w| w.word == "wrld");
+    assert!(wrld.is_some(), "wrld should be flagged");
+    assert_eq!(
+        wrld.unwrap().locations.len(),
+        2,
+        "wrld should have 2 locations (one from py block, one from js block)"
+    );
 }
 
 #[test]

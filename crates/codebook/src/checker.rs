@@ -13,46 +13,61 @@ pub struct WordCandidate {
     pub end_byte: usize,
 }
 
+/// Check if a word should be flagged based on config and dictionaries.
+/// Returns true if the word is correct (should NOT be flagged).
+fn is_word_correct(
+    word: &str,
+    dictionaries: &[std::sync::Arc<dyn Dictionary>],
+    config: &dyn CodebookConfig,
+) -> bool {
+    if config.should_flag_word(word) {
+        return false;
+    }
+    if word.len() < config.get_min_word_length() {
+        return true;
+    }
+    if config.is_allowed_word(word) {
+        return true;
+    }
+    dictionaries.iter().any(|dict| dict.check(word))
+}
+
 /// Check candidate words against dictionaries and config rules.
 /// Returns WordLocations for misspelled words, grouping all locations
-/// of the same word together. Duplicate spans are deduplicated.
+/// of the same word together.
 pub fn check_words(
     candidates: &[WordCandidate],
     dictionaries: &[std::sync::Arc<dyn Dictionary>],
     config: &dyn CodebookConfig,
 ) -> Vec<WordLocation> {
-    // Group candidates by word text, deduplicating identical spans
+    // Group misspelled candidates by word, deduplicating identical spans.
+    // Only misspelled words are inserted, matching the old behavior where
+    // the debug_assert caught query bugs producing duplicate misspelling locations.
     let mut word_positions: HashMap<&str, HashSet<TextRange>> = HashMap::new();
     for candidate in candidates {
-        word_positions
+        if is_word_correct(&candidate.word, dictionaries, config) {
+            continue;
+        }
+        let location = TextRange {
+            start_byte: candidate.start_byte,
+            end_byte: candidate.end_byte,
+        };
+        let added = word_positions
             .entry(&candidate.word)
             .or_default()
-            .insert(TextRange {
-                start_byte: candidate.start_byte,
-                end_byte: candidate.end_byte,
-            });
+            .insert(location);
+
+        debug_assert!(
+            added,
+            "Two of the same locations found. Make a better query. Word: {}, Location: {:?}",
+            candidate.word, location
+        );
     }
 
-    // Check each unique word once
-    let mut results = Vec::new();
-    for (word, positions) in word_positions {
-        let positions: Vec<TextRange> = positions.into_iter().collect();
-        if config.should_flag_word(word) {
-            results.push(WordLocation::new(word.to_string(), positions));
-            continue;
-        }
-        if word.len() < config.get_min_word_length() {
-            continue;
-        }
-        if config.is_allowed_word(word) {
-            continue;
-        }
-        let is_correct = dictionaries.iter().any(|dict| dict.check(word));
-        if !is_correct {
-            results.push(WordLocation::new(word.to_string(), positions));
-        }
-    }
-    results
+    word_positions
+        .into_iter()
+        .map(|(word, positions)| WordLocation::new(word.to_string(), positions.into_iter().collect()))
+        .collect()
 }
 
 #[cfg(test)]
@@ -111,21 +126,5 @@ mod tests {
         let candidates = make_candidates(&[("codebook", 0, 8)]);
         let results = check_words(&candidates, &[dict], config.as_ref());
         assert!(results.is_empty(), "Allowed words should not be flagged");
-    }
-
-    #[test]
-    fn test_check_words_deduplicates_identical_spans() {
-        let dict = Arc::new(TextDictionary::new("hello\n"));
-        let config = Arc::new(codebook_config::CodebookConfigMemory::default());
-        // Same word at the exact same position — should be deduplicated
-        let candidates = make_candidates(&[("wrld", 0, 4), ("wrld", 0, 4), ("wrld", 0, 4)]);
-        let results = check_words(&candidates, &[dict], config.as_ref());
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].word, "wrld");
-        assert_eq!(
-            results[0].locations.len(),
-            1,
-            "Identical spans should be deduplicated to one location"
-        );
     }
 }
