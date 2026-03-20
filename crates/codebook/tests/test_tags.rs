@@ -151,6 +151,81 @@ fn test_include_and_exclude_combined() {
     );
 }
 
+// =============================================================================
+// Tag filters through injected regions (markdown → code blocks)
+// =============================================================================
+
+/// Markdown with a Python code block containing typos in a comment,
+/// a function name (identifier), and a string.
+const MARKDOWN_WITH_PYTHON: &str = r#"# A heading
+
+Some prose.
+
+```python
+# A commet in python
+def calculat_age():
+    x = "a strng value"
+```
+"#;
+
+#[test]
+fn test_injection_no_filters_returns_all() {
+    let words = check(
+        MARKDOWN_WITH_PYTHON,
+        LanguageType::Markdown,
+        vec![],
+        vec![],
+    );
+    assert!(words.contains(&"commet".to_string()), "missing comment typo from injected python");
+    assert!(words.contains(&"calculat".to_string()), "missing identifier typo from injected python");
+    assert!(words.contains(&"strng".to_string()), "missing string typo from injected python");
+}
+
+#[test]
+fn test_injection_include_comments_only() {
+    // include_tags = ["comment"] should only check comments,
+    // even inside injected code blocks
+    let words = check(
+        MARKDOWN_WITH_PYTHON,
+        LanguageType::Markdown,
+        vec!["comment"],
+        vec![],
+    );
+    assert!(words.contains(&"commet".to_string()), "comment typo should be found");
+    assert!(!words.contains(&"calculat".to_string()), "identifier should be excluded in injected region");
+    assert!(!words.contains(&"strng".to_string()), "string should be excluded in injected region");
+}
+
+#[test]
+fn test_injection_exclude_identifiers() {
+    // exclude_tags = ["identifier"] should suppress identifiers
+    // in both prose and injected code blocks
+    let words = check(
+        MARKDOWN_WITH_PYTHON,
+        LanguageType::Markdown,
+        vec![],
+        vec!["identifier"],
+    );
+    assert!(words.contains(&"commet".to_string()), "comment should still be checked");
+    assert!(words.contains(&"strng".to_string()), "string should still be checked");
+    assert!(!words.contains(&"calculat".to_string()), "identifier should be excluded in injected region");
+}
+
+#[test]
+fn test_injection_include_strings_only() {
+    // include_tags = ["string"] should check strings in both
+    // markdown prose (which uses @string) and injected python
+    let words = check(
+        MARKDOWN_WITH_PYTHON,
+        LanguageType::Markdown,
+        vec!["string"],
+        vec![],
+    );
+    assert!(words.contains(&"strng".to_string()), "string typo in injected python should be found");
+    assert!(!words.contains(&"commet".to_string()), "comment should be excluded");
+    assert!(!words.contains(&"calculat".to_string()), "identifier should be excluded");
+}
+
 #[test]
 fn test_text_language_ignores_tags() {
     // Text language doesn't use tree-sitter, so tags should have no effect
