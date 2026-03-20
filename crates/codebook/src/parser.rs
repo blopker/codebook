@@ -1,8 +1,9 @@
-use crate::splitter::{self};
-
+use crate::checker::WordCandidate;
 use crate::queries::{LanguageType, get_language_setting};
+use crate::regions::TextRegion;
+use crate::splitter;
 use regex::Regex;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
@@ -79,88 +80,6 @@ fn merge_overlapping_ranges(ranges: Vec<SkipRange>) -> Vec<SkipRange> {
     merged
 }
 
-/// Helper struct to handle text position tracking and word extraction
-struct TextProcessor {
-    text: String,
-    skip_ranges: Vec<SkipRange>,
-}
-
-impl TextProcessor {
-    fn new(text: &str, skip_patterns: &[Regex]) -> Self {
-        let skip_ranges = find_skip_ranges(text, skip_patterns);
-        Self {
-            text: text.to_string(),
-            skip_ranges,
-        }
-    }
-
-    fn should_skip(&self, start_byte: usize, word_len: usize) -> bool {
-        is_within_skip_range(start_byte, start_byte + word_len, &self.skip_ranges)
-    }
-
-    fn process_words_with_check<F>(&self, mut check_function: F) -> Vec<WordLocation>
-    where
-        F: FnMut(&str) -> bool,
-    {
-        // First pass: collect all unique words with their positions
-        let estimated_words = (self.text.len() as f64 / 6.0).ceil() as usize;
-        let mut word_positions: HashMap<&str, Vec<TextRange>> =
-            HashMap::with_capacity(estimated_words);
-
-        for (offset, word) in self.text.split_word_bound_indices() {
-            if is_alphabetic(word) && !self.should_skip(offset, word.len()) {
-                self.collect_split_words(word, offset, &mut word_positions);
-            }
-        }
-
-        // Second pass: batch check unique words and filter
-        let mut result_locations: HashMap<String, Vec<TextRange>> = HashMap::new();
-        for (word_text, positions) in word_positions {
-            if !check_function(word_text) {
-                result_locations.insert(word_text.to_string(), positions);
-            }
-        }
-
-        result_locations
-            .into_iter()
-            .map(|(word, locations)| WordLocation::new(word, locations))
-            .collect()
-    }
-
-    fn extract_words(&self) -> Vec<WordLocation> {
-        // Reuse the word collection logic by collecting all words (check always returns false)
-        self.process_words_with_check(|_| false)
-    }
-
-    fn collect_split_words<'a>(
-        &self,
-        word: &'a str,
-        offset: usize,
-        word_positions: &mut HashMap<&'a str, Vec<TextRange>>,
-    ) {
-        if !word.is_empty() {
-            let split = splitter::split(word);
-            for split_word in split {
-                if !is_numeric(split_word.word) {
-                    let word_start_byte = offset + split_word.start_byte;
-                    let location = TextRange {
-                        start_byte: word_start_byte,
-                        end_byte: word_start_byte + split_word.word.len(),
-                    };
-                    let word_text = split_word.word;
-                    word_positions.entry(word_text).or_default().push(location);
-                }
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct WordRef<'a> {
-    pub word: &'a str,
-    pub position: (u32, u32), // (start_char, line)
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct WordLocation {
     pub word: String,
@@ -173,40 +92,67 @@ impl WordLocation {
     }
 }
 
-pub fn find_locations(
-    text: &str,
-    language: LanguageType,
-    check_function: impl Fn(&str) -> bool,
-    tag_filter: impl Fn(&str) -> bool,
-    skip_patterns: &[Regex],
-) -> Vec<WordLocation> {
-    match language {
-        LanguageType::Text => {
-            let processor = TextProcessor::new(text, skip_patterns);
-            processor.process_words_with_check(|word| check_function(word))
+// =============================================================================
+// Stage 2: Node Extraction
+// =============================================================================
+
+/// A text span extracted from a tree-sitter query match or plain text region.
+/// Coordinates are in original-document byte offsets.
+#[derive(Debug, Clone)]
+pub struct TextNode {
+    /// Byte range start in the original document
+    pub start_byte: usize,
+    /// Byte range end in the original document
+    pub end_byte: usize,
+    /// The text content of this node
+    pub text: String,
+}
+
+/// Extract spellcheckable text nodes from a region.
+/// For code regions, uses tree-sitter parsing and queries.
+/// For text/markdown prose regions, returns the whole region as one node.
+/// All byte offsets are in original document coordinates.
+pub fn extract_nodes(
+    document_text: &str,
+    region: &TextRegion,
+    tag_filter: &dyn Fn(&str) -> bool,
+) -> Vec<TextNode> {
+    let region_text = &document_text[region.start_byte..region.end_byte];
+
+    match region.language {
+        LanguageType::Text | LanguageType::Markdown => {
+            // Plain text / markdown prose: the whole region is one node
+            vec![TextNode {
+                start_byte: region.start_byte,
+                end_byte: region.end_byte,
+                text: region_text.to_string(),
+            }]
         }
-        _ => find_locations_code(
-            text,
-            language,
-            |word| check_function(word),
-            &tag_filter,
-            skip_patterns,
-        ),
+        _ => {
+            // Code: parse with tree-sitter, run query, extract captured nodes
+            extract_nodes_with_treesitter(
+                region_text,
+                region.start_byte,
+                region.language,
+                tag_filter,
+            )
+        }
     }
 }
 
-fn find_locations_code(
+/// Parse text with tree-sitter and extract nodes matching the language's query.
+fn extract_nodes_with_treesitter(
     text: &str,
+    base_offset: usize,
     language: LanguageType,
-    check_function: impl Fn(&str) -> bool,
     tag_filter: &dyn Fn(&str) -> bool,
-    skip_patterns: &[Regex],
-) -> Vec<WordLocation> {
-    let language_setting =
-        get_language_setting(language).expect("This _should_ never happen. Famous last words.");
+) -> Vec<TextNode> {
+    let language_setting = match get_language_setting(language) {
+        Some(s) => s,
+        None => return Vec::new(),
+    };
 
     // Parse under global lock to protect external scanners with global C state.
-    // The lock covers create + parse; Tree is fully owned after parse returns.
     let tree = {
         let mut cache = PARSER_CACHE.lock().unwrap();
         let parser = cache.entry(language).or_insert_with(|| {
@@ -223,74 +169,82 @@ fn find_locations_code(
     let query = Query::new(&lang, language_setting.query).unwrap();
     let capture_names = query.capture_names();
     let mut cursor = QueryCursor::new();
-    let mut word_locations: HashMap<String, HashSet<TextRange>> = HashMap::new();
     let provider = text.as_bytes();
     let mut matches_query = cursor.matches(&query, root_node, provider);
 
-    // Find all skip ranges from patterns matched against the full source text
-    let all_skip_ranges = find_skip_ranges(text, skip_patterns);
-
+    let mut nodes = Vec::new();
     while let Some(match_) = matches_query.next() {
         for capture in match_.captures {
-            // Filter by tag
             let tag = &capture_names[capture.index as usize];
-            if !tag_filter(tag) {
+            // Skip internal tags and filtered tags
+            if *tag == "language" || !tag_filter(tag) {
                 continue;
             }
-
             let node = capture.node;
-            let node_start_byte = node.start_byte();
-
             let node_text = node.utf8_text(provider).unwrap();
-            let processor = TextProcessor::new(node_text, &[]);
-            let words = processor.extract_words();
-
-            // Check words against global skip ranges and dictionary
-            for word_pos in words {
-                if !check_function(&word_pos.word) {
-                    for range in word_pos.locations {
-                        let global_start = range.start_byte + node_start_byte;
-                        let global_end = range.end_byte + node_start_byte;
-
-                        // Skip if word is entirely within a skip range
-                        if is_within_skip_range(global_start, global_end, &all_skip_ranges) {
-                            continue;
-                        }
-
-                        let location = TextRange {
-                            start_byte: global_start,
-                            end_byte: global_end,
-                        };
-                        if let Some(existing_result) = word_locations.get_mut(&word_pos.word) {
-                            let added = existing_result.insert(location);
-                            debug_assert!(
-                                added,
-                                "Two of the same locations found. Make a better query. Word: {}, Location: {:?}",
-                                word_pos.word, location
-                            );
-                        } else {
-                            let mut set = HashSet::new();
-                            set.insert(location);
-                            word_locations.insert(word_pos.word.clone(), set);
-                        }
-                    }
-                }
-            }
+            nodes.push(TextNode {
+                start_byte: node.start_byte() + base_offset,
+                end_byte: node.end_byte() + base_offset,
+                text: node_text.to_string(),
+            });
         }
     }
+    nodes
+}
 
-    word_locations
-        .keys()
-        .map(|word| WordLocation {
-            word: word.clone(),
-            locations: word_locations
-                .get(word)
-                .cloned()
-                .unwrap_or_default()
-                .into_iter()
-                .collect(),
-        })
-        .collect()
+// =============================================================================
+// Stage 3: Word Extraction
+// =============================================================================
+
+/// Extract candidate words from text nodes, applying skip patterns.
+/// All byte offsets are in original document coordinates.
+pub fn extract_words(
+    document_text: &str,
+    nodes: &[TextNode],
+    skip_patterns: &[Regex],
+) -> Vec<WordCandidate> {
+    // Compute skip ranges once against the full document
+    let skip_ranges = find_skip_ranges(document_text, skip_patterns);
+
+    let mut candidates = Vec::new();
+    for node in nodes {
+        extract_words_from_text(&node.text, node.start_byte, &skip_ranges, &mut candidates);
+    }
+    candidates
+}
+
+/// Extract words from a text span, applying skip ranges and word splitting.
+fn extract_words_from_text(
+    text: &str,
+    base_offset: usize,
+    skip_ranges: &[SkipRange],
+    candidates: &mut Vec<WordCandidate>,
+) {
+    for (offset, word) in text.split_word_bound_indices() {
+        if !is_alphabetic(word) {
+            continue;
+        }
+        let global_offset = base_offset + offset;
+        if is_within_skip_range(global_offset, global_offset + word.len(), skip_ranges) {
+            continue;
+        }
+        let split = splitter::split(word);
+        for split_word in split {
+            if is_numeric(split_word.word) {
+                continue;
+            }
+            let word_start = global_offset + split_word.start_byte;
+            let word_end = word_start + split_word.word.len();
+            if is_within_skip_range(word_start, word_end, skip_ranges) {
+                continue;
+            }
+            candidates.push(WordCandidate {
+                word: split_word.word.to_string(),
+                start_byte: word_start,
+                end_byte: word_end,
+            });
+        }
+    }
 }
 
 fn is_numeric(s: &str) -> bool {
@@ -314,153 +268,173 @@ pub fn get_word_from_string(start_utf16: usize, end_utf16: usize, text: &str) ->
 #[cfg(test)]
 mod parser_tests {
     use super::*;
+    use crate::regions::TextRegion;
 
     #[test]
-    fn test_spell_checking() {
+    fn test_extract_words_basic() {
         let text = "HelloWorld calc_wrld";
-        let results = find_locations(text, LanguageType::Text, |_| false, |_| true, &[]);
-        println!("{results:?}");
-        assert_eq!(results.len(), 4);
+        let nodes = vec![TextNode {
+            start_byte: 0,
+            end_byte: text.len(),
+            text: text.to_string(),
+        }];
+        let words = extract_words(text, &nodes, &[]);
+        let word_strs: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
+        assert!(word_strs.contains(&"Hello"));
+        assert!(word_strs.contains(&"World"));
+        assert!(word_strs.contains(&"calc"));
+        assert!(word_strs.contains(&"wrld"));
+        assert_eq!(words.len(), 4);
     }
 
     #[test]
-    fn test_get_words_from_text() {
-        let text = r#"
-            HelloWorld calc_wrld
-            I'm a contraction, don't ignore me
-            this is a 3rd line.
-            "#;
-        let expected = vec![
-            ("Hello", (13, 18)),
-            ("World", (18, 23)),
-            ("calc", (24, 28)),
-            ("wrld", (29, 33)),
-            ("I'm", (46, 49)),
-            ("a", (50, 51)),
-            ("contraction", (52, 63)),
-            ("don't", (65, 70)),
-            ("ignore", (71, 77)),
-            ("me", (78, 80)),
-            ("this", (93, 97)),
-            ("is", (98, 100)),
-            ("a", (101, 102)),
-            ("rd", (104, 106)),
-            ("line", (107, 111)),
-        ];
-        let processor = TextProcessor::new(text, &[]);
-        let words = processor.extract_words();
-        println!("{words:?}");
-        for word in words {
-            let loc = word.locations.first().unwrap();
-            let pos = (loc.start_byte, loc.end_byte);
+    fn test_extract_words_contraction() {
+        let text = "I'm a contraction, wouldn't you agree'?";
+        let nodes = vec![TextNode {
+            start_byte: 0,
+            end_byte: text.len(),
+            text: text.to_string(),
+        }];
+        let words = extract_words(text, &nodes, &[]);
+        let word_strs: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
+        let expected = ["I'm", "a", "contraction", "wouldn't", "you", "agree"];
+        for e in &expected {
+            assert!(word_strs.contains(e), "Expected word '{e}' not found");
+        }
+    }
+
+    #[test]
+    fn test_extract_nodes_plain_text() {
+        let text = "hello world";
+        let region = TextRegion {
+            start_byte: 0,
+            end_byte: text.len(),
+            language: LanguageType::Text,
+        };
+        let nodes = extract_nodes(text, &region, &|_| true);
+        assert_eq!(nodes.len(), 1);
+        assert_eq!(nodes[0].text, "hello world");
+        assert_eq!(nodes[0].start_byte, 0);
+    }
+
+    #[test]
+    fn test_extract_nodes_code() {
+        let text = "// a comment\nfn main() {}";
+        let region = TextRegion {
+            start_byte: 0,
+            end_byte: text.len(),
+            language: LanguageType::Rust,
+        };
+        let nodes = extract_nodes(text, &region, &|_| true);
+        // Should have at least the comment node
+        assert!(!nodes.is_empty());
+        let comment_node = nodes.iter().find(|n| n.text.contains("comment"));
+        assert!(comment_node.is_some(), "Should find comment node");
+    }
+
+    #[test]
+    fn test_extract_nodes_with_base_offset() {
+        // Simulate a code block starting at byte 50 in a larger document
+        let code = "// hello world";
+        let padded = format!("{}{}", " ".repeat(50), code);
+        let region = TextRegion {
+            start_byte: 50,
+            end_byte: 50 + code.len(),
+            language: LanguageType::Rust,
+        };
+        let nodes = extract_nodes(&padded, &region, &|_| true);
+        assert!(!nodes.is_empty());
+        // All node offsets should be >= 50
+        for node in &nodes {
+            assert!(node.start_byte >= 50, "Node offset should include base offset");
+        }
+    }
+
+    #[test]
+    fn test_extract_nodes_tag_filter() {
+        let text = "// comment\nlet x = \"string\";";
+        let region = TextRegion {
+            start_byte: 0,
+            end_byte: text.len(),
+            language: LanguageType::Rust,
+        };
+        // Only allow comment tags
+        let nodes = extract_nodes(text, &region, &|tag| tag.starts_with("comment"));
+        for node in &nodes {
+            // Should only have comment content
             assert!(
-                expected.contains(&(word.word.as_str(), pos)),
-                "Expected word '{}' to be at position {:?}",
-                word.word,
-                pos
+                node.text.contains("comment"),
+                "Expected only comment nodes, got: {:?}",
+                node.text
             );
         }
     }
 
     #[test]
-    fn test_contraction() {
-        let text = "I'm a contraction, wouldn't you agree'?";
-        let processor = TextProcessor::new(text, &[]);
-        let words = processor.extract_words();
-        println!("{words:?}");
-        let expected = ["I'm", "a", "contraction", "wouldn't", "you", "agree"];
-        for word in words {
-            assert!(expected.contains(&word.word.as_str()));
-        }
+    fn test_extract_words_with_skip_patterns() {
+        let text = "check https://example.com this";
+        let url_pattern = Regex::new(r"https?://[^\s]+").unwrap();
+        let nodes = vec![TextNode {
+            start_byte: 0,
+            end_byte: text.len(),
+            text: text.to_string(),
+        }];
+        let words = extract_words(text, &nodes, &[url_pattern]);
+        let word_strs: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
+        assert!(word_strs.contains(&"check"));
+        assert!(word_strs.contains(&"this"));
+        // URL components should be skipped
+        assert!(!word_strs.contains(&"https"));
+        assert!(!word_strs.contains(&"example"));
     }
 
     #[test]
     fn test_get_word_from_string() {
-        // Test with ASCII characters
         let text = "Hello World";
         assert_eq!(get_word_from_string(0, 5, text), "Hello");
         assert_eq!(get_word_from_string(6, 11, text), "World");
-
-        // Test with partial words
         assert_eq!(get_word_from_string(2, 5, text), "llo");
 
-        // Test with Unicode characters
         let unicode_text = "こんにちは世界";
         assert_eq!(get_word_from_string(0, 5, unicode_text), "こんにちは");
         assert_eq!(get_word_from_string(5, 7, unicode_text), "世界");
 
-        // Test with emoji (which can be multi-codepoint)
         let emoji_text = "Hello 👨‍👩‍👧‍👦 World";
         assert_eq!(get_word_from_string(6, 17, emoji_text), "👨‍👩‍👧‍👦");
     }
+
     #[test]
     fn test_unicode_character_handling() {
         crate::logging::init_test_logging();
         let text = "©<div>badword</div>";
-        let processor = TextProcessor::new(text, &[]);
-        let words = processor.extract_words();
-        println!("{words:?}");
-
-        // Make sure "badword" is included and correctly positioned
-        assert!(words.iter().any(|word| word.word == "badword"));
-
-        // If "badword" is found, verify its position
-        if let Some(pos) = words.iter().find(|word| word.word == "badword") {
-            // The correct position should be 6 (after ©<div>)
-            let start_byte = pos.locations.first().unwrap().start_byte;
-            let end_byte = pos.locations.first().unwrap().end_byte;
-            assert_eq!(
-                start_byte, 7,
-                "Expected 'badword' to start at character position 7"
-            );
-            assert_eq!(end_byte, 14, "Expected 'badword' to be on end_byte 14");
-        } else {
-            panic!("Word 'badword' not found in the text");
-        }
+        let nodes = vec![TextNode {
+            start_byte: 0,
+            end_byte: text.len(),
+            text: text.to_string(),
+        }];
+        let words = extract_words(text, &nodes, &[]);
+        let badword = words.iter().find(|w| w.word == "badword");
+        assert!(badword.is_some(), "Expected 'badword' to be found");
+        let bw = badword.unwrap();
+        assert_eq!(bw.start_byte, 7, "Expected 'badword' to start at byte 7");
+        assert_eq!(bw.end_byte, 14, "Expected 'badword' to end at byte 14");
     }
 
     #[test]
-    fn test_duplicate_word_locations() {
-        // Use a code language to exercise find_locations_code path
+    fn test_duplicate_word_locations_code() {
         let text = "// wrld foo wrld";
-        let results = find_locations(text, LanguageType::Rust, |_| false, |_| true, &[]);
-        let wrld = results.iter().find(|loc| loc.word == "wrld").unwrap();
+        let region = TextRegion {
+            start_byte: 0,
+            end_byte: text.len(),
+            language: LanguageType::Rust,
+        };
+        let nodes = extract_nodes(text, &region, &|_| true);
+        let words = extract_words(text, &nodes, &[]);
+        let wrld_words: Vec<_> = words.iter().filter(|w| w.word == "wrld").collect();
         assert_eq!(
-            wrld.locations.len(),
+            wrld_words.len(),
             2,
-            "Expected two locations for repeated word 'wrld'"
+            "Expected two occurrences of 'wrld'"
         );
     }
-
-    // Something is up with the HTML tree-sitter package
-    // #[test]
-    // fn test_spell_checking_with_unicode() {
-    //     crate::log::init_test_logging();
-    //     let text = "©<div>badword</div>";
-
-    //     // Mock spell check function that flags "badword"
-    //     let results = find_locations(text, LanguageType::Html, |word| word != "badword");
-
-    //     println!("{:?}", results);
-
-    //     // Ensure "badword" is flagged
-    //     let badword_result = results.iter().find(|loc| loc.word == "badword");
-    //     assert!(badword_result.is_some(), "Expected 'badword' to be flagged");
-
-    //     // Check if the location is correct
-    //     if let Some(location) = badword_result {
-    //         assert_eq!(
-    //             location.locations.len(),
-    //             1,
-    //             "Expected exactly one location for 'badword'"
-    //         );
-    //         let range = &location.locations[0];
-
-    //         // The word should start after "©<div>" which is 6 characters
-    //         assert_eq!(range.start_char, 6, "Wrong start position for 'badword'");
-
-    //         // The word should end after "badword" which is 13 characters from the start
-    //         assert_eq!(range.end_char, 13, "Wrong end position for 'badword'");
-    //     }
-    // }
 }

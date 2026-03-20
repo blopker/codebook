@@ -3,6 +3,7 @@ use std::sync::Arc;
 use codebook::Codebook;
 use codebook_config::{CodebookConfig, CodebookConfigMemory};
 
+#[allow(dead_code)]
 pub fn get_processor() -> Codebook {
     let config = Arc::new(CodebookConfigMemory::default());
     config
@@ -31,10 +32,7 @@ pub fn get_processor_with_include_and_ignore(include: &str, ignore: &str) -> Cod
 }
 
 #[allow(dead_code)]
-pub fn get_processor_with_tags(
-    include_tags: Vec<&str>,
-    exclude_tags: Vec<&str>,
-) -> Codebook {
+pub fn get_processor_with_tags(include_tags: Vec<&str>, exclude_tags: Vec<&str>) -> Codebook {
     let settings = codebook_config::ConfigSettings {
         include_tags: include_tags.into_iter().map(String::from).collect(),
         exclude_tags: exclude_tags.into_iter().map(String::from).collect(),

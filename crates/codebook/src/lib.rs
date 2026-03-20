@@ -1,11 +1,14 @@
+pub mod checker;
 pub mod dictionaries;
 mod logging;
 pub mod parser;
 pub mod queries;
 pub mod regexes;
+pub mod regions;
 mod splitter;
 
 use crate::regexes::get_default_skip_patterns;
+use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -47,39 +50,34 @@ impl Codebook {
                 return Vec::new();
             }
         }
-        // get needed dictionary names
-        // get needed dictionaries
-        // call spell check on each dictionary
+
         let language = self.resolve_language(language, file_path);
-        let dictionaries = self.get_dictionaries(Some(language));
-        // Combine default and user patterns
+
+        // Combine default and user skip patterns
         let mut all_patterns = get_default_skip_patterns().clone();
         if let Some(user_patterns) = self.config.get_ignore_patterns() {
             all_patterns.extend(user_patterns);
         }
-        parser::find_locations(
-            text,
-            language,
-            |word| {
-                if self.config.should_flag_word(word) {
-                    return false;
-                }
-                if word.len() < self.config.get_min_word_length() {
-                    return true;
-                }
-                if self.config.is_allowed_word(word) {
-                    return true;
-                }
-                for dictionary in &dictionaries {
-                    if dictionary.check(word) {
-                        return true;
-                    }
-                }
-                false
-            },
-            |tag| self.config.should_check_tag(tag),
-            &all_patterns,
-        )
+
+        // Stage 1: Split into language regions
+        let text_regions = regions::extract_regions(text, language);
+
+        // Collect dictionaries for all languages present in the file
+        let dictionaries = self.get_dictionaries_for_languages(&text_regions);
+
+        // Stages 2+3: Extract nodes and words from each region
+        let mut all_candidates = Vec::new();
+        for region in &text_regions {
+            // Stage 2: Node extraction
+            let nodes =
+                parser::extract_nodes(text, region, &|tag| self.config.should_check_tag(tag));
+            // Stage 3: Word extraction
+            let candidates = parser::extract_words(text, &nodes, &all_patterns);
+            all_candidates.extend(candidates);
+        }
+
+        // Stage 4: Word checking
+        checker::check_words(&all_candidates, &dictionaries, self.config.as_ref())
     }
 
     fn resolve_language(
@@ -87,7 +85,6 @@ impl Codebook {
         language_type: Option<queries::LanguageType>,
         path: Option<&str>,
     ) -> queries::LanguageType {
-        // Check if we have a language_id first, fallback to path, fall back to text
         match language_type {
             Some(lang) => lang,
             None => match path {
@@ -97,21 +94,32 @@ impl Codebook {
         }
     }
 
-    fn get_dictionaries(
+    /// Gather dictionaries for all languages present in a file.
+    fn get_dictionaries_for_languages(
         &self,
-        language: Option<queries::LanguageType>,
+        regions: &[regions::TextRegion],
     ) -> Vec<Arc<dyn Dictionary>> {
         let mut dictionary_ids = self.config.get_dictionary_ids();
-        if let Some(lang) = language {
-            let language_dictionary_ids = lang.dictionary_ids();
-            dictionary_ids.extend(language_dictionary_ids);
-        };
+
+        // Add language-specific dictionaries for all languages in the file
+        let mut seen_languages = HashSet::new();
+        for region in regions {
+            if seen_languages.insert(region.language) {
+                dictionary_ids.extend(region.language.dictionary_ids());
+            }
+        }
+
+        // Add defaults
         dictionary_ids.extend(DEFAULT_DICTIONARIES.iter().map(|f| f.to_string()));
+
+        // Deduplicate
+        dictionary_ids.sort();
+        dictionary_ids.dedup();
+
         let mut dictionaries = Vec::with_capacity(dictionary_ids.len());
         debug!("Checking text with dictionaries: {dictionary_ids:?}");
         for dictionary_id in dictionary_ids {
-            let dictionary = self.manager.get_dictionary(&dictionary_id);
-            if let Some(d) = dictionary {
+            if let Some(d) = self.manager.get_dictionary(&dictionary_id) {
                 dictionaries.push(d);
             }
         }
@@ -125,9 +133,8 @@ impl Codebook {
     }
 
     pub fn get_suggestions(&self, word: &str) -> Option<Vec<String>> {
-        // Get top suggestions and return the first 5 suggestions in round robin order
         let max_results = 5;
-        let dictionaries = self.get_dictionaries(None);
+        let dictionaries = self.get_dictionaries_for_languages(&[]);
         let mut is_misspelled = false;
         let suggestions: Vec<Vec<String>> = dictionaries
             .iter()
@@ -178,7 +185,6 @@ mod tests {
         ];
 
         let result = collect_round_robin(&sources, 5);
-        // Round-robin order: first from each source, then second from each source
         assert_eq!(
             result,
             vec!["apple", "date", "grape", "banana", "elderberry"]
@@ -193,12 +199,6 @@ mod tests {
             vec!["cherry", "date", "elderberry"],
         ];
 
-        // In round-robin, we get:
-        // 1. apple (1st from 1st source)
-        // 2. banana (1st from 2nd source) - cherry already taken
-        // 3. cherry (1st from 3rd source)
-        // 4. banana (2nd from 1st source)
-        // 5. date (3rd from 2nd source) - cherry already taken
         let result = collect_round_robin(&sources, 5);
         assert_eq!(
             result,
@@ -214,7 +214,6 @@ mod tests {
             vec!["fig", "grape"],
         ];
 
-        // Round-robin order with uneven sources
         let result = collect_round_robin(&sources, 7);
         assert_eq!(
             result,
@@ -241,7 +240,6 @@ mod tests {
     fn test_collect_round_robin_some_empty_sources() {
         let sources = vec![vec!["apple", "banana"], vec![], vec!["cherry", "date"]];
 
-        // Round-robin order, skipping empty source
         let result = collect_round_robin(&sources, 4);
         assert_eq!(result, vec!["apple", "cherry", "banana", "date"]);
     }
@@ -250,7 +248,6 @@ mod tests {
     fn test_collect_round_robin_with_numbers() {
         let sources = vec![vec![1, 3, 5], vec![2, 4, 6]];
 
-        // Round-robin order with numbers
         let result = collect_round_robin(&sources, 6);
         assert_eq!(result, vec![1, 2, 3, 4, 5, 6]);
     }
@@ -263,7 +260,6 @@ mod tests {
             vec!["grape", "honeydew", "kiwi"],
         ];
 
-        // First round of round-robin (first from each source)
         let result = collect_round_robin(&sources, 3);
         assert_eq!(result, vec!["apple", "date", "grape"]);
     }
@@ -272,7 +268,6 @@ mod tests {
     fn test_collect_round_robin_max_count_higher_than_available() {
         let sources = vec![vec!["apple", "banana"], vec!["cherry", "date"]];
 
-        // Round-robin order for all available elements
         let result = collect_round_robin(&sources, 10);
         assert_eq!(result, vec!["apple", "banana", "cherry", "date"]);
     }

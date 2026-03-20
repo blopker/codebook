@@ -204,7 +204,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         type_: LanguageType::Markdown,
         ids: &["markdown"],
         dictionary_ids: &[],
-        query: include_str!("queries/markdown.scm"),
+        query: "",
         extensions: &["md", "markdown"],
     },
     LanguageSetting {
@@ -299,7 +299,7 @@ impl LanguageSetting {
             LanguageType::Javascript => Some(tree_sitter_javascript::LANGUAGE.into()),
             LanguageType::Latex => Some(codebook_tree_sitter_latex::LANGUAGE.into()),
             LanguageType::Lua => Some(tree_sitter_lua::LANGUAGE.into()),
-            LanguageType::Markdown => Some(tree_sitter_md::LANGUAGE.into()),
+            LanguageType::Markdown => None, // Handled by region extraction
             LanguageType::Odin => Some(tree_sitter_odin_codebook::LANGUAGE.into()),
             LanguageType::Php => Some(tree_sitter_php::LANGUAGE_PHP.into()),
             LanguageType::Python => Some(tree_sitter_python::LANGUAGE.into()),
@@ -346,7 +346,9 @@ mod tests {
     fn test_all_queries_are_valid() {
         for language_setting in LANGUAGE_SETTINGS {
             // Skip testing Text since it doesn't have a language or query
-            if language_setting.type_ == LanguageType::Text {
+            if language_setting.type_ == LanguageType::Text
+                || language_setting.type_ == LanguageType::Markdown
+            {
                 continue;
             }
 
@@ -395,7 +397,9 @@ mod tests {
     #[test]
     fn test_all_capture_names_use_allowed_tags() {
         for language_setting in LANGUAGE_SETTINGS {
-            if language_setting.type_ == LanguageType::Text {
+            if language_setting.type_ == LanguageType::Text
+                || language_setting.type_ == LanguageType::Markdown
+            {
                 continue;
             }
 
