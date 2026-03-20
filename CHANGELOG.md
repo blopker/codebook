@@ -1,7 +1,9 @@
-[Unreleased]
+[0.3.35]
 
 - Add tag-based filtering (`include_tags`/`exclude_tags`) to control which parts of code are spell-checked (comments, strings, identifiers, etc.)
 - Rename tree-sitter capture names to use dot-separated namespace convention (e.g., `@identifier.function` instead of `@func_declaration`)
+- Add SECURITY.md
+- Update dependencies
 
 [0.3.34]
 
