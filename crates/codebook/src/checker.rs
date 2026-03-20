@@ -75,10 +75,7 @@ mod tests {
     fn test_check_words_flags_unknown() {
         let dict = Arc::new(TextDictionary::new("hello\nworld\n"));
         let config = Arc::new(codebook_config::CodebookConfigMemory::default());
-        let candidates = make_candidates(&[
-            ("hello", 0, 5),
-            ("wrld", 6, 10),
-        ]);
+        let candidates = make_candidates(&[("hello", 0, 5), ("wrld", 6, 10)]);
         let results = check_words(&candidates, &[dict], config.as_ref());
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].word, "wrld");
@@ -88,10 +85,7 @@ mod tests {
     fn test_check_words_groups_locations() {
         let dict = Arc::new(TextDictionary::new("hello\n"));
         let config = Arc::new(codebook_config::CodebookConfigMemory::default());
-        let candidates = make_candidates(&[
-            ("wrld", 0, 4),
-            ("wrld", 10, 14),
-        ]);
+        let candidates = make_candidates(&[("wrld", 0, 4), ("wrld", 10, 14)]);
         let results = check_words(&candidates, &[dict], config.as_ref());
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].word, "wrld");

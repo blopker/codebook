@@ -24,7 +24,10 @@ fn check(text: &str, lang: LanguageType, include: Vec<&str>, exclude: Vec<&str>)
 fn test_no_filters_returns_all() {
     let words = check(RUST_SAMPLE, LanguageType::Rust, vec![], vec![]);
     // Should find typos in all three categories
-    assert!(words.contains(&"commet".to_string()), "missing comment typo");
+    assert!(
+        words.contains(&"commet".to_string()),
+        "missing comment typo"
+    );
     assert!(
         words.contains(&"calculat".to_string()),
         "missing identifier typo"
@@ -35,7 +38,10 @@ fn test_no_filters_returns_all() {
 #[test]
 fn test_include_comments_only() {
     let words = check(RUST_SAMPLE, LanguageType::Rust, vec!["comment"], vec![]);
-    assert!(words.contains(&"commet".to_string()), "missing comment typo");
+    assert!(
+        words.contains(&"commet".to_string()),
+        "missing comment typo"
+    );
     assert!(
         !words.contains(&"calculat".to_string()),
         "identifier should be excluded"
@@ -88,7 +94,10 @@ fn test_include_identifiers_only() {
 #[test]
 fn test_exclude_identifiers() {
     let words = check(RUST_SAMPLE, LanguageType::Rust, vec![], vec!["identifier"]);
-    assert!(words.contains(&"commet".to_string()), "missing comment typo");
+    assert!(
+        words.contains(&"commet".to_string()),
+        "missing comment typo"
+    );
     assert!(words.contains(&"strng".to_string()), "missing string typo");
     assert!(
         !words.contains(&"calculat".to_string()),
@@ -128,7 +137,10 @@ fn test_include_and_exclude_combined() {
         vec!["comment", "string"],
         vec!["string"],
     );
-    assert!(words.contains(&"commet".to_string()), "missing comment typo");
+    assert!(
+        words.contains(&"commet".to_string()),
+        "missing comment typo"
+    );
     assert!(
         !words.contains(&"strng".to_string()),
         "string should be excluded by exclude_tags"

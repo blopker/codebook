@@ -4,7 +4,6 @@ mod logging;
 pub mod parser;
 pub mod queries;
 pub mod regexes;
-pub mod regions;
 mod splitter;
 
 use crate::regexes::get_default_skip_patterns;
@@ -41,11 +40,9 @@ impl Codebook {
         file_path: Option<&str>,
     ) -> Vec<parser::WordLocation> {
         if let Some(file_path) = file_path {
-            // ignore_paths is a blocklist and has higher precedence than include_paths
             if self.config.should_ignore_path(Path::new(file_path)) {
                 return Vec::new();
             }
-            // include_paths is an allowlist; empty list means "include everything"
             if !self.config.should_include_path(Path::new(file_path)) {
                 return Vec::new();
             }
@@ -59,25 +56,19 @@ impl Codebook {
             all_patterns.extend(user_patterns);
         }
 
-        // Stage 1: Split into language regions
-        let text_regions = regions::extract_regions(text, language);
+        // Extract all words, recursively following injections
+        let (candidates, languages_found) = parser::extract_all_words(
+            text,
+            language,
+            &|tag| self.config.should_check_tag(tag),
+            &all_patterns,
+        );
 
-        // Collect dictionaries for all languages present in the file
-        let dictionaries = self.get_dictionaries_for_languages(&text_regions);
+        // Load dictionaries for all languages encountered
+        let dictionaries = self.get_dictionaries_for_languages(&languages_found);
 
-        // Stages 2+3: Extract nodes and words from each region
-        let mut all_candidates = Vec::new();
-        for region in &text_regions {
-            // Stage 2: Node extraction
-            let nodes =
-                parser::extract_nodes(text, region, &|tag| self.config.should_check_tag(tag));
-            // Stage 3: Word extraction
-            let candidates = parser::extract_words(text, &nodes, &all_patterns);
-            all_candidates.extend(candidates);
-        }
-
-        // Stage 4: Word checking
-        checker::check_words(&all_candidates, &dictionaries, self.config.as_ref())
+        // Check words against dictionaries
+        checker::check_words(&candidates, &dictionaries, self.config.as_ref())
     }
 
     fn resolve_language(
@@ -94,25 +85,19 @@ impl Codebook {
         }
     }
 
-    /// Gather dictionaries for all languages present in a file.
+    /// Gather dictionaries for all languages encountered in a file.
     fn get_dictionaries_for_languages(
         &self,
-        regions: &[regions::TextRegion],
+        languages: &HashSet<queries::LanguageType>,
     ) -> Vec<Arc<dyn Dictionary>> {
         let mut dictionary_ids = self.config.get_dictionary_ids();
 
-        // Add language-specific dictionaries for all languages in the file
-        let mut seen_languages = HashSet::new();
-        for region in regions {
-            if seen_languages.insert(region.language) {
-                dictionary_ids.extend(region.language.dictionary_ids());
-            }
+        for lang in languages {
+            dictionary_ids.extend(lang.dictionary_ids());
         }
 
-        // Add defaults
         dictionary_ids.extend(DEFAULT_DICTIONARIES.iter().map(|f| f.to_string()));
 
-        // Deduplicate
         dictionary_ids.sort();
         dictionary_ids.dedup();
 
@@ -134,7 +119,7 @@ impl Codebook {
 
     pub fn get_suggestions(&self, word: &str) -> Option<Vec<String>> {
         let max_results = 5;
-        let dictionaries = self.get_dictionaries_for_languages(&[]);
+        let dictionaries = self.get_dictionaries_for_languages(&HashSet::new());
         let mut is_misspelled = false;
         let suggestions: Vec<Vec<String>> = dictionaries
             .iter()
@@ -183,7 +168,6 @@ mod tests {
             vec!["date", "elderberry", "fig"],
             vec!["grape", "honeydew", "kiwi"],
         ];
-
         let result = collect_round_robin(&sources, 5);
         assert_eq!(
             result,
@@ -198,7 +182,6 @@ mod tests {
             vec!["banana", "cherry", "date"],
             vec!["cherry", "date", "elderberry"],
         ];
-
         let result = collect_round_robin(&sources, 5);
         assert_eq!(
             result,
@@ -213,7 +196,6 @@ mod tests {
             vec!["elderberry"],
             vec!["fig", "grape"],
         ];
-
         let result = collect_round_robin(&sources, 7);
         assert_eq!(
             result,
@@ -239,7 +221,6 @@ mod tests {
     #[test]
     fn test_collect_round_robin_some_empty_sources() {
         let sources = vec![vec!["apple", "banana"], vec![], vec!["cherry", "date"]];
-
         let result = collect_round_robin(&sources, 4);
         assert_eq!(result, vec!["apple", "cherry", "banana", "date"]);
     }
@@ -247,7 +228,6 @@ mod tests {
     #[test]
     fn test_collect_round_robin_with_numbers() {
         let sources = vec![vec![1, 3, 5], vec![2, 4, 6]];
-
         let result = collect_round_robin(&sources, 6);
         assert_eq!(result, vec![1, 2, 3, 4, 5, 6]);
     }
@@ -259,7 +239,6 @@ mod tests {
             vec!["date", "elderberry", "fig"],
             vec!["grape", "honeydew", "kiwi"],
         ];
-
         let result = collect_round_robin(&sources, 3);
         assert_eq!(result, vec!["apple", "date", "grape"]);
     }
@@ -267,7 +246,6 @@ mod tests {
     #[test]
     fn test_collect_round_robin_max_count_higher_than_available() {
         let sources = vec![vec!["apple", "banana"], vec!["cherry", "date"]];
-
         let result = collect_round_robin(&sources, 10);
         assert_eq!(result, vec!["apple", "banana", "cherry", "date"]);
     }
