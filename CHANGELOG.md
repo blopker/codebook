@@ -1,8 +1,8 @@
 [Unreleased]
 
 - Add multi-language support for Markdown files: fenced code blocks are now spell-checked using the appropriate language grammar (Python, Rust, Bash, etc.)
-- Add language injection system via `@injection.*` capture tags in `.scm` query files — adding multi-language support to a new file type requires only a `.scm` change, no Rust code
-- Add HTML block injection in Markdown — block-level HTML is spell-checked using the HTML grammar
+- Add language injection system via `@injection.*` capture tags in `.scm` query files. Adding multi-language support to a new file type requires only a `.scm` change, no Rust code
+- Add HTML block injection in Markdown. Block-level HTML is spell-checked using the HTML grammar
 - Add language alias resolution for Markdown code blocks (e.g., `py`, `js`, `sh`, `rs`, `yml`, `c++`)
 - Pre-compile all tree-sitter queries at startup for faster spell-checking and earlier error detection
 - Reduce per-word memory allocations in the spell-check pipeline

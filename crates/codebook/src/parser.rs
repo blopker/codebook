@@ -180,7 +180,7 @@ fn extract_recursive<'a>(
     let language_setting = match get_language_setting(language) {
         Some(s) => s,
         None => {
-            // No grammar (e.g. Text) — word-split the whole range
+            // No grammar (e.g. Text): word-split the whole range
             let text = &document_text[start_byte..end_byte];
             extract_words_from_text(text, start_byte, skip_ranges, &mut result.candidates);
             return;
@@ -204,7 +204,7 @@ fn extract_recursive<'a>(
     let root_node = tree.root_node();
     let compiled = COMPILED_QUERIES
         .get(&language)
-        .expect("Language has a LanguageSetting but no compiled query — this should not happen");
+        .expect("Language has a LanguageSetting but no compiled query; this should not happen");
     let mut cursor = QueryCursor::new();
     let provider = region_text.as_bytes();
     let mut matches_query = cursor.matches(&compiled.query, root_node, provider);
@@ -284,7 +284,7 @@ fn extract_recursive<'a>(
                 continue;
             }
 
-            // Normal text capture — extract words if tag passes filter
+            // Normal text capture: extract words if tag passes filter
             if !tag_filter(tag) {
                 continue;
             }

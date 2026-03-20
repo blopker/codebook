@@ -45,7 +45,7 @@ fn test_markdown_fenced_code_block_known_lang() {
     utils::init_logging();
     let processor = utils::get_processor();
     // Note: bash.scm only captures comments, strings, function names,
-    // heredocs, and variable names — NOT command invocations.
+    // heredocs, and variable names, NOT command invocations.
     // So mkdir/some_dir are not checked because bash.scm doesn't capture them,
     // not because they're in a bash dictionary.
     let sample_text = r#"# Hello World
@@ -203,7 +203,7 @@ More text.
         .spell_check(sample_text, Some(LanguageType::Markdown), None)
         .to_vec();
     println!("Misspelled words: {misspelled:?}");
-    // wrld should be flagged from both code blocks — verify two locations
+    // wrld should be flagged from both code blocks, verify two locations
     let wrld = misspelled.iter().find(|w| w.word == "wrld");
     assert!(wrld.is_some(), "wrld should be flagged");
     assert_eq!(
@@ -245,7 +245,7 @@ fn test_markdown_injected_region_byte_offsets() {
 fn test_markdown_no_duplicate_spans() {
     utils::init_logging();
     let processor = utils::get_processor();
-    // Block quotes contain paragraphs — make sure the inline content
+    // Block quotes contain paragraphs. Make sure the inline content
     // isn't captured twice (once for the paragraph, once for the block quote)
     let sample_text = "> A tyypo in a block quoet.\n";
     let misspelled = processor
