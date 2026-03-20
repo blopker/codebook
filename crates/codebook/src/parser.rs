@@ -305,6 +305,7 @@ fn extract_words_from_text<'a>(
     skip_ranges: &[SkipRange],
     candidates: &mut Vec<WordCandidate<'a>>,
 ) {
+    let mut split_buf = Vec::new();
     for (offset, word) in text.split_word_bound_indices() {
         if !is_alphabetic(word) {
             continue;
@@ -313,8 +314,8 @@ fn extract_words_from_text<'a>(
         if is_within_skip_range(global_offset, global_offset + word.len(), skip_ranges) {
             continue;
         }
-        let split = splitter::split(word);
-        for split_word in split {
+        splitter::split_into(word, &mut split_buf);
+        for split_word in &split_buf {
             if is_numeric(split_word.word) {
                 continue;
             }
