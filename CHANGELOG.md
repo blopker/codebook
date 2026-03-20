@@ -1,6 +1,9 @@
 [Unreleased]
 
-- Add multi-language support for Markdown files: fenced code blocks are now spell-checked using the appropriate language grammar (Python, Rust, Bash, etc.)
+- Add multi-language support for Markdown files: fenced code blocks are now spell-checked using the appropriate language grammar
+- Add Vue and Astro support
+- Add `<script>` and `<style>` injection to HTML spell-checking
+- Sync VS Code and Zed editor language lists with all supported languages
 
 
 [0.3.35]
