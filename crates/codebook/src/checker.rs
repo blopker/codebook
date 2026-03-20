@@ -5,10 +5,11 @@ use crate::parser::{TextRange, WordLocation};
 use codebook_config::CodebookConfig;
 
 /// A candidate word extracted from a text node, with its position
-/// in original-document byte offsets.
+/// in original-document byte offsets. Borrows the word text from the
+/// source document to avoid per-word String allocations.
 #[derive(Debug, Clone, PartialEq)]
-pub struct WordCandidate {
-    pub word: String,
+pub struct WordCandidate<'a> {
+    pub word: &'a str,
     pub start_byte: usize,
     pub end_byte: usize,
 }
@@ -17,7 +18,7 @@ pub struct WordCandidate {
 /// Returns WordLocations for misspelled words, grouping all locations
 /// of the same word together.
 pub fn check_words(
-    candidates: &[WordCandidate],
+    candidates: &[WordCandidate<'_>],
     dictionaries: &[std::sync::Arc<dyn Dictionary>],
     config: &dyn CodebookConfig,
 ) -> Vec<WordLocation> {
@@ -29,7 +30,7 @@ pub fn check_words(
             end_byte: candidate.end_byte,
         };
         let added = word_positions
-            .entry(&candidate.word)
+            .entry(candidate.word)
             .or_default()
             .insert(location);
 
@@ -68,11 +69,11 @@ mod tests {
     use crate::dictionaries::dictionary::TextDictionary;
     use std::sync::Arc;
 
-    fn make_candidates(words: &[(&str, usize, usize)]) -> Vec<WordCandidate> {
+    fn make_candidates<'a>(words: &[(&'a str, usize, usize)]) -> Vec<WordCandidate<'a>> {
         words
             .iter()
             .map(|(word, start, end)| WordCandidate {
-                word: word.to_string(),
+                word,
                 start_byte: *start,
                 end_byte: *end,
             })

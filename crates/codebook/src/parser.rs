@@ -128,12 +128,12 @@ impl WordLocation {
 ///
 /// Returns the candidates and the set of all languages encountered (for
 /// dictionary loading).
-pub fn extract_all_words(
-    document_text: &str,
+pub fn extract_all_words<'a>(
+    document_text: &'a str,
     language: LanguageType,
     tag_filter: &dyn Fn(&str) -> bool,
     skip_patterns: &[Regex],
-) -> (Vec<WordCandidate>, HashSet<LanguageType>) {
+) -> (Vec<WordCandidate<'a>>, HashSet<LanguageType>) {
     let skip_ranges = find_skip_ranges(document_text, skip_patterns);
     let mut result = ExtractionResult {
         candidates: Vec::new(),
@@ -154,8 +154,8 @@ pub fn extract_all_words(
 }
 
 /// Accumulated output from recursive word extraction.
-struct ExtractionResult {
-    candidates: Vec<WordCandidate>,
+struct ExtractionResult<'a> {
+    candidates: Vec<WordCandidate<'a>>,
     languages: HashSet<LanguageType>,
 }
 
@@ -168,14 +168,14 @@ struct ExtractionResult {
 ///     the language name from the sibling capture, then recurse
 ///
 /// For LanguageType::Text (no grammar): word-split the entire range.
-fn extract_recursive(
-    document_text: &str,
+fn extract_recursive<'a>(
+    document_text: &'a str,
     start_byte: usize,
     end_byte: usize,
     language: LanguageType,
     tag_filter: &dyn Fn(&str) -> bool,
     skip_ranges: &[SkipRange],
-    result: &mut ExtractionResult,
+    result: &mut ExtractionResult<'a>,
 ) {
     let language_setting = match get_language_setting(language) {
         Some(s) => s,
@@ -212,22 +212,22 @@ fn extract_recursive(
     while let Some(match_) = matches_query.next() {
         // First pass: look for dynamic injection pairs in this match
         let mut injection_content: Option<tree_sitter::Node> = None;
-        let mut injection_language_text: Option<String> = None;
+        let mut injection_language_text: Option<&str> = None;
 
         for capture in match_.captures {
             let tag = &compiled.capture_names[capture.index as usize];
             if tag == "injection.content" {
                 injection_content = Some(capture.node);
             } else if tag == "injection.language" {
-                injection_language_text =
-                    Some(capture.node.utf8_text(provider).unwrap_or("").to_string());
+                injection_language_text = Some(capture.node.utf8_text(provider).unwrap_or(""));
             }
         }
 
         // Handle dynamic injection pair
         if let Some(content_node) = injection_content {
-            if let Some(lang_text) = &injection_language_text {
-                let child_lang = LanguageType::from_str(&lang_text.trim().to_lowercase());
+            if let Some(lang_text) = injection_language_text {
+                let lowered = lang_text.trim().to_lowercase();
+                let child_lang = LanguageType::from_str(&lowered);
                 if let Ok(child_lang) = child_lang
                     && child_lang != LanguageType::Text
                 {
@@ -299,11 +299,11 @@ fn extract_recursive(
 // Word extraction from plain text
 // =============================================================================
 
-fn extract_words_from_text(
-    text: &str,
+fn extract_words_from_text<'a>(
+    text: &'a str,
     base_offset: usize,
     skip_ranges: &[SkipRange],
-    candidates: &mut Vec<WordCandidate>,
+    candidates: &mut Vec<WordCandidate<'a>>,
 ) {
     for (offset, word) in text.split_word_bound_indices() {
         if !is_alphabetic(word) {
@@ -324,7 +324,7 @@ fn extract_words_from_text(
                 continue;
             }
             candidates.push(WordCandidate {
-                word: split_word.word.to_string(),
+                word: split_word.word,
                 start_byte: word_start,
                 end_byte: word_end,
             });
@@ -358,7 +358,7 @@ mod tests {
     fn test_extract_words_plain_text() {
         let text = "HelloWorld calc_wrld";
         let (words, langs) = extract_all_words(text, LanguageType::Text, &|_| true, &[]);
-        let word_strings: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word).collect();
         assert!(word_strings.contains(&"Hello"));
         assert!(word_strings.contains(&"World"));
         assert!(word_strings.contains(&"calc"));
@@ -371,7 +371,7 @@ mod tests {
     fn test_extract_words_contraction() {
         let text = "I'm a contraction, wouldn't you agree'?";
         let (words, _) = extract_all_words(text, LanguageType::Text, &|_| true, &[]);
-        let word_strings: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word).collect();
         let expected = ["I'm", "a", "contraction", "wouldn't", "you", "agree"];
         for e in &expected {
             assert!(word_strings.contains(e), "Expected word '{e}' not found");
@@ -383,7 +383,7 @@ mod tests {
         let text = "// a comment\nfn main() {}";
         let (words, langs) = extract_all_words(text, LanguageType::Rust, &|_| true, &[]);
         assert!(!words.is_empty());
-        let word_strings: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word).collect();
         assert!(
             word_strings.contains(&"comment"),
             "Should find 'comment' in Rust comment"
@@ -400,7 +400,7 @@ mod tests {
             &|tag| tag.starts_with("comment"),
             &[],
         );
-        let word_strings: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word).collect();
         assert!(word_strings.contains(&"comment"));
         assert!(!word_strings.contains(&"string"));
         assert!(!word_strings.contains(&"value"));
@@ -411,7 +411,7 @@ mod tests {
         let text = "check https://example.com this";
         let url_pattern = Regex::new(r"https?://[^\s]+").unwrap();
         let (words, _) = extract_all_words(text, LanguageType::Text, &|_| true, &[url_pattern]);
-        let word_strings: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word).collect();
         assert!(word_strings.contains(&"check"));
         assert!(word_strings.contains(&"this"));
         assert!(!word_strings.contains(&"https"));
@@ -440,7 +440,7 @@ mod tests {
     fn test_markdown_injection_extracts_code_words() {
         let text = "# Hello\n\n```python\ndef some_functin(): pass\n```\n";
         let (words, _) = extract_all_words(text, LanguageType::Markdown, &|_| true, &[]);
-        let word_strings: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word).collect();
         assert!(word_strings.contains(&"functin"));
         assert!(word_strings.contains(&"Hello"));
     }
@@ -449,7 +449,7 @@ mod tests {
     fn test_markdown_unknown_language_skipped() {
         let text = "# Hello\n\n```unknownlang\nbadwwword\n```\n";
         let (words, _) = extract_all_words(text, LanguageType::Markdown, &|_| true, &[]);
-        let word_strings: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word).collect();
         assert!(!word_strings.contains(&"badwwword"));
     }
 
@@ -457,7 +457,7 @@ mod tests {
     fn test_markdown_html_block_injection() {
         let text = "# Hello\n\n<div>\n  <p>A misspeled word</p>\n</div>\n\nMore text.\n";
         let (words, langs) = extract_all_words(text, LanguageType::Markdown, &|_| true, &[]);
-        let word_strings: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word).collect();
         assert!(langs.contains(&LanguageType::HTML));
         assert!(word_strings.contains(&"misspeled"));
         assert!(!word_strings.contains(&"div"));
