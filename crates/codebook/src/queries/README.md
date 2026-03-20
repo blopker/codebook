@@ -25,7 +25,7 @@ Every capture name is a **tag** that categorizes the matched text. Tags use a do
 | `@identifier.constant` | Constant and enum member names |
 | `@identifier.module` | Package, module, and namespace names |
 
-Not every language needs every tag. HTML, for example, only uses `@comment` and `@string`.
+Not every language needs every tag. HTML, for example, only uses `@comment` and `@string`. You can get a feel for which tags are available for a specific language by looking at the `scm` file for that language in this directory.
 
 ## Adding a New Language
 
