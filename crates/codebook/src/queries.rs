@@ -158,7 +158,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::HTML,
-        ids: &["html", "vue", "astro"],
+        ids: &["html", "vue", "vue.js", "astro"],
         dictionary_ids: &["html"],
         query: include_str!("queries/html.scm"),
         extensions: &["html", "htm", "vue", "astro"],
