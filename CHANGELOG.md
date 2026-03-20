@@ -1,3 +1,14 @@
+[Unreleased]
+
+- Add multi-language support for Markdown files: fenced code blocks are now spell-checked using the appropriate language grammar (Python, Rust, Bash, etc.)
+- Add language injection system via `@injection.*` capture tags in `.scm` query files. Adding multi-language support to a new file type requires only a `.scm` change, no Rust code
+- Add HTML block injection in Markdown. Block-level HTML is spell-checked using the HTML grammar
+- Add language alias resolution for Markdown code blocks (e.g., `py`, `js`, `sh`, `rs`, `yml`, `c++`)
+- Pre-compile all tree-sitter queries at startup for faster spell-checking and earlier error detection
+- Reduce per-word memory allocations in the spell-check pipeline
+- Fix Erlang query producing duplicate captures for function name atoms
+- Refactor: split spell-checking into separate extraction (`parser.rs`) and checking (`checker.rs`) modules
+
 [0.3.35]
 
 - Add tag-based filtering (`include_tags`/`exclude_tags`) to control which parts of code are spell-checked (comments, strings, identifiers, etc.)

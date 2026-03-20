@@ -14,12 +14,19 @@ pub struct SplitRef<'a> {
     pub start_byte: usize,
 }
 
+#[cfg(test)]
 pub fn split(s: &str) -> Vec<SplitRef<'_>> {
-    if s.is_empty() {
-        return Vec::new();
-    }
-
     let mut result = Vec::new();
+    split_into(s, &mut result);
+    result
+}
+
+/// Split a word into sub-words, appending to an existing Vec to allow reuse.
+pub fn split_into<'a>(s: &'a str, result: &mut Vec<SplitRef<'a>>) {
+    result.clear();
+    if s.is_empty() {
+        return;
+    }
     let mut word_start_byte = 0;
     let mut prev_char_type = None;
 
@@ -93,8 +100,6 @@ pub fn split(s: &str) -> Vec<SplitRef<'_>> {
             });
         }
     }
-
-    result
 }
 
 #[cfg(test)]

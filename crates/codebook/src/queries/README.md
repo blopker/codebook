@@ -27,6 +27,34 @@ Every capture name is a **tag** that categorizes the matched text. Tags use a do
 
 Not every language needs every tag. HTML, for example, only uses `@comment` and `@string`. You can get a feel for which tags are available for a specific language by looking at the `scm` file for that language in this directory.
 
+### Injection Tags (Multi-Language Support)
+
+Injection tags tell codebook to re-parse a region of the file using a different language's grammar. This is how Markdown code blocks, HTML `<script>` tags, and similar multi-language files are handled.
+
+| Capture name | When to use |
+| --- | --- |
+| `@injection.content` | The text to re-parse (paired with `@injection.language` in the same query match) |
+| `@injection.language` | A node whose text names the target language (paired with `@injection.content`) |
+| `@injection.{lang}` | Static injection: always re-parse the captured node as `{lang}` (e.g., `@injection.html`) |
+
+Example from `markdown.scm`:
+
+```scheme
+; Prose content:spell-checked as text
+(paragraph (inline) @string)
+(atx_heading (inline) @string)
+
+; HTML blocks:re-parsed with the HTML grammar
+(html_block) @injection.html
+
+; Fenced code blocks:language read from the info string
+(fenced_code_block
+  (info_string (language) @injection.language)
+  (code_fence_content) @injection.content)
+```
+
+The `@injection.language` value is resolved against the `ids` and `extensions` fields in `LANGUAGE_SETTINGS`. Common aliases like `py`, `js`, `sh`, `rs`, etc. work automatically.
+
 ## Adding a New Language
 
 ### 1. Create the Query File
@@ -83,5 +111,6 @@ Additional language tests go in `crates/codebook/tests/`. Example files with at 
 - Only capture nodes that contain user-defined text (not keywords)
 - Always use namespaced capture names (`@identifier.function`, not `@func_declaration`)
 - Use the most specific tag that fits (e.g., `@identifier.type` over `@identifier`)
+- **Avoid overlapping captures**:don't let two patterns capture the same node at the same byte range. For example, a blanket `(atom) @string.special` would overlap with `(function_clause name: (atom) @identifier.function)`. Instead, capture atoms only in specific parent contexts like `(tuple (atom) @string.special)`. A `debug_assert` will catch overlaps during testing.
 - Start simple and add complexity as needed
 - Look at existing query files for patterns

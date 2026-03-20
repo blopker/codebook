@@ -19,14 +19,7 @@ entity calculatr is
     );
 end entity calculatr;
 "#;
-    let expected = vec![
-        "calculatr",
-        "clk",
-        "exmple",
-        "inputt",
-        "resett",
-        "speling",
-    ];
+    let expected = vec!["calculatr", "clk", "exmple", "inputt", "resett", "speling"];
     let binding = processor
         .spell_check(sample_text, Some(LanguageType::VHDL), None)
         .to_vec();
