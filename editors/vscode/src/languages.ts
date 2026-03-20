@@ -21,7 +21,9 @@ export const SUPPORTED_LANGUAGES = [
   "typst",
   "yaml",
   "zig",
-  "csharp"
+  "csharp",
+  "vue",
+  "astro"
 ] as const;
 
 export const DOCUMENT_SELECTOR = SUPPORTED_LANGUAGES.map((language) => ({
