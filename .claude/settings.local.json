@@ -14,7 +14,8 @@
       "Bash(gh issue list:*)",
       "Bash(gh issue view:*)",
       "Bash(gh repo view:*)",
-      "Bash(cargo build:*)"
+      "Bash(cargo build:*)",
+      "Bash(cargo search:*)"
     ]
   }
 }
