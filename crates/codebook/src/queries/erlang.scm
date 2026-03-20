@@ -1,8 +1,8 @@
 (comment) @comment
 (string) @string
-(atom) @string.special.symbol
+(atom) @string.special
 
-(var) @identifier
+(var) @identifier.variable
 
 (function_clause
-  name: (atom) @identifier)
+  name: (atom) @identifier.function)

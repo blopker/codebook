@@ -4,26 +4,26 @@
     !trait
     body: (declaration_list
         (function_item
-            name: (identifier) @identifier)))
+            name: (identifier) @identifier.function)))
 ; Functions in trait definitions
 (trait_item
     body: (declaration_list
         (function_item
-            name: (identifier) @identifier)))
+            name: (identifier) @identifier.function)))
 ; Top-level functions
-(source_file (function_item name: (identifier) @identifier))
+(source_file (function_item name: (identifier) @identifier.function))
 ; Functions in modules
-(mod_item body: (declaration_list (function_item name: (identifier) @identifier)))
+(mod_item body: (declaration_list (function_item name: (identifier) @identifier.function)))
 ; Nested functions (inside blocks)
-(block (function_item name: (identifier) @identifier))
+(block (function_item name: (identifier) @identifier.function))
 (parameter
-    pattern: (identifier) @identifier)
+    pattern: (identifier) @identifier.parameter)
 (let_declaration
-    pattern: (identifier) @identifier)
+    pattern: (identifier) @identifier.variable)
 (struct_item
-    name: (type_identifier) @identifier)
+    name: (type_identifier) @identifier.type)
 (field_declaration
-    name: (field_identifier) @identifier)
-(block_comment) @comment
-(line_comment) @comment
+    name: (field_identifier) @identifier.field)
+(block_comment) @comment.block
+(line_comment) @comment.line
 (string_content) @string

@@ -1,3 +1,8 @@
+[Unreleased]
+
+- Add tag-based filtering (`include_tags`/`exclude_tags`) to control which parts of code are spell-checked (comments, strings, identifiers, etc.)
+- Rename tree-sitter capture names to use dot-separated namespace convention (e.g., `@identifier.function` instead of `@func_declaration`)
+
 [0.3.34]
 
 - Fix crash in Termux by falling back to bundled Mozilla CA roots on Android (#230)

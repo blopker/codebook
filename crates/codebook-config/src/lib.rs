@@ -2,7 +2,8 @@ mod helpers;
 mod settings;
 mod watched_file;
 use crate::helpers::expand_tilde;
-use crate::settings::ConfigSettings;
+pub use crate::settings::ConfigSettings;
+
 use crate::watched_file::WatchedFile;
 use log::debug;
 use log::info;
@@ -32,6 +33,7 @@ pub trait CodebookConfig: Sync + Send + Debug {
     fn should_flag_word(&self, word: &str) -> bool;
     fn get_ignore_patterns(&self) -> Option<Vec<Regex>>;
     fn get_min_word_length(&self) -> usize;
+    fn should_check_tag(&self, tag: &str) -> bool;
     fn cache_dir(&self) -> &Path;
 }
 
@@ -474,51 +476,51 @@ impl CodebookConfigFile {
 impl CodebookConfig for CodebookConfigFile {
     /// Add a word to the project configs allowlist
     fn add_word(&self, word: &str) -> Result<bool, io::Error> {
-        Ok(self.update_project_settings(|settings| helpers::insert_word(settings, word)))
+        Ok(self.update_project_settings(|settings| settings.insert_word(word)))
     }
     /// Add a word to the global configs allowlist
     fn add_word_global(&self, word: &str) -> Result<bool, io::Error> {
-        Ok(self.update_global_settings(|settings| helpers::insert_word(settings, word)))
+        Ok(self.update_global_settings(|settings| settings.insert_word(word)))
     }
 
     /// Add a file to the ignore list
     fn add_ignore(&self, file: &str) -> Result<bool, io::Error> {
-        Ok(self.update_project_settings(|settings| helpers::insert_ignore(settings, file)))
+        Ok(self.update_project_settings(|settings| settings.insert_ignore(file)))
     }
 
     /// Add a file to the include list
     fn add_include(&self, file: &str) -> Result<bool, io::Error> {
-        Ok(self.update_project_settings(|settings| helpers::insert_include(settings, file)))
+        Ok(self.update_project_settings(|settings| settings.insert_include(file)))
     }
 
     /// Get dictionary IDs from effective configuration
     fn get_dictionary_ids(&self) -> Vec<String> {
         let snapshot = self.snapshot();
-        helpers::dictionary_ids(&snapshot)
+        snapshot.dictionary_ids()
     }
 
     /// Check if a path is included based on the effective configuration
     fn should_include_path(&self, path: &Path) -> bool {
         let snapshot = self.snapshot();
-        helpers::should_include_path(&snapshot, path)
+        snapshot.should_include_path(path)
     }
 
     /// Check if a path should be ignored based on the effective configuration
     fn should_ignore_path(&self, path: &Path) -> bool {
         let snapshot = self.snapshot();
-        helpers::should_ignore_path(&snapshot, path)
+        snapshot.should_ignore_path(path)
     }
 
     /// Check if a word is in the effective allowlist
     fn is_allowed_word(&self, word: &str) -> bool {
         let snapshot = self.snapshot();
-        helpers::is_allowed_word(&snapshot, word)
+        snapshot.is_allowed_word(word)
     }
 
     /// Check if a word should be flagged according to effective configuration
     fn should_flag_word(&self, word: &str) -> bool {
         let snapshot = self.snapshot();
-        helpers::should_flag_word(&snapshot, word)
+        snapshot.should_flag_word(word)
     }
 
     /// Get the list of user-defined ignore patterns
@@ -534,7 +536,11 @@ impl CodebookConfig for CodebookConfigFile {
 
     /// Get the minimum word length which should be checked
     fn get_min_word_length(&self) -> usize {
-        helpers::min_word_length(&self.snapshot())
+        self.snapshot().min_word_length()
+    }
+
+    fn should_check_tag(&self, tag: &str) -> bool {
+        self.snapshot().should_check_tag(tag)
     }
 
     fn cache_dir(&self) -> &Path {
@@ -576,7 +582,7 @@ impl CodebookConfigMemory {
 impl CodebookConfig for CodebookConfigMemory {
     fn add_word(&self, word: &str) -> Result<bool, io::Error> {
         let mut settings = self.settings.write().unwrap();
-        Ok(helpers::insert_word(&mut settings, word))
+        Ok(settings.insert_word(word))
     }
 
     fn add_word_global(&self, word: &str) -> Result<bool, io::Error> {
@@ -585,37 +591,37 @@ impl CodebookConfig for CodebookConfigMemory {
 
     fn add_ignore(&self, file: &str) -> Result<bool, io::Error> {
         let mut settings = self.settings.write().unwrap();
-        Ok(helpers::insert_ignore(&mut settings, file))
+        Ok(settings.insert_ignore(file))
     }
 
     fn add_include(&self, file: &str) -> Result<bool, io::Error> {
         let mut settings = self.settings.write().unwrap();
-        Ok(helpers::insert_include(&mut settings, file))
+        Ok(settings.insert_include(file))
     }
 
     fn get_dictionary_ids(&self) -> Vec<String> {
         let snapshot = self.snapshot();
-        helpers::dictionary_ids(&snapshot)
+        snapshot.dictionary_ids()
     }
 
     fn should_include_path(&self, path: &Path) -> bool {
         let snapshot = self.snapshot();
-        helpers::should_include_path(&snapshot, path)
+        snapshot.should_include_path(path)
     }
 
     fn should_ignore_path(&self, path: &Path) -> bool {
         let snapshot = self.snapshot();
-        helpers::should_ignore_path(&snapshot, path)
+        snapshot.should_ignore_path(path)
     }
 
     fn is_allowed_word(&self, word: &str) -> bool {
         let snapshot = self.snapshot();
-        helpers::is_allowed_word(&snapshot, word)
+        snapshot.is_allowed_word(word)
     }
 
     fn should_flag_word(&self, word: &str) -> bool {
         let snapshot = self.snapshot();
-        helpers::should_flag_word(&snapshot, word)
+        snapshot.should_flag_word(word)
     }
 
     fn get_ignore_patterns(&self) -> Option<Vec<Regex>> {
@@ -624,7 +630,11 @@ impl CodebookConfig for CodebookConfigMemory {
     }
 
     fn get_min_word_length(&self) -> usize {
-        helpers::min_word_length(&self.snapshot())
+        self.snapshot().min_word_length()
+    }
+
+    fn should_check_tag(&self, tag: &str) -> bool {
+        self.snapshot().should_check_tag(tag)
     }
 
     fn cache_dir(&self) -> &Path {

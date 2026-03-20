@@ -77,6 +77,7 @@ impl Codebook {
                 }
                 false
             },
+            |tag| self.config.should_check_tag(tag),
             &all_patterns,
         )
     }
