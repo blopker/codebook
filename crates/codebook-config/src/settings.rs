@@ -1,4 +1,6 @@
+use glob::Pattern;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 #[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct ConfigSettings {
     /// List of dictionaries to use for spell checking
@@ -179,15 +181,107 @@ impl ConfigSettings {
     /// include_tags and exclude_tags. exclude_tags takes precedence.
     pub fn should_check_tag(&self, tag: &str) -> bool {
         // exclude_tags takes precedence
-        if self.exclude_tags.iter().any(|p| tag_matches_pattern(tag, p)) {
+        if self
+            .exclude_tags
+            .iter()
+            .any(|p| tag_matches_pattern(tag, p))
+        {
             return false;
         }
         // if include_tags is set, tag must match at least one
         if !self.include_tags.is_empty() {
-            return self.include_tags.iter().any(|p| tag_matches_pattern(tag, p));
+            return self
+                .include_tags
+                .iter()
+                .any(|p| tag_matches_pattern(tag, p));
         }
         true
     }
+
+    /// Insert a word into the allowlist, returning true when it was newly added.
+    pub fn insert_word(&mut self, word: &str) -> bool {
+        let word = word.to_ascii_lowercase();
+        if self.words.contains(&word) {
+            return false;
+        }
+        self.words.push(word);
+        self.words.sort();
+        self.words.dedup();
+        true
+    }
+
+    /// Insert a path into the ignore list, returning true when it was newly added.
+    pub fn insert_ignore(&mut self, file: &str) -> bool {
+        let file = file.to_string();
+        if self.ignore_paths.contains(&file) {
+            return false;
+        }
+        self.ignore_paths.push(file);
+        self.ignore_paths.sort();
+        self.ignore_paths.dedup();
+        true
+    }
+
+    /// Insert a path into the include list, returning true when it was newly added.
+    pub fn insert_include(&mut self, file: &str) -> bool {
+        let file = file.to_string();
+        if self.include_paths.contains(&file) {
+            return false;
+        }
+        self.include_paths.push(file);
+        self.include_paths.sort();
+        self.include_paths.dedup();
+        true
+    }
+
+    /// Resolve configured dictionary IDs, providing a default when none are set.
+    pub fn dictionary_ids(&self) -> Vec<String> {
+        if self.dictionaries.is_empty() {
+            vec!["en_us".to_string()]
+        } else {
+            self.dictionaries.clone()
+        }
+    }
+
+    /// Determine whether a path should be included based on the configured glob patterns.
+    pub fn should_include_path(&self, path: &Path) -> bool {
+        if self.include_paths.is_empty() {
+            return true;
+        }
+        let path_str = path.to_string_lossy();
+        match_pattern(&self.include_paths, &path_str)
+    }
+
+    /// Determine whether a path should be ignored based on the configured glob patterns.
+    pub fn should_ignore_path(&self, path: &Path) -> bool {
+        let path_str = path.to_string_lossy();
+        match_pattern(&self.ignore_paths, &path_str)
+    }
+
+    /// Check if a word is explicitly allowed.
+    pub fn is_allowed_word(&self, word: &str) -> bool {
+        let word = word.to_ascii_lowercase();
+        self.words.iter().any(|w| w == &word)
+    }
+
+    /// Check if a word should be flagged.
+    pub fn should_flag_word(&self, word: &str) -> bool {
+        let word = word.to_ascii_lowercase();
+        self.flag_words.iter().any(|w| w == &word)
+    }
+
+    /// Retrieve the configured minimum word length.
+    pub fn min_word_length(&self) -> usize {
+        self.min_word_length
+    }
+}
+
+fn match_pattern(patterns: &[String], path_str: &str) -> bool {
+    patterns.iter().any(|pattern| {
+        Pattern::new(pattern)
+            .map(|p| p.matches(path_str))
+            .unwrap_or(false)
+    })
 }
 
 /// Helper function to sort and deduplicate a Vec of strings
