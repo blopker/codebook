@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::dictionaries::dictionary::Dictionary;
 use crate::parser::{TextRange, WordLocation};
@@ -15,19 +15,19 @@ pub struct WordCandidate {
 
 /// Check candidate words against dictionaries and config rules.
 /// Returns WordLocations for misspelled words, grouping all locations
-/// of the same word together.
+/// of the same word together. Duplicate spans are deduplicated.
 pub fn check_words(
     candidates: &[WordCandidate],
     dictionaries: &[std::sync::Arc<dyn Dictionary>],
     config: &dyn CodebookConfig,
 ) -> Vec<WordLocation> {
-    // Deduplicate: group candidates by word text
-    let mut word_positions: HashMap<&str, Vec<TextRange>> = HashMap::new();
+    // Group candidates by word text, deduplicating identical spans
+    let mut word_positions: HashMap<&str, HashSet<TextRange>> = HashMap::new();
     for candidate in candidates {
         word_positions
             .entry(&candidate.word)
             .or_default()
-            .push(TextRange {
+            .insert(TextRange {
                 start_byte: candidate.start_byte,
                 end_byte: candidate.end_byte,
             });
@@ -36,6 +36,7 @@ pub fn check_words(
     // Check each unique word once
     let mut results = Vec::new();
     for (word, positions) in word_positions {
+        let positions: Vec<TextRange> = positions.into_iter().collect();
         if config.should_flag_word(word) {
             results.push(WordLocation::new(word.to_string(), positions));
             continue;
@@ -110,5 +111,25 @@ mod tests {
         let candidates = make_candidates(&[("codebook", 0, 8)]);
         let results = check_words(&candidates, &[dict], config.as_ref());
         assert!(results.is_empty(), "Allowed words should not be flagged");
+    }
+
+    #[test]
+    fn test_check_words_deduplicates_identical_spans() {
+        let dict = Arc::new(TextDictionary::new("hello\n"));
+        let config = Arc::new(codebook_config::CodebookConfigMemory::default());
+        // Same word at the exact same position — should be deduplicated
+        let candidates = make_candidates(&[
+            ("wrld", 0, 4),
+            ("wrld", 0, 4),
+            ("wrld", 0, 4),
+        ]);
+        let results = check_words(&candidates, &[dict], config.as_ref());
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].word, "wrld");
+        assert_eq!(
+            results[0].locations.len(),
+            1,
+            "Identical spans should be deduplicated to one location"
+        );
     }
 }

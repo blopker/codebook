@@ -15,6 +15,7 @@ use unicode_segmentation::UnicodeSegmentation;
 static PARSER_CACHE: LazyLock<Mutex<HashMap<LanguageType, Parser>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+
 #[derive(Debug, Clone, Copy, PartialEq, Ord, Eq, PartialOrd, Hash)]
 pub struct TextRange {
     /// Start position in utf-8 byte offset
@@ -166,6 +167,8 @@ fn extract_recursive(
 
     let root_node = tree.root_node();
     let lang = language_setting.language().unwrap();
+    // Query compilation is cheap (microseconds for small .scm files).
+    // Caching would conflict with the recursive mutex on PARSER_CACHE.
     let query = Query::new(&lang, language_setting.query).unwrap();
     let capture_names: Vec<String> = query
         .capture_names()

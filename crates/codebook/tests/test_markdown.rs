@@ -44,6 +44,10 @@ fn test_markdown_heading() {
 fn test_markdown_fenced_code_block_known_lang() {
     utils::init_logging();
     let processor = utils::get_processor();
+    // Note: bash.scm only captures comments, strings, function names,
+    // heredocs, and variable names — NOT command invocations.
+    // So mkdir/some_dir are not checked because bash.scm doesn't capture them,
+    // not because they're in a bash dictionary.
     let sample_text = r#"# Hello World
 
 Some correct text here.
@@ -59,9 +63,8 @@ More correct text here.
         .to_vec();
     let words: Vec<&str> = misspelled.iter().map(|r| r.word.as_str()).collect();
     println!("Misspelled words: {words:?}");
-    // bash builtins like mkdir should be recognized by the bash dictionary
+    // bash.scm doesn't capture command invocations, so these are not checked
     assert!(!words.contains(&"mkdir"));
-    // dir is a common abbreviation, should not be flagged
     assert!(!words.contains(&"dir"));
 }
 
@@ -203,4 +206,55 @@ More text.
     println!("Misspelled words: {words:?}");
     // wrld should be flagged as a function name typo in both languages
     assert!(words.contains(&"wrld"));
+}
+
+#[test]
+fn test_markdown_injected_region_byte_offsets() {
+    utils::init_logging();
+    let processor = utils::get_processor();
+    // Verify that byte offsets from injected regions map back correctly
+    // to the original document coordinates.
+    //                       0         1         2         3
+    //                       0123456789012345678901234567890123456789
+    let sample_text = "# OK\n\n```python\ndef some_functin(): pass\n```\n";
+    //                       ^15 = start of python block content
+    //                       "def some_functin(): pass\n" starts at byte 16
+    //                       "functin" is at offset 9 within "def some_functin"
+    //                       so global offset = 16 + 9 = 25
+    let misspelled = processor
+        .spell_check(sample_text, Some(LanguageType::Markdown), None)
+        .to_vec();
+    println!("Misspelled words: {misspelled:?}");
+    let functin = misspelled.iter().find(|w| w.word == "functin");
+    assert!(functin.is_some(), "Expected 'functin' to be flagged");
+    let loc = &functin.unwrap().locations[0];
+    // Verify the byte offsets point to the right place in the original document
+    assert_eq!(
+        &sample_text[loc.start_byte..loc.end_byte],
+        "functin",
+        "Byte offsets should map back to 'functin' in the original document"
+    );
+}
+
+#[test]
+fn test_markdown_no_duplicate_spans() {
+    utils::init_logging();
+    let processor = utils::get_processor();
+    // Block quotes contain paragraphs — make sure the inline content
+    // isn't captured twice (once for the paragraph, once for the block quote)
+    let sample_text = "> A tyypo in a block quoet.\n";
+    let misspelled = processor
+        .spell_check(sample_text, Some(LanguageType::Markdown), None)
+        .to_vec();
+    for result in &misspelled {
+        let unique_count = result.locations.len();
+        let deduped: std::collections::HashSet<_> = result.locations.iter().collect();
+        assert_eq!(
+            unique_count,
+            deduped.len(),
+            "Word '{}' has duplicate spans: {:?}",
+            result.word,
+            result.locations
+        );
+    }
 }
