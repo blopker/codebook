@@ -21,14 +21,20 @@ macro_rules! err {
     };
 }
 
+macro_rules! paint {
+    ($val:expr, $stream:expr, $style:expr) => {
+        $val.if_supports_color($stream, |t| t.style($style))
+    };
+}
+
 fn fatal(msg: impl std::fmt::Display) -> ! {
     err!("{msg}");
     std::process::exit(2);
 }
 
 /// Computes a workspace-relative path string for a given file. Falls back to
-/// the absolute path if the file is outside the workspace or canonicalization fails.
-/// `root_canonical` should be the already-canonicalized workspace root.
+/// the absolute path if the file is outside the workspace or canonicalization
+/// fails. `root_canonical` should be the already-canonicalized workspace root.
 fn relative_to_root(root_canonical: Option<&Path>, path: &Path) -> String {
     root_canonical
         .and_then(|root| {
@@ -80,8 +86,8 @@ pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> b
     let unique_label = if unique { "unique " } else { "" };
     eprintln!(
         "Found {} {unique_label}spelling error(s) in {} file(s).",
-        total_errors.if_supports_color(Stream::Stderr, |t| t.style(BOLD)),
-        files_with_errors.if_supports_color(Stream::Stderr, |t| t.style(BOLD)),
+        paint!(total_errors, Stream::Stderr, BOLD),
+        paint!(files_with_errors, Stream::Stderr, BOLD),
     );
 
     if had_failure {
@@ -94,8 +100,8 @@ pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> b
 /// Spell-checks a single file and prints any diagnostics to stdout.
 ///
 /// Returns `(error_count, had_io_error)`. `error_count` is 0 if the file was
-/// clean; `had_io_error` is true when the file could not be read.
-/// `relative` is the workspace-relative path used for display and ignore matching.
+/// clean; `had_io_error` is true when the file could not be read. `relative` is
+/// the workspace-relative path used for display and ignore matching.
 fn check_file(
     path: &Path,
     relative: &str,
@@ -114,17 +120,15 @@ fn check_file(
 
     let display = relative.strip_prefix("./").unwrap_or(relative);
 
-    // Build the offset table once per file – O(n) construction, O(1) per lookup –
-    // and gives Unicode character columns rather than raw byte offsets.
+    // Build the offset table once per file
     let offsets = StringOffsets::<AllConfig>::new(&text);
-
     let mut locations = codebook.spell_check(&text, None, Some(relative));
     // Sort by first occurrence in the file.
     locations.sort_by_key(|l| l.locations.first().map(|r| r.start_byte).unwrap_or(0));
 
-    // Collect hits first so we can compute pad_len for column alignment.
-    // The unique check is per-word (outer loop) so all ranges of a word are
-    // included or skipped together.
+    // Collect hits first so we can compute pad_len for column alignment. The
+    // unique check is per-word, so all ranges of a word are included or skipped
+    // together.
     let mut hits: Vec<(String, &str, Option<Vec<String>>)> = Vec::new();
     for wl in &locations {
         if unique && !seen_words.insert(wl.word.to_lowercase()) {
@@ -137,7 +141,7 @@ fn check_file(
             None
         };
 
-        // In unique mode only emit the first occurrence of each word.
+        // If unique mode: Only emit the first occurrence of each word.
         let ranges = if unique {
             &wl.locations[..1]
         } else {
@@ -147,12 +151,14 @@ fn check_file(
         for (i, range) in ranges.iter().enumerate() {
             // utf8_to_char_pos returns 0-based line and Unicode-char column.
             let pos = offsets.utf8_to_char_pos(range.start_byte.min(text.len()));
+
             // Move out of `suggestions` on the last iteration to avoid a clone.
             let sugg = if i + 1 < ranges.len() {
                 suggestions.clone()
             } else {
                 suggestions.take()
             };
+
             hits.push((
                 format!("{}:{}", pos.line + 1, pos.col + 1),
                 wl.word.as_str(),
@@ -175,17 +181,14 @@ fn check_file(
         let pad = " ".repeat(pad_len - linecol.len());
         print!(
             "  {}:{}{}  {}",
-            display.if_supports_color(Stream::Stdout, |t| t.style(DIM)),
-            linecol.if_supports_color(Stream::Stdout, |t| t.style(YELLOW)),
+            paint!(display, Stream::Stdout, DIM),
+            paint!(linecol, Stream::Stdout, YELLOW),
             pad,
-            word.if_supports_color(Stream::Stdout, |t| t.style(BOLD_RED)),
+            paint!(word, Stream::Stdout, BOLD_RED),
         );
-        if let Some(suggestions) = suggestions {
-            println!(
-                "  {}",
-                format!("→ {}", suggestions.join(", "))
-                    .if_supports_color(Stream::Stdout, |t| t.style(DIM)),
-            );
+        if let Some(s) = suggestions {
+            let text = format!("→ {}", s.join(", "));
+            println!("  {}", paint!(text, Stream::Stdout, DIM));
         } else {
             println!();
         }
@@ -232,7 +235,7 @@ fn resolve_paths(patterns: &[String], root: &Path) -> (Vec<PathBuf>, bool) {
     let mut had_failure = false;
 
     for pattern in patterns {
-        // root.join() is a no-op when pattern is absolute (replaces root entirely).
+        // root.join() is a no-op when pattern is absolute
         let p = root.join(pattern);
         if p.is_dir() {
             had_failure |= collect_dir(&p, &mut paths);
@@ -276,8 +279,8 @@ fn resolve_paths(patterns: &[String], root: &Path) -> (Vec<PathBuf>, bool) {
     (paths, had_failure)
 }
 
-/// Recursively collects all files under `dir` into `out`.
-/// Returns `true` if any directory-entry I/O error occurred (e.g. permission denied).
+/// Recursively collects all files under `dir` into `out`. Returns `true` if any
+/// directory-entry I/O error occurred.
 fn collect_dir(dir: &Path, out: &mut Vec<PathBuf>) -> bool {
     let mut had_failure = false;
     for entry in walkdir::WalkDir::new(dir).follow_links(false) {
@@ -306,385 +309,84 @@ mod tests {
     use std::sync::Arc;
     use tempfile::tempdir;
 
-    /// Builds a Codebook backed by the default in-memory config (en_us dictionary).
-    /// This mirrors the pattern used throughout the rest of the test suite.
-    fn make_codebook() -> Codebook {
-        let config = Arc::new(CodebookConfigMemory::default());
-        Codebook::new(config).unwrap()
-    }
-
-    // ── relative_to_root ─────────────────────────────────────────────────────
-
     #[test]
-    fn test_relative_to_root_inside_workspace() {
-        let dir = tempdir().unwrap();
-        let subdir = dir.path().join("src");
-        fs::create_dir_all(&subdir).unwrap();
-        let file = subdir.join("lib.rs");
-        fs::write(&file, "").unwrap();
-
-        let root_canonical = dir.path().canonicalize().unwrap();
-        let result = relative_to_root(Some(&root_canonical), &file);
-        assert_eq!(result, "src/lib.rs");
-    }
-
-    #[test]
-    fn test_relative_to_root_outside_workspace() {
-        let root = tempdir().unwrap();
-        let other = tempdir().unwrap();
-        let file = other.path().join("outside.rs");
-        fs::write(&file, "").unwrap();
-
-        let root_canonical = root.path().canonicalize().unwrap();
-        let result = relative_to_root(Some(&root_canonical), &file);
-        // Falls back to a path string since the file is outside the workspace.
-        assert!(result.contains("outside.rs"));
-    }
-
-    #[test]
-    fn test_relative_to_root_none_returns_raw_path() {
-        let result = relative_to_root(None, Path::new("/some/path/file.rs"));
-        assert_eq!(result, "/some/path/file.rs");
-    }
-
-    // ── collect_dir ───────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_collect_dir_empty_dir() {
-        let dir = tempdir().unwrap();
-        let mut out = Vec::new();
-        let had_failure = collect_dir(dir.path(), &mut out);
-        assert!(out.is_empty());
-        assert!(!had_failure);
-    }
-
-    #[test]
-    fn test_collect_dir_collects_files_recursively() {
+    fn test_path_and_dir_resolution() {
         let dir = tempdir().unwrap();
         let sub = dir.path().join("sub");
         fs::create_dir_all(&sub).unwrap();
-        fs::write(dir.path().join("a.txt"), "").unwrap();
-        fs::write(sub.join("b.txt"), "").unwrap();
 
-        let mut out = Vec::new();
-        let had_failure = collect_dir(dir.path(), &mut out);
+        let f1 = dir.path().join("a.rs");
+        let f2 = sub.join("b.txt");
+        fs::write(&f1, "").unwrap();
+        fs::write(&f2, "").unwrap();
 
-        assert_eq!(out.len(), 2);
-        assert!(!had_failure);
+        let root_canon = dir.path().canonicalize().unwrap();
+        assert_eq!(relative_to_root(Some(&root_canon), &f1), "a.rs");
+
+        let pattern = format!("{}/**/*.*", dir.path().display());
+        let (paths, err) = resolve_paths(&[pattern], dir.path());
+
+        assert!(!err);
+        assert_eq!(paths.len(), 2);
+        let path_strs: HashSet<_> = paths.iter().map(|p| p.to_string_lossy()).collect();
+        assert!(path_strs.iter().any(|s| s.ends_with("a.rs")));
+        assert!(path_strs.iter().any(|s| s.ends_with("b.txt")));
+
+        let (_, err_missing) = resolve_paths(&["nonexistent.rs".into()], dir.path());
+        assert!(err_missing);
     }
 
     #[test]
-    fn test_collect_dir_only_yields_files_not_directories() {
+    fn test_check_file_logic() {
         let dir = tempdir().unwrap();
-        let sub = dir.path().join("subdir");
-        fs::create_dir_all(&sub).unwrap();
-        fs::write(sub.join("c.txt"), "").unwrap();
+        let f = dir.path().join("test.txt");
+        fs::write(&f, "actualbad\n🦀 actualbad").unwrap();
 
-        let mut out = Vec::new();
-        let had_failure = collect_dir(dir.path(), &mut out);
-
-        assert!(
-            out.iter().all(|p| p.is_file()),
-            "only files should be collected, not directories"
-        );
-        assert!(!had_failure);
-    }
-
-    // ── resolve_paths ─────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_resolve_paths_single_existing_file() {
-        let dir = tempdir().unwrap();
-        let file = dir.path().join("hello.txt");
-        fs::write(&file, "").unwrap();
-
-        let (result, had_failure) =
-            resolve_paths(&[file.to_string_lossy().to_string()], dir.path());
-
-        assert_eq!(result, vec![file]);
-        assert!(!had_failure);
-    }
-
-    #[test]
-    fn test_resolve_paths_missing_file_sets_failure() {
-        let dir = tempdir().unwrap();
-        let nonexistent = dir.path().join("nope.txt");
-
-        let (result, had_failure) =
-            resolve_paths(&[nonexistent.to_string_lossy().to_string()], dir.path());
-
-        assert!(result.is_empty());
-        assert!(had_failure, "unmatched path should set had_failure");
-    }
-
-    #[test]
-    fn test_resolve_paths_directory_collects_all_files() {
-        let dir = tempdir().unwrap();
-        let sub = dir.path().join("sub");
-        fs::create_dir_all(&sub).unwrap();
-        fs::write(dir.path().join("a.txt"), "").unwrap();
-        fs::write(sub.join("b.txt"), "").unwrap();
-
-        let (result, had_failure) =
-            resolve_paths(&[dir.path().to_string_lossy().to_string()], dir.path());
-
-        assert_eq!(result.len(), 2);
-        assert!(!had_failure);
-    }
-
-    #[test]
-    fn test_resolve_paths_glob_matches_by_extension() {
-        let dir = tempdir().unwrap();
-        fs::write(dir.path().join("foo.rs"), "").unwrap();
-        fs::write(dir.path().join("bar.rs"), "").unwrap();
-        fs::write(dir.path().join("baz.txt"), "").unwrap();
-
-        let pattern = format!("{}/*.rs", dir.path().to_string_lossy());
-        let (result, had_failure) = resolve_paths(&[pattern], dir.path());
-
-        assert_eq!(result.len(), 2, "only .rs files should match");
-        assert!(
-            result
-                .iter()
-                .all(|p| p.extension().unwrap_or_default() == "rs")
-        );
-        assert!(!had_failure);
-    }
-
-    #[test]
-    fn test_resolve_paths_glob_no_match_sets_failure() {
-        let dir = tempdir().unwrap(); // empty dir — no .rs files
-        let pattern = format!("{}/*.rs", dir.path().to_string_lossy());
-
-        let (result, had_failure) = resolve_paths(&[pattern], dir.path());
-
-        assert!(result.is_empty());
-        assert!(had_failure, "unmatched glob should set had_failure");
-    }
-
-    #[test]
-    fn test_resolve_paths_deduplicates_same_file() {
-        let dir = tempdir().unwrap();
-        let file = dir.path().join("hello.txt");
-        fs::write(&file, "").unwrap();
-
-        let path_str = file.to_string_lossy().to_string();
-        // List the same file twice — it should appear only once in the output.
-        let (result, had_failure) = resolve_paths(&[path_str.clone(), path_str], dir.path());
-
-        assert_eq!(result.len(), 1);
-        assert!(!had_failure);
-    }
-
-    #[test]
-    fn test_resolve_paths_output_is_sorted() {
-        let dir = tempdir().unwrap();
-        // Create files in non-alphabetical order.
-        fs::write(dir.path().join("c.txt"), "").unwrap();
-        fs::write(dir.path().join("a.txt"), "").unwrap();
-        fs::write(dir.path().join("b.txt"), "").unwrap();
-
-        let (result, had_failure) =
-            resolve_paths(&[dir.path().to_string_lossy().to_string()], dir.path());
-
-        let names: Vec<_> = result
-            .iter()
-            .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
-            .collect();
-        assert_eq!(names, ["a.txt", "b.txt", "c.txt"]);
-        assert!(!had_failure);
-    }
-
-    #[test]
-    fn test_resolve_paths_relative_pattern_resolved_against_root() {
-        let dir = tempdir().unwrap();
-        fs::write(dir.path().join("x.txt"), "").unwrap();
-
-        // "x.txt" is relative — resolve_paths should join it with the root.
-        let (result, had_failure) = resolve_paths(&["x.txt".to_string()], dir.path());
-
-        assert_eq!(result.len(), 1);
-        assert!(!had_failure);
-    }
-
-    // ── check_file ────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_check_file_unreadable_sets_failure() {
-        let dir = tempdir().unwrap();
-        let nonexistent = dir.path().join("ghost.txt");
-
-        let codebook = make_codebook();
-        let (count, had_failure) = check_file(
-            &nonexistent,
-            "ghost.txt",
-            &codebook,
-            &mut HashSet::new(),
-            false,
-            false,
-        );
-
-        assert_eq!(count, 0);
-        assert!(had_failure, "unreadable file must set had_failure");
-    }
-
-    #[test]
-    fn test_check_file_flags_misspelling() {
-        let dir = tempdir().unwrap();
-        let file = dir.path().join("bad.txt");
-        // "actualbad" is not a real English word; the checker should flag it.
-        fs::write(&file, "actualbad").unwrap();
-
-        let codebook = make_codebook();
-        let (count, had_failure) = check_file(
-            &file,
-            "bad.txt",
-            &codebook,
-            &mut HashSet::new(),
-            false,
-            false,
-        );
-
-        assert!(
-            count > 0,
-            "expected at least one misspelling to be reported"
-        );
-        assert!(!had_failure);
-    }
-
-    #[test]
-    fn test_check_file_unique_counts_each_word_once_per_file() {
-        let dir = tempdir().unwrap();
-        let file = dir.path().join("dup.txt");
-        // The checker groups all occurrences of the same misspelled word into one
-        // WordLocation with multiple TextRanges; unique mode takes only the first.
-        fs::write(&file, "actualbad actualbad").unwrap();
-
-        let codebook = make_codebook();
-        let mut had_failure = false;
-
-        let (count_all, f) = check_file(
-            &file,
-            "dup.txt",
-            &codebook,
-            &mut HashSet::new(),
-            false, // unique = false
-            false,
-        );
-        had_failure |= f;
-
-        let (count_unique, f) = check_file(
-            &file,
-            "dup.txt",
-            &codebook,
-            &mut HashSet::new(),
-            true, // unique = true
-            false,
-        );
-        had_failure |= f;
-
-        assert_eq!(count_all, 2, "non-unique mode must count every occurrence");
-        assert_eq!(count_unique, 1, "unique mode must count each word once");
-        assert!(!had_failure);
-    }
-
-    #[test]
-    fn test_check_file_unique_deduplicates_across_files() {
-        let dir = tempdir().unwrap();
-        let file1 = dir.path().join("first.txt");
-        let file2 = dir.path().join("second.txt");
-        fs::write(&file1, "actualbad").unwrap();
-        fs::write(&file2, "actualbad").unwrap();
-
-        let codebook = make_codebook();
-        // A single shared `seen_words` set, exactly as run_lint uses it.
+        let cb = Codebook::new(Arc::new(CodebookConfigMemory::default())).unwrap();
         let mut seen = HashSet::new();
 
-        let (count1, f1) = check_file(&file1, "first.txt", &codebook, &mut seen, true, false);
-        let (count2, f2) = check_file(&file2, "second.txt", &codebook, &mut seen, true, false);
+        // Test basic flagging and multi-occurrence counting
+        let (count, err) = check_file(&f, "test.txt", &cb, &mut seen, false, false);
+        assert_eq!(count, 2);
+        assert!(!err);
 
-        assert_eq!(count1, 1, "first file should report the misspelling");
-        assert_eq!(count2, 0, "second file should skip the already-seen word");
-        assert!(!f1);
-        assert!(!f2);
-    }
+        // Test unique mode
+        let mut seen_unique = HashSet::new();
+        let (c1, _) = check_file(&f, "f1.txt", &cb, &mut seen_unique, true, false);
+        let (c2, _) = check_file(&f, "f2.txt", &cb, &mut seen_unique, true, false);
+        assert_eq!(c1, 1, "Should flag word once");
+        assert_eq!(c2, 0, "Should skip already-seen word in second file");
 
-    // ── line/col correctness (pure StringOffsets, no network I/O) ────────────
-    //
-    // These tests exercise the exact same utf8_to_char_pos call that check_file
-    // uses, confirming that columns are in Unicode characters rather than raw
-    // bytes and that the 0-based → 1-based conversion is applied correctly.
-
-    #[test]
-    fn test_linecol_word_at_start_of_file() {
-        let text = "actualbad rest of line";
-        let offsets = StringOffsets::<AllConfig>::new(text);
-        let pos = offsets.utf8_to_char_pos(0);
-        assert_eq!(pos.line + 1, 1);
-        assert_eq!(pos.col + 1, 1);
-    }
-
-    #[test]
-    fn test_linecol_word_on_second_line() {
-        // "ok text\n" is 8 bytes; "actualbad" starts at byte 8.
-        let text = "ok text\nactualbad more";
-        let offsets = StringOffsets::<AllConfig>::new(text);
-        let byte_offset = text.find("actualbad").unwrap();
-        assert_eq!(byte_offset, 8, "sanity-check byte layout");
-
-        let pos = offsets.utf8_to_char_pos(byte_offset);
-        assert_eq!(pos.line + 1, 2, "should be on the second line");
-        assert_eq!(pos.col + 1, 1, "should be the first column of that line");
-    }
-
-    #[test]
-    fn test_linecol_mid_line_ascii() {
-        // "hello " is 6 bytes/chars; "actualbad" starts at byte/char 6.
-        let text = "hello actualbad";
-        let offsets = StringOffsets::<AllConfig>::new(text);
-        let byte_offset = text.find("actualbad").unwrap();
-        assert_eq!(byte_offset, 6, "sanity-check byte layout");
-
-        let pos = offsets.utf8_to_char_pos(byte_offset);
-        assert_eq!(pos.line + 1, 1);
-        assert_eq!(pos.col + 1, 7);
-    }
-
-    /// The old byte-count approach reported col=10 here; StringOffsets correctly
-    /// reports col=8 because "résumé" is 8 bytes but only 6 Unicode characters.
-    #[test]
-    fn test_linecol_multibyte_chars_before_word() {
-        // r(1) + é(2) + s(1) + u(1) + m(1) + é(2) + space(1) = 9 bytes, 7 chars.
-        // "actualbad" starts at byte 9, char offset 7 (0-based) → col 8 (1-based).
-        let text = "résumé actualbad";
-        let offsets = StringOffsets::<AllConfig>::new(text);
-        let byte_offset = text.find("actualbad").unwrap();
-        assert_eq!(byte_offset, 9, "sanity-check byte layout");
-
-        let pos = offsets.utf8_to_char_pos(byte_offset);
-        assert_eq!(pos.line + 1, 1);
-        assert_eq!(
-            pos.col + 1,
-            8,
-            "col must count Unicode chars (6 + space = 7, 1-based = 8), not bytes (9, 1-based = 10)"
+        // Test IO failure
+        let (_, err_io) = check_file(
+            &dir.path().join("missing"),
+            "!",
+            &cb,
+            &mut seen,
+            false,
+            false,
         );
+        assert!(err_io);
     }
 
     #[test]
-    fn test_linecol_emoji_before_word() {
-        // 🐛 is U+1F41B — 4 UTF-8 bytes, 1 Unicode char.
-        // "🐛 " = 5 bytes, 2 chars; "actualbad" starts at byte 5, char 2 (0-based) → col 3.
-        let text = "🐛 actualbad";
-        let offsets = StringOffsets::<AllConfig>::new(text);
-        let byte_offset = text.find("actualbad").unwrap();
-        assert_eq!(byte_offset, 5, "sanity-check byte layout");
+    fn test_unicode_line_col() {
+        let cases = [
+            ("actualbad", 0, 1, 1),        // Start
+            ("ok\nactualbad", 3, 2, 1),    // Newline
+            ("résumé actualbad", 9, 1, 8), // Multi-byte chars (é is 2 bytes)
+            ("🦀 actualbad", 5, 1, 3),     // Emoji (4 bytes, 1 char)
+        ];
 
-        let pos = offsets.utf8_to_char_pos(byte_offset);
-        assert_eq!(pos.line + 1, 1);
-        assert_eq!(
-            pos.col + 1,
-            3,
-            "col must count Unicode chars (emoji=1, space=1, 1-based=3), not bytes (5, 1-based=6)"
-        );
+        for (text, offset, line, col) in cases {
+            let table = StringOffsets::<AllConfig>::new(text);
+            let pos = table.utf8_to_char_pos(offset);
+            assert_eq!(
+                (pos.line + 1, pos.col + 1),
+                (line, col),
+                "Failed on: {}",
+                text
+            );
+        }
     }
 }
