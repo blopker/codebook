@@ -6,11 +6,11 @@ mod utils;
 fn test_svelte_html() {
     utils::init_logging();
     let sample_text = r#"
-<main>
-  <h1>Welcom to my app</h1>
-  <p>Enjoye your stay, pleaze report bugs.</p>
-</main>
-"#;
+        <main>
+        <h1>Welcom to my app</h1>
+        <p>Enjoye your stay, pleaze report bugs.</p>
+        </main>"#;
+
     let processor = utils::get_processor();
     let misspelled = processor
         .spell_check(sample_text, Some(LanguageType::Svelte), None)
@@ -27,11 +27,11 @@ fn test_svelte_html() {
 fn test_svelte_script() {
     utils::init_logging();
     let sample_text = r#"
-<script>
-  const mesage = "Helo Wrold";
-  let naeme = 'Welcom back';
-</script>
-"#;
+        <script>
+        const mesage = "Helo Wrold";
+        let naeme = 'Welcom back';
+        </script>"#;
+
     let processor = utils::get_processor();
     let misspelled = processor
         .spell_check(sample_text, Some(LanguageType::Svelte), None)
@@ -50,14 +50,14 @@ fn test_svelte_script() {
 fn test_svelte_style() {
     utils::init_logging();
     let sample_text = r#"
-<style>
-  .card {
-    backgrond-color: #fff;
-    font-wieght: bold;
-    bordre: 1px solid #ccc;
-  }
-</style>
-"#;
+        <style>
+        .card {
+            backgrond-color: #fff;
+            font-wieght: bold;
+            bordre: 1px solid #ccc;
+        }
+        </style>"#;
+
     let processor = utils::get_processor();
     let misspelled = processor
         .spell_check(sample_text, Some(LanguageType::Svelte), None)
