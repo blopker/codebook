@@ -153,6 +153,7 @@ Codebook is in active development. As better dictionaries are added, words that 
 | Python     | ✅     |
 | Ruby       | ✅     |
 | Rust       | ✅     |
+| Svelte     | ⚠️     |
 | Swift      | ⚠️     |
 | TOML       | ✅     |
 | TypeScript | ✅     |
