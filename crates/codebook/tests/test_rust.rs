@@ -154,3 +154,67 @@ fn test_rust_struct() {
         assert_eq!(result.locations, expect.locations);
     }
 }
+
+#[test]
+fn test_rust_trait_impl_function_names_not_checked() {
+    // https://github.com/blopker/codebook/issues/225
+    // Function names in `impl Trait for Type` blocks should not be spell-checked
+    // because the names are dictated by the trait, not the implementor.
+    utils::init_logging();
+    let processor = utils::get_processor();
+    let sample_text = r#"
+        struct MyType;
+
+        impl SomeTrait for MyType {
+            fn spelling_erorr(self) {
+                // This comment has a typo: tset
+            }
+        }
+    "#;
+    let binding = processor
+        .spell_check(sample_text, Some(LanguageType::Rust), None)
+        .to_vec();
+    let misspelled: Vec<&str> = binding.iter().map(|r| r.word.as_str()).collect();
+    println!("Misspelled words: {misspelled:?}");
+    // "erorr" in the function name should NOT be flagged (name dictated by trait)
+    assert!(
+        !misspelled.contains(&"erorr"),
+        "Function names in trait impl blocks should not be spell-checked"
+    );
+    // But comments inside the impl block should still be checked
+    assert!(
+        misspelled.contains(&"tset"),
+        "Comments inside trait impl blocks should still be spell-checked"
+    );
+}
+
+#[test]
+fn test_rust_regular_impl_function_names_checked() {
+    // Regular impl blocks (not trait implementations) should still be spell-checked
+    utils::init_logging();
+    let processor = utils::get_processor();
+    let sample_text = r#"
+        struct MyType;
+
+        impl MyType {
+            fn spelling_erorr(self) {}
+        }
+
+        fn top_level_erorr() {}
+    "#;
+    let binding = processor
+        .spell_check(sample_text, Some(LanguageType::Rust), None)
+        .to_vec();
+    let misspelled: Vec<&str> = binding.iter().map(|r| r.word.as_str()).collect();
+    println!("Misspelled words: {misspelled:?}");
+    assert!(
+        misspelled.contains(&"erorr"),
+        "Expected 'erorr' to be flagged in regular impl and top-level functions"
+    );
+    let erorr = binding.iter().find(|r| r.word == "erorr").unwrap();
+    assert_eq!(
+        erorr.locations.len(),
+        2,
+        "Expected 'erorr' flagged in both regular impl and top-level function"
+    );
+}

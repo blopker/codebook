@@ -2,8 +2,9 @@
   "name": "codebook-vscode",
   "displayName": "Codebook Spell Checker",
   "description": "A fast, code-aware spell checker.",
-  "version": "0.0.1",
+  "icon": "assets/codebook.png",
   "publisher": "blopker",
+  "version": "0.0.1",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -20,33 +21,17 @@
     "Linters",
     "Other"
   ],
+  "keywords": [
+    "spell",
+    "checker",
+    "spelling",
+    "spellchecker"
+  ],
   "extensionKind": [
     "workspace"
   ],
   "activationEvents": [
-    "onLanguage:c",
-    "onLanguage:cpp",
-    "onLanguage:css",
-    "onLanguage:elixir",
-    "onLanguage:go",
-    "onLanguage:html",
-    "onLanguage:haskell",
-    "onLanguage:java",
-    "onLanguage:javascript",
-    "onLanguage:latex",
-    "onLanguage:lua",
-    "onLanguage:markdown",
-    "onLanguage:php",
-    "onLanguage:plaintext",
-    "onLanguage:python",
-    "onLanguage:ruby",
-    "onLanguage:rust",
-    "onLanguage:toml",
-    "onLanguage:typescript",
-    "onLanguage:typst",
-    "onLanguage:yaml",
-    "onLanguage:zig",
-    "onLanguage:csharp"
+    "onStartupFinished"
   ],
   "main": "./dist/extension.js",
   "scripts": {

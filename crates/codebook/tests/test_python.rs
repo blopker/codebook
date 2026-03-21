@@ -47,7 +47,7 @@ fn assert_simple_misspellings(
 
     for word in not_expected {
         println!("Not expecting: {word:?}");
-        assert!(!misspelled.iter().any(|w| *w == word));
+        assert!(!misspelled.contains(&word));
     }
 }
 

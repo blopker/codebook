@@ -1,3 +1,45 @@
+# Changelog
+
+Important user-facing changes. See commit logs for more details.
+
+[Unreleased]
+
+- Add multi-language support for Markdown files: fenced code blocks are now spell-checked using the appropriate language grammar
+- Add Vue and Astro support
+- Add `<script>` and `<style>` injection to HTML spell-checking
+
+[0.3.35]
+
+- Add tag-based filtering (`include_tags`/`exclude_tags`) to control which parts of code are spell-checked (comments, strings, identifiers, etc.)
+- Rename tree-sitter capture names to use dot-separated namespace convention (e.g., `@identifier.function` instead of `@func_declaration`)
+- Add SECURITY.md
+- Update dependencies
+
+[0.3.34]
+
+- Fix crash in Termux by falling back to bundled Mozilla CA roots on Android (#230)
+
+[0.3.33]
+
+- Fix TSX/JSX language detection in editors that use non-VS Code language IDs (e.g., Zed)
+- Update dependencies
+
+[0.3.32]
+
+- Add Ukrainian dictionary (`uk`)
+- Add `include_paths` option to only allow specific files & paths
+- Add C++ modules extension (`.cppm`)
+- Fix bug where duplicate word misspellings were ignored in release builds
+- Relax base64 regex
+- Update dependencies
+
+[0.3.31]
+
+- Add VHDL language support
+- Add C and C++ word list
+- Fix thread unsafe tree-sitter parsers by adding mutex
+- Regenerate wordlist
+
 [0.3.30]
 
 - Add YAML support
@@ -12,6 +54,10 @@
 [0.3.29]
 
 - Add support for the Erlang language
+
+[0.3.28]
+
+- Fix test regression
 
 [0.3.27]
 

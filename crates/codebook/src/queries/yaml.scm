@@ -17,7 +17,7 @@
     [
       (double_quote_scalar)
       (single_quote_scalar)
-    ] @identifier))
+    ] @identifier.field))
 
 (flow_mapping
   (_
@@ -25,4 +25,4 @@
       [
         (double_quote_scalar)
         (single_quote_scalar)
-      ] @identifier)))
+      ] @identifier.field)))

@@ -68,7 +68,7 @@ def prosess_items(
 
 
 a = "getConseGroupSale"
-b = "getConsezGroupSale"
+b = "getConseGroupSale"
 
 
 # Generik funktion (PEP 695)

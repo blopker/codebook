@@ -1,17 +1,34 @@
 use codebook::Codebook;
-use codebook::queries::LanguageType;
+use codebook::queries::{LanguageType, get_language_name_from_filename, get_language_setting};
 use std::env;
 use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tree_sitter::Parser;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
+
+    // --ast <file> [--lang <language>]: dump the tree-sitter AST for a file
+    // Use --lang to override language detection, or use "-" for stdin.
+    if args.contains(&"--ast".to_string()) {
+        let lang_override = args
+            .windows(2)
+            .find(|w| w[0] == "--lang")
+            .map(|w| w[1].as_str());
+        let file_arg = args
+            .iter()
+            .find(|a| *a != "--ast" && *a != "--lang" && !a.starts_with("--") && !a.contains("codebook"));
+        match file_arg {
+            Some(path) => dump_ast(path, lang_override),
+            None => eprintln!("Usage: codebook --ast <file> [--lang <language>]"),
+        }
+        return;
+    }
+
     let config = Arc::new(codebook_config::CodebookConfigFile::load(None).unwrap());
     let processor = Codebook::new(config).unwrap();
-
-    println!("My path is {args:?}");
 
     // Check for benchmark flag
     if args.contains(&"--benchmark".to_string()) {
@@ -41,6 +58,57 @@ fn main() {
     let results = processor.spell_check_file(path.to_str().unwrap());
     println!("Misspelled words: {results:?}");
     println!("Done");
+}
+
+fn dump_ast(path: &str, lang_override: Option<&str>) {
+    let lang_type = match lang_override {
+        Some(lang) => lang.parse().unwrap_or(LanguageType::Text),
+        None => get_language_name_from_filename(path),
+    };
+    let setting = match get_language_setting(lang_type) {
+        Some(s) => s,
+        None => {
+            eprintln!("No tree-sitter grammar for {path} (detected as {lang_type:?})");
+            return;
+        }
+    };
+    let ts_lang = setting.language().unwrap();
+    let source = if path == "-" {
+        use std::io::Read;
+        let mut buf = String::new();
+        std::io::stdin().read_to_string(&mut buf).unwrap();
+        buf
+    } else {
+        std::fs::read_to_string(path).unwrap()
+    };
+    let mut parser = Parser::new();
+    parser.set_language(&ts_lang).unwrap();
+    let tree = parser.parse(&source, None).unwrap();
+
+    println!("Language: {lang_type:?}");
+    println!("---");
+    print_node(tree.root_node(), &source, 0);
+}
+
+fn print_node(node: tree_sitter::Node, source: &str, indent: usize) {
+    let text: String = node
+        .utf8_text(source.as_bytes())
+        .unwrap_or("")
+        .chars()
+        .take(60)
+        .collect();
+    println!(
+        "{:indent$}{} [{}-{}] {text:?}",
+        "",
+        node.kind(),
+        node.start_byte(),
+        node.end_byte(),
+        indent = indent
+    );
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        print_node(child, source, indent + 2);
+    }
 }
 
 #[cfg(target_os = "windows")]
