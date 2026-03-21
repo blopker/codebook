@@ -12,6 +12,7 @@ documentation = "https://github.com/blopker/codebook"
 license = "MIT"
 edition = "2024"
 
+# Note, all dependencies MUST be available on crates.io, no git imports, or Codebook cannot be released as a crate.
 [workspace.dependencies]
 anyhow = "1.0.71"
 chrono = { version = "0.4", features = ["serde"] }
@@ -29,6 +30,7 @@ regex = "1.11.1"
 reqwest = { version = "^0.13.0", default-features = false, features = ["blocking", "rustls", "json"] }
 rustls = { version = "<0.24", features = ["aws-lc-rs"] }
 rustls-platform-verifier = "0.6.0"
+webpki-roots = "<2"
 serde = { version = "1", features = ["derive", "serde_derive"] }
 serde_json = "1"
 sha2 = "0.10.6"
@@ -38,7 +40,7 @@ string-offsets = "0.2.0"
 tempfile = "3"
 thiserror = "2.0.12"
 tokio = { version = "1", features = ["full"] }
-toml = "0.9"
+toml = "<2"
 tower-lsp = "0.20.0"
 tracing = "0.1.37"
 tracing-subscriber = "0.3.17"
@@ -55,6 +57,7 @@ tree-sitter-html = "<0.25.0"
 tree-sitter-java = "<0.25.0"
 tree-sitter-javascript = "<0.26.0"
 tree-sitter-lua = "<0.25.0"
+tree-sitter-md = "<0.6.0"
 tree-sitter-odin-codebook = "1.4.0"
 tree-sitter-php = "<0.25.0"
 tree-sitter-python = "<0.26.0"
@@ -66,7 +69,7 @@ tree-sitter-swift = "<0.8.0"
 tree-sitter-toml-ng = "<0.8.0"
 tree-sitter-typescript = "0.23.2"
 tree-sitter-yaml = "0.7.2"
-tree-sitter-vhdl = { git = "https://github.com/jpt13653903/tree-sitter-vhdl", tag = "v1.3.1" }
+tree-sitter-vhdl = "<2"
 tree-sitter-zig = "<2"
 tree-sitter-c-sharp= "<0.24.0"
 codebook-tree-sitter-latex = "<0.7.0"

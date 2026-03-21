@@ -1,6 +1,6 @@
 [package]
 name = "codebook"
-version = "0.3.31"
+version = "0.3.35"
 edition = "2024"
 description = "A code-aware spell checker library (dependency for codebook-lsp)"
 authors = ["Codebook Contributors"]
@@ -42,6 +42,7 @@ tree-sitter-java.workspace = true
 tree-sitter-javascript.workspace = true
 codebook-tree-sitter-latex.workspace = true
 tree-sitter-lua.workspace = true
+tree-sitter-md.workspace = true
 tree-sitter-odin-codebook.workspace = true
 tree-sitter-php.workspace = true
 tree-sitter-python.workspace = true

@@ -1,44 +1,44 @@
 ; Comments
-(comment) @comment
-(block_comment) @comment
+(comment) @comment.line
+(block_comment) @comment.block
 
 ; Procedure declarations (including parameter names)
 (procedure_declaration
-  (expression) @identifier)
+  (expression) @identifier.function)
 (overloaded_procedure_declaration
-  (expression) @identifier)
+  (expression) @identifier.function)
 (parameter
-  (identifier) @identifier)
+  (identifier) @identifier.parameter)
 (default_parameter
-  (identifier) @identifier)
+  (identifier) @identifier.parameter)
 
 ; Variables and constants identifiers (declaration-only)
 (var_declaration
-  (expression) @identifier ":")
+  (expression) @identifier.variable ":")
 (assignment_statement
-  (expression) @identifier ":=")
+  (expression) @identifier.variable ":=")
 (const_declaration
-  (expression)+ @identifier)
+  (expression)+ @identifier.constant)
 (const_type_declaration
-  (expression)+ @identifier)
+  (expression)+ @identifier.constant)
 
 ; Struct, enum, union, bit_fields names
 (struct_declaration
-  (expression) @identifier)
+  (expression) @identifier.type)
 (enum_declaration
-  (expression) @identifier)
+  (expression) @identifier.type)
 (union_declaration
-  (expression) @identifier)
+  (expression) @identifier.type)
 (bit_field_declaration
-  (expression) @identifier "::")
+  (expression) @identifier.type "::")
 
 ; Fields and enum variant names
 (field
-  (identifier) @identifier)
+  (identifier) @identifier.field)
 (bit_field_member
-  name: (identifier) @identifier)
+  name: (identifier) @identifier.field)
 (enum_member
-  name: (identifier) @identifier)
+  name: (identifier) @identifier.constant)
 
 ; Strings
 (string_content) @string

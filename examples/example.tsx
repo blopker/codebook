@@ -1,52 +1,80 @@
-// Funktion to validate user inputt
-function validateInputt(userInputt: number | string) {
-  if (typeof userInputt !== "number") {
-    console.log("Pleese enter a valid numbr");
-    return false;
-  }
+import React, { useState, useEffect } from "react";
 
-  return true;
+// Interfase for user propertys
+interface UserAccaunt {
+  usrname: string;
+  emale: string;
+  ballance: number;
+  isActve: boolean;
 }
 
-const multiLineString = `This is a multi-line string
-spanning multiple lines
-with some spelling mistkes`;
-
-console.log(multiLineString);
-
-// Example usege
-const firstNumbr = 10;
-console.log(firstNumbr);
-const secandNumbr = 5;
-console.log(secandNumbr);
-
-// Array of numbrs with spelling mistakes
-const arraOfNumbrs = [1, 2, 3, 4, 5];
-console.log(arraOfNumbrs);
-
-/*
- Funcshun to prosess array
- another linet
-*/
-function prosessArray(arr: number[]) {
-  let totel = 0;
-
-  for (let i = 0; i < arr.length; i++) {
-    totel += arr[i];
-  }
-
-  return totel;
+// Props interfase for the componant
+interface DashbordProps {
+  tital: string;
+  usrs: UserAccaunt[];
+  onSubmitt: (usrname: string) => void;
 }
 
-// Object with propertys
-const userAccaunt = {
-  usrname: "JohnDoe",
-  passwrd: "12345",
-  emale: "john@example.com",
-  ballance: 1000,
-};
+// Componant to displaye a single user
+function UserCardd({ usr }: { usr: UserAccaunt }) {
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
 
-console.log(userAccaunt);
+  return (
+    <div className="user-cardd">
+      <h3 onClick={() => setIsExpanded(!isExpanded)}>{usr.usrname}</h3>
+      {isExpanded && (
+        <div className="detales">
+          <p>Emale: {usr.emale}</p>
+          <p>Ballance: ${usr.ballance.toFixed(2)}</p>
+          <span className={usr.isActve ? "actve" : "inactve"}>
+            {usr.isActve ? "Actve" : "Inactve"}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
 
-// Exportt the funcsions
-export { validateInputt, prosessArray };
+// Main dashbord componant
+function Dashbord({ tital, usrs, onSubmitt }: DashbordProps) {
+  const [serchTerm, setSerchTerm] = useState<string>("");
+  const [filterdUsrs, setFilterdUsrs] = useState<UserAccaunt[]>(usrs);
+
+  useEffect(() => {
+    const resalts = usrs.filter((usr) =>
+      usr.usrname.toLowerCase().includes(serchTerm.toLowerCase()),
+    );
+    setFilterdUsrs(resalts);
+  }, [serchTerm, usrs]);
+
+  const handleSerch = (evnt: React.ChangeEvent<HTMLInputElement>) => {
+    setSerchTerm(evnt.target.value);
+  };
+
+  return (
+    <div className="dashbord-containr">
+      <h1>{tital}</h1>
+      <div className="serch-secshun">
+        <label htmlFor="serch-inputt">Serch Usrs:</label>
+        <input
+          id="serch-inputt"
+          type="text"
+          placeholder={serchTerm}
+          onChange={handleSerch}
+          value={serchTerm}
+        />
+      </div>
+      <div className="usr-listt">
+        {filterdUsrs.length > 0 ? (
+          filterdUsrs.map((usr, indx) => <UserCardd key={indx} usr={usr} />)
+        ) : (
+          <p className="no-resalts">No usr foundd</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Exportt the componants
+export { UserCardd, Dashbord };
+export type { UserAccaunt, DashbordProps };

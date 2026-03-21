@@ -13,7 +13,9 @@
       "Bash(git remote get-url:*)",
       "Bash(gh issue list:*)",
       "Bash(gh issue view:*)",
-      "Bash(gh repo view:*)"
+      "Bash(gh repo view:*)",
+      "Bash(cargo build:*)",
+      "Bash(cargo search:*)"
     ]
   }
 }

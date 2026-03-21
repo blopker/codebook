@@ -1,8 +1,13 @@
 (comment) @comment
 (string) @string
-(atom) @string.special.symbol
 
-(var) @identifier
+(var) @identifier.variable
 
 (function_clause
-  name: (atom) @identifier)
+  name: (atom) @identifier.function)
+
+; Atoms in specific contexts (avoids overlap with function names above)
+(module_attribute (atom) @string.special)
+(tuple (atom) @string.special)
+(map_field (atom) @string.special)
+(call (atom) @string.special)

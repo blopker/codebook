@@ -18,6 +18,7 @@ pub enum LanguageType {
     Javascript,
     Latex,
     Lua,
+    Markdown,
     Odin,
     Php,
     Python,
@@ -29,6 +30,7 @@ pub enum LanguageType {
     TOML,
     Text,
     Typescript,
+    Tsx,
     Typst,
     VHDL,
     YAML,
@@ -41,6 +43,11 @@ impl FromStr for LanguageType {
         for language in LANGUAGE_SETTINGS.iter() {
             for id in language.ids.iter() {
                 if s == *id {
+                    return Ok(language.type_);
+                }
+            }
+            for ext in language.extensions.iter() {
+                if s == *ext {
                     return Ok(language.type_);
                 }
             }
@@ -85,7 +92,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         ids: &["cpp", "c++"],
         dictionary_ids: &["cpp"],
         query: include_str!("queries/cpp.scm"),
-        extensions: &["cpp", "cc", "cxx", "hpp", "hh", "hxx"],
+        extensions: &["cpp", "cc", "cxx", "hpp", "hh", "hxx", "cppm", "ixx", "mxx"],
     },
     LanguageSetting {
         type_: LanguageType::Elixir,
@@ -117,7 +124,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::Javascript,
-        ids: &["javascript", "javascriptreact"],
+        ids: &["javascript", "javascriptreact", "jsx"],
         dictionary_ids: &["javascript", "javascriptreact"],
         query: include_str!("queries/javascript.scm"),
         extensions: &["js", "jsx"],
@@ -131,10 +138,17 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::Typescript,
-        ids: &["typescript", "typescriptreact"],
-        dictionary_ids: &["typescript", "typescriptreact"],
+        ids: &["typescript"],
+        dictionary_ids: &["typescript"],
         query: include_str!("queries/typescript.scm"),
-        extensions: &["ts", "tsx"],
+        extensions: &["ts"],
+    },
+    LanguageSetting {
+        type_: LanguageType::Tsx,
+        ids: &["typescriptreact", "tsx"],
+        dictionary_ids: &["typescriptreact"],
+        query: include_str!("queries/typescript.scm"),
+        extensions: &["tsx"],
     },
     LanguageSetting {
         type_: LanguageType::Haskell,
@@ -145,10 +159,10 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::HTML,
-        ids: &["html"],
+        ids: &["html", "vue", "vue.js", "astro"],
         dictionary_ids: &["html"],
         query: include_str!("queries/html.scm"),
-        extensions: &["html", "htm"],
+        extensions: &["html", "htm", "vue", "astro"],
     },
     LanguageSetting {
         type_: LanguageType::Css,
@@ -200,8 +214,23 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         extensions: &["lua"],
     },
     LanguageSetting {
+        type_: LanguageType::Markdown,
+        ids: &["markdown"],
+        dictionary_ids: &[],
+        query: include_str!("queries/markdown.scm"),
+        extensions: &["md", "markdown"],
+    },
+    LanguageSetting {
         type_: LanguageType::Bash,
-        ids: &["bash", "shellscript", "sh", "shell script"],
+        ids: &[
+            "bash",
+            "shellscript",
+            "sh",
+            "shell script",
+            "shell",
+            "zsh",
+            "fish",
+        ],
         dictionary_ids: &["bash"],
         query: include_str!("queries/bash.scm"),
         extensions: &["sh", "bash"],
@@ -229,7 +258,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::YAML,
-        ids: &["yaml"],
+        ids: &["yaml", "yml"],
         dictionary_ids: &["yaml"],
         query: include_str!("queries/yaml.scm"),
         extensions: &["yaml", "yml"],
@@ -291,6 +320,7 @@ impl LanguageSetting {
             LanguageType::Javascript => Some(tree_sitter_javascript::LANGUAGE.into()),
             LanguageType::Latex => Some(codebook_tree_sitter_latex::LANGUAGE.into()),
             LanguageType::Lua => Some(tree_sitter_lua::LANGUAGE.into()),
+            LanguageType::Markdown => Some(tree_sitter_md::LANGUAGE.into()),
             LanguageType::Odin => Some(tree_sitter_odin_codebook::LANGUAGE.into()),
             LanguageType::Php => Some(tree_sitter_php::LANGUAGE_PHP.into()),
             LanguageType::Python => Some(tree_sitter_python::LANGUAGE.into()),
@@ -302,6 +332,7 @@ impl LanguageSetting {
             LanguageType::TOML => Some(tree_sitter_toml_ng::LANGUAGE.into()),
             LanguageType::Text => None,
             LanguageType::Typescript => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
+            LanguageType::Tsx => Some(tree_sitter_typescript::LANGUAGE_TSX.into()),
             LanguageType::Typst => Some(codebook_tree_sitter_typst::LANGUAGE.into()),
             LanguageType::VHDL => Some(tree_sitter_vhdl::LANGUAGE.into()),
             LanguageType::YAML => Some(tree_sitter_yaml::LANGUAGE.into()),
@@ -359,6 +390,89 @@ mod tests {
                 language_setting.type_,
                 query_result.err()
             );
+        }
+    }
+
+    /// Allowed full capture names. Any capture in a .scm file must be one of these.
+    /// The special "language" tag is used internally (e.g., ruby heredocs) and is
+    /// not exposed for user filtering.
+    const ALLOWED_TAGS: &[&str] = &[
+        "comment",
+        "comment.line",
+        "comment.block",
+        "string",
+        "string.special",
+        "string.heredoc",
+        "identifier",
+        "identifier.function",
+        "identifier.type",
+        "identifier.parameter",
+        "identifier.field",
+        "identifier.variable",
+        "identifier.constant",
+        "identifier.module",
+        "language",
+    ];
+
+    #[test]
+    fn test_all_capture_names_use_allowed_tags() {
+        for language_setting in LANGUAGE_SETTINGS {
+            if language_setting.type_ == LanguageType::Text {
+                continue;
+            }
+
+            let language = language_setting.language().unwrap_or_else(|| {
+                panic!("Failed to get language for {:?}", language_setting.type_)
+            });
+
+            let query = Query::new(&language, language_setting.query).unwrap_or_else(|e| {
+                panic!(
+                    "Invalid query for language {:?}: {:?}",
+                    language_setting.type_, e
+                )
+            });
+
+            for name in query.capture_names() {
+                let is_allowed = ALLOWED_TAGS.contains(name) || name.starts_with("injection.");
+                assert!(
+                    is_allowed,
+                    "Language {:?} uses unknown capture tag @{name}. \
+                     Allowed tags: {ALLOWED_TAGS:?} (plus injection.* tags)",
+                    language_setting.type_,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_no_overlap_in_ids_and_extensions() {
+        use std::collections::HashMap;
+
+        // Map every id and extension to the language that owns it
+        let mut seen: HashMap<&str, LanguageType> = HashMap::new();
+
+        for setting in LANGUAGE_SETTINGS {
+            for &id in setting.ids {
+                if let Some(&prev) = seen.get(id) {
+                    panic!(
+                        "Duplicate id/extension {id:?}: used by both {:?} and {:?}",
+                        prev, setting.type_
+                    );
+                }
+                seen.insert(id, setting.type_);
+            }
+            for &ext in setting.extensions {
+                if let Some(&prev) = seen.get(ext) {
+                    // Allow overlap within the same language (e.g. "hs" in both ids and extensions)
+                    if prev != setting.type_ {
+                        panic!(
+                            "Duplicate id/extension {ext:?}: used by both {:?} and {:?}",
+                            prev, setting.type_
+                        );
+                    }
+                }
+                seen.insert(ext, setting.type_);
+            }
         }
     }
 }

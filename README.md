@@ -1,7 +1,7 @@
 <br />
 <div align="center">
   <a href="https://github.com/blopker/codebook"> <img
-  src="assets/codebook-nt.webp" alt="Logo" width="200" > </a> <h3
+  src="https://raw.githubusercontent.com/blopker/codebook/main/assets/codebook-nt.webp" alt="Logo" width="200" > </a> <h3
   align="center">CODEBOOK</h3> <p align="center"> An unholy spell checker for
   code. <br /> <br /> <!-- <a
   href="https://github.com/blopker/codebook/releases/latest/">Download</a> -->
@@ -13,7 +13,7 @@
 ## Usage
 
 <img
-  src="assets/example.png" alt="Example" width="400" >
+  src="https://raw.githubusercontent.com/blopker/codebook/main/assets/example.png" alt="Example" width="400" >
 
 No configuration needed. Codebook will automatically detect the language you are editing and mark issues for you. Codebook will try to only mark issues for words that you create, where they are initially defined.
 
@@ -255,6 +255,7 @@ Project-specific configuration is loaded from either `codebook.toml` or `.codebo
 #  - Latvian: "lv"
 #  - Vietnamese: "vi_vn"
 #  - Polish: "pl"
+#  - Ukrainian: "uk"
 dictionaries = ["en_us", "en_gb"]
 
 # Custom allowlist of words to ignore (case-insensitive)
@@ -266,7 +267,13 @@ words = ["codebook", "rustc"]
 # Default: []
 flag_words = ["todo", "fixme"]
 
-# List of glob patterns for paths to ignore when spell checking
+# List of glob patterns for paths to include when spell checking (allowlist)
+# Only files matching one of these patterns will be spell-checked.
+# Default: [] (empty = include everything)
+include_paths = ["src/**/*.rs", "lib/**/*.rs"]
+
+# List of glob patterns for paths to ignore when spell checking (blocklist)
+# Takes precedence over include_paths.
 # Default: []
 ignore_paths = ["target/**/*", "**/*.json", ".git/**/*"]
 
@@ -286,6 +293,19 @@ ignore_patterns = [
 # Set to 0 to check all words including single letters
 # Set to 2 to check words with 2 or more characters
 min_word_length = 3
+
+# Filter which parts of your code are spell-checked by tag.
+# Tags use a dot-separated hierarchy (e.g., "comment", "identifier.function").
+# Matching is prefix-based: "comment" matches "comment", "comment.line",
+# "comment.block", etc.
+#
+# Only check these tags (if set, everything else is excluded)
+# Default: [] (empty = check everything)
+include_tags = ["comment", "string"]
+#
+# Exclude these tags from checking (takes precedence over include_tags)
+# Default: []
+exclude_tags = ["string.heredoc"]
 
 # Whether to use global configuration (project config only)
 # Set to false to completely ignore global settings
@@ -348,6 +368,26 @@ ignore_patterns = [
 ```
 
 **Tip**: Include the identifier in your pattern. `'vim\.opt\.[a-z]+'` skips `showmode` in `vim.opt.showmode`, but `'vim\.opt\.'` alone won't (it only matches up to the dot).
+
+### Tag-Based Filtering
+
+Codebook categorizes every piece of text it checks using **tags** — dot-separated labels like `comment`, `string`, `identifier.function`, etc. You can use `include_tags` and `exclude_tags` to control which categories are spell-checked.
+
+Matching is **prefix-based**: `"comment"` matches `comment`, `comment.line`, `comment.block`, etc. `include_tags` narrows what is checked (allowlist), and `exclude_tags` removes from that set (blocklist, takes precedence). This works the same way as `include_paths`/`ignore_paths`.
+
+```toml
+# Only check comments and strings, ignore all identifiers
+include_tags = ["comment", "string"]
+
+# Check everything except variable and parameter names
+exclude_tags = ["identifier.variable", "identifier.parameter"]
+
+# Both can be combined: check comments and strings, but skip heredocs
+include_tags = ["comment", "string"]
+exclude_tags = ["string.heredoc"]
+```
+
+For the full list of available tags, see the [query tag reference](crates/codebook/src/queries/README.md).
 
 ### LSP Initialization Options
 
@@ -445,68 +485,7 @@ For plain text dictionaries, use `TextRepo::new()` instead and add to `TEXT_DICT
 
 ## Adding New Programming Language Support
 
-Codebook uses Tree-sitter support additional programming languages. Here's how to add support for a new language:
-
-### 1. Create a Tree-sitter Query
-
-Each language needs a Tree-sitter query file that defines which parts of the code should be checked for spelling issues. The query needs to capture:
-
-- Identifiers (variable names, function names, class names, etc.)
-- String literals
-- Comments
-
-Create a new `.scm` file in `codebook/crates/codebook/src/queries/` named after your language (e.g., `java.scm`).
-
-### 2. Understand the Language's AST
-
-To write an effective query, you need to understand the Abstract Syntax Tree (AST) structure of your language. Use these tools:
-
-- [Tree-sitter Playground](https://tree-sitter.github.io/tree-sitter/7-playground.html): Interactively explore how Tree-sitter parses code
-- [Tree-sitter Visualizer](https://blopker.github.io/ts-visualizer/): Visualize the AST of your code in a more detailed way
-
-A good approach is to:
-
-1. Write sample code with identifiers, strings, and comments
-2. Paste it into the playground/visualizer
-3. Observe the node types used for each element
-4. Create capture patterns that target only definition nodes, not usages
-
-### 3. Update the Language Settings
-
-Add your language to `codebook/crates/codebook/src/queries.rs`:
-
-1. Add a new variant to the `LanguageType` enum
-2. Add a new entry to the `LANGUAGE_SETTINGS` array with:
-   - The language type
-   - File extensions for your language
-   - Language identifiers
-   - Path to your query file
-
-### 4. Add the Tree-sitter Grammar
-
-Make sure the appropriate Tree-sitter grammar is added as a dependency in `Cargo.toml` and update the `language()` function in `queries.rs` to return the correct language parser.
-
-### 5. Test Your Implementation
-
-Run the tests to ensure your query is valid:
-
-```bash
-cargo test -p codebook queries::tests::test_all_queries_are_valid
-```
-
-Additional language tests should go in `codebook/tests`. There are many example tests to copy.
-
-You can also test with real code files to verify that Codebook correctly identifies spelling issues in your language. Example files should go in `examples/` and contain at least one spelling error to pass integration tests.
-
-### Tips for Writing Effective Queries
-
-- Focus on capturing definitions, not usages
-- Include only nodes that contain user-defined text (not keywords)
-- Test with representative code samples
-- Start simple and add complexity as needed
-- Look at existing language queries for patterns
-
-If you've successfully added support for a new language, please consider contributing it back to Codebook with a pull request!
+See the [query development guide](crates/codebook/src/queries/README.md) for instructions on adding Tree-sitter queries for new languages, the tag naming convention, and tips for writing effective queries.
 
 ## Running Tests
 

@@ -1,8 +1,9 @@
-use crate::splitter::{self};
-
-use crate::queries::{LanguageType, get_language_setting};
+use crate::checker::WordCandidate;
+use crate::queries::{LANGUAGE_SETTINGS, LanguageType, get_language_setting};
+use crate::splitter;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
+use std::str::FromStr;
 use std::sync::{LazyLock, Mutex};
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
@@ -14,6 +15,43 @@ use unicode_segmentation::UnicodeSegmentation;
 static PARSER_CACHE: LazyLock<Mutex<HashMap<LanguageType, Parser>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+/// Pre-compiled query for a language, with its capture names.
+struct CompiledQuery {
+    query: Query,
+    capture_names: Vec<String>,
+}
+
+/// All tree-sitter queries compiled eagerly at startup. Since queries come
+/// from static `include_str!` data, they never change at runtime. Compiling
+/// them once here means bad queries panic immediately rather than hiding
+/// until a user opens that file type.
+static COMPILED_QUERIES: LazyLock<HashMap<LanguageType, CompiledQuery>> = LazyLock::new(|| {
+    let mut map = HashMap::new();
+    for setting in LANGUAGE_SETTINGS {
+        let Some(lang) = setting.language() else {
+            continue;
+        };
+        if setting.query.is_empty() {
+            continue;
+        }
+        let query = Query::new(&lang, setting.query)
+            .unwrap_or_else(|e| panic!("Failed to compile query for {:?}: {e}", setting.type_));
+        let capture_names = query
+            .capture_names()
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        map.insert(
+            setting.type_,
+            CompiledQuery {
+                query,
+                capture_names,
+            },
+        );
+    }
+    map
+});
+
 #[derive(Debug, Clone, Copy, PartialEq, Ord, Eq, PartialOrd, Hash)]
 pub struct TextRange {
     /// Start position in utf-8 byte offset
@@ -24,27 +62,21 @@ pub struct TextRange {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct SkipRange {
-    /// Start position in utf-8 byte offset
     start_byte: usize,
-    /// End position in utf-8 byte offset
     end_byte: usize,
 }
 
-/// Check if a word at [start, end) is entirely within any skip range
 fn is_within_skip_range(start: usize, end: usize, skip_ranges: &[SkipRange]) -> bool {
     skip_ranges
         .iter()
         .any(|r| start >= r.start_byte && end <= r.end_byte)
 }
 
-/// Find skip ranges from pattern matches in text.
 fn find_skip_ranges(text: &str, patterns: &[Regex]) -> Vec<SkipRange> {
     if patterns.is_empty() {
         return Vec::new();
     }
-
     let mut ranges = Vec::new();
-
     for pattern in patterns {
         for regex_match in pattern.find_iter(text) {
             ranges.push(SkipRange {
@@ -53,20 +85,16 @@ fn find_skip_ranges(text: &str, patterns: &[Regex]) -> Vec<SkipRange> {
             });
         }
     }
-
     ranges.sort_by_key(|r| r.start_byte);
     merge_overlapping_ranges(ranges)
 }
 
-/// Merge overlapping or adjacent ranges
 fn merge_overlapping_ranges(ranges: Vec<SkipRange>) -> Vec<SkipRange> {
     if ranges.is_empty() {
         return ranges;
     }
-
     let mut merged = Vec::new();
     let mut current = ranges[0];
-
     for range in ranges.into_iter().skip(1) {
         if range.start_byte <= current.end_byte {
             current.end_byte = current.end_byte.max(range.end_byte);
@@ -77,88 +105,6 @@ fn merge_overlapping_ranges(ranges: Vec<SkipRange>) -> Vec<SkipRange> {
     }
     merged.push(current);
     merged
-}
-
-/// Helper struct to handle text position tracking and word extraction
-struct TextProcessor {
-    text: String,
-    skip_ranges: Vec<SkipRange>,
-}
-
-impl TextProcessor {
-    fn new(text: &str, skip_patterns: &[Regex]) -> Self {
-        let skip_ranges = find_skip_ranges(text, skip_patterns);
-        Self {
-            text: text.to_string(),
-            skip_ranges,
-        }
-    }
-
-    fn should_skip(&self, start_byte: usize, word_len: usize) -> bool {
-        is_within_skip_range(start_byte, start_byte + word_len, &self.skip_ranges)
-    }
-
-    fn process_words_with_check<F>(&self, mut check_function: F) -> Vec<WordLocation>
-    where
-        F: FnMut(&str) -> bool,
-    {
-        // First pass: collect all unique words with their positions
-        let estimated_words = (self.text.len() as f64 / 6.0).ceil() as usize;
-        let mut word_positions: HashMap<&str, Vec<TextRange>> =
-            HashMap::with_capacity(estimated_words);
-
-        for (offset, word) in self.text.split_word_bound_indices() {
-            if is_alphabetic(word) && !self.should_skip(offset, word.len()) {
-                self.collect_split_words(word, offset, &mut word_positions);
-            }
-        }
-
-        // Second pass: batch check unique words and filter
-        let mut result_locations: HashMap<String, Vec<TextRange>> = HashMap::new();
-        for (word_text, positions) in word_positions {
-            if !check_function(word_text) {
-                result_locations.insert(word_text.to_string(), positions);
-            }
-        }
-
-        result_locations
-            .into_iter()
-            .map(|(word, locations)| WordLocation::new(word, locations))
-            .collect()
-    }
-
-    fn extract_words(&self) -> Vec<WordLocation> {
-        // Reuse the word collection logic by collecting all words (check always returns false)
-        self.process_words_with_check(|_| false)
-    }
-
-    fn collect_split_words<'a>(
-        &self,
-        word: &'a str,
-        offset: usize,
-        word_positions: &mut HashMap<&'a str, Vec<TextRange>>,
-    ) {
-        if !word.is_empty() {
-            let split = splitter::split(word);
-            for split_word in split {
-                if !is_numeric(split_word.word) {
-                    let word_start_byte = offset + split_word.start_byte;
-                    let location = TextRange {
-                        start_byte: word_start_byte,
-                        end_byte: word_start_byte + split_word.word.len(),
-                    };
-                    let word_text = split_word.word;
-                    word_positions.entry(word_text).or_default().push(location);
-                }
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct WordRef<'a> {
-    pub word: &'a str,
-    pub position: (u32, u32), // (start_char, line)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -173,32 +119,77 @@ impl WordLocation {
     }
 }
 
-pub fn find_locations(
-    text: &str,
+// =============================================================================
+// Main entry point: recursive word extraction with injection support
+// =============================================================================
+
+/// Extract all candidate words from a document, recursively following
+/// `@injection.*` captures in .scm query files to handle multi-language files.
+///
+/// Returns the candidates and the set of all languages encountered (for
+/// dictionary loading).
+pub fn extract_all_words<'a>(
+    document_text: &'a str,
     language: LanguageType,
-    check_function: impl Fn(&str) -> bool,
+    tag_filter: &dyn Fn(&str) -> bool,
     skip_patterns: &[Regex],
-) -> Vec<WordLocation> {
-    match language {
-        LanguageType::Text => {
-            let processor = TextProcessor::new(text, skip_patterns);
-            processor.process_words_with_check(|word| check_function(word))
-        }
-        _ => find_locations_code(text, language, |word| check_function(word), skip_patterns),
-    }
+) -> (Vec<WordCandidate<'a>>, HashSet<LanguageType>) {
+    let skip_ranges = find_skip_ranges(document_text, skip_patterns);
+    let mut result = ExtractionResult {
+        candidates: Vec::new(),
+        languages: HashSet::from([language]),
+    };
+
+    extract_recursive(
+        document_text,
+        0,
+        document_text.len(),
+        language,
+        tag_filter,
+        &skip_ranges,
+        &mut result,
+    );
+
+    (result.candidates, result.languages)
 }
 
-fn find_locations_code(
-    text: &str,
-    language: LanguageType,
-    check_function: impl Fn(&str) -> bool,
-    skip_patterns: &[Regex],
-) -> Vec<WordLocation> {
-    let language_setting =
-        get_language_setting(language).expect("This _should_ never happen. Famous last words.");
+/// Accumulated output from recursive word extraction.
+struct ExtractionResult<'a> {
+    candidates: Vec<WordCandidate<'a>>,
+    languages: HashSet<LanguageType>,
+}
 
-    // Parse under global lock to protect external scanners with global C state.
-    // The lock covers create + parse; Tree is fully owned after parse returns.
+/// Recursively extract words from a byte range of the document.
+///
+/// For languages with a tree-sitter grammar and .scm query:
+///   - Text captures (`@string`, `@comment`, `@identifier.*`) → word-split
+///   - Static injections (`@injection.{lang}`) → recurse with that language
+///   - Dynamic injections (`@injection.content` + `@injection.language`) → read
+///     the language name from the sibling capture, then recurse
+///
+/// For LanguageType::Text (no grammar): word-split the entire range.
+fn extract_recursive<'a>(
+    document_text: &'a str,
+    start_byte: usize,
+    end_byte: usize,
+    language: LanguageType,
+    tag_filter: &dyn Fn(&str) -> bool,
+    skip_ranges: &[SkipRange],
+    result: &mut ExtractionResult<'a>,
+) {
+    let language_setting = match get_language_setting(language) {
+        Some(s) => s,
+        None => {
+            // No grammar (e.g. Text): word-split the whole range
+            let text = &document_text[start_byte..end_byte];
+            extract_words_from_text(text, start_byte, skip_ranges, &mut result.candidates);
+            return;
+        }
+    };
+
+    let region_text = &document_text[start_byte..end_byte];
+
+    // Parse under global lock
     let tree = {
         let mut cache = PARSER_CACHE.lock().unwrap();
         let parser = cache.entry(language).or_insert_with(|| {
@@ -207,79 +198,139 @@ fn find_locations_code(
             parser.set_language(&lang).unwrap();
             parser
         });
-        parser.parse(text, None).unwrap()
+        parser.parse(region_text, None).unwrap()
     };
 
     let root_node = tree.root_node();
-    let lang = language_setting.language().unwrap();
-    let query = Query::new(&lang, language_setting.query).unwrap();
+    let compiled = COMPILED_QUERIES
+        .get(&language)
+        .expect("Language has a LanguageSetting but no compiled query; this should not happen");
     let mut cursor = QueryCursor::new();
-    let mut word_locations: HashMap<String, HashSet<TextRange>> = HashMap::new();
-    let provider = text.as_bytes();
-    let mut matches_query = cursor.matches(&query, root_node, provider);
-
-    // Find all skip ranges from patterns matched against the full source text
-    let all_skip_ranges = find_skip_ranges(text, skip_patterns);
+    let provider = region_text.as_bytes();
+    let mut matches_query = cursor.matches(&compiled.query, root_node, provider);
 
     while let Some(match_) = matches_query.next() {
+        // First pass: look for dynamic injection pairs in this match
+        let mut injection_content: Option<tree_sitter::Node> = None;
+        let mut injection_language_text: Option<&str> = None;
+
         for capture in match_.captures {
-            let node = capture.node;
-            let node_start_byte = node.start_byte();
+            let tag = &compiled.capture_names[capture.index as usize];
+            if tag == "injection.content" {
+                injection_content = Some(capture.node);
+            } else if tag == "injection.language" {
+                injection_language_text = Some(capture.node.utf8_text(provider).unwrap_or(""));
+            }
+        }
 
-            let node_text = node.utf8_text(provider).unwrap();
-            let processor = TextProcessor::new(node_text, &[]);
-            let words = processor.extract_words();
-
-            // Check words against global skip ranges and dictionary
-            for word_pos in words {
-                if !check_function(&word_pos.word) {
-                    for range in word_pos.locations {
-                        let global_start = range.start_byte + node_start_byte;
-                        let global_end = range.end_byte + node_start_byte;
-
-                        // Skip if word is entirely within a skip range
-                        if is_within_skip_range(global_start, global_end, &all_skip_ranges) {
-                            continue;
-                        }
-
-                        let location = TextRange {
-                            start_byte: global_start,
-                            end_byte: global_end,
-                        };
-                        if let Some(existing_result) = word_locations.get_mut(&word_pos.word) {
-                            #[cfg(debug_assertions)]
-                            {
-                                let added = existing_result.insert(location);
-                                if !added {
-                                    let word = word_pos.word.clone();
-                                    panic!(
-                                        "Two of the same locations found. Make a better query. Word: {word}, Location: {location:?}"
-                                    )
-                                }
-                            }
-                        } else {
-                            let mut set = HashSet::new();
-                            set.insert(location);
-                            word_locations.insert(word_pos.word.clone(), set);
-                        }
+        // Handle dynamic injection pair
+        if let Some(content_node) = injection_content {
+            if let Some(lang_text) = injection_language_text {
+                let lowered = lang_text.trim().to_lowercase();
+                let child_lang = LanguageType::from_str(&lowered);
+                if let Ok(child_lang) = child_lang
+                    && child_lang != LanguageType::Text
+                {
+                    let child_start = content_node.start_byte() + start_byte;
+                    let child_end = content_node.end_byte() + start_byte;
+                    if child_start < child_end {
+                        result.languages.insert(child_lang);
+                        extract_recursive(
+                            document_text,
+                            child_start,
+                            child_end,
+                            child_lang,
+                            tag_filter,
+                            skip_ranges,
+                            result,
+                        );
                     }
                 }
             }
+            continue;
+        }
+
+        // Second pass: handle text captures and static injections
+        for capture in match_.captures {
+            let tag = &compiled.capture_names[capture.index as usize];
+            let node = capture.node;
+            let node_start = node.start_byte() + start_byte;
+            let node_end = node.end_byte() + start_byte;
+
+            if node_start >= node_end {
+                continue;
+            }
+
+            if tag == "language" || tag == "injection.language" {
+                continue;
+            }
+
+            if let Some(lang_name) = tag.strip_prefix("injection.") {
+                // Static injection: @injection.html, @injection.javascript, etc.
+                if let Ok(child_lang) = LanguageType::from_str(lang_name)
+                    && child_lang != LanguageType::Text
+                {
+                    result.languages.insert(child_lang);
+                    extract_recursive(
+                        document_text,
+                        node_start,
+                        node_end,
+                        child_lang,
+                        tag_filter,
+                        skip_ranges,
+                        result,
+                    );
+                }
+                continue;
+            }
+
+            // Normal text capture: extract words if tag passes filter
+            if !tag_filter(tag) {
+                continue;
+            }
+
+            let node_text = node.utf8_text(provider).unwrap();
+            extract_words_from_text(node_text, node_start, skip_ranges, &mut result.candidates);
         }
     }
+}
 
-    word_locations
-        .keys()
-        .map(|word| WordLocation {
-            word: word.clone(),
-            locations: word_locations
-                .get(word)
-                .cloned()
-                .unwrap_or_default()
-                .into_iter()
-                .collect(),
-        })
-        .collect()
+// =============================================================================
+// Word extraction from plain text
+// =============================================================================
+
+fn extract_words_from_text<'a>(
+    text: &'a str,
+    base_offset: usize,
+    skip_ranges: &[SkipRange],
+    candidates: &mut Vec<WordCandidate<'a>>,
+) {
+    let mut split_buf = Vec::new();
+    for (offset, word) in text.split_word_bound_indices() {
+        if !is_alphabetic(word) {
+            continue;
+        }
+        let global_offset = base_offset + offset;
+        if is_within_skip_range(global_offset, global_offset + word.len(), skip_ranges) {
+            continue;
+        }
+        splitter::split_into(word, &mut split_buf);
+        for split_word in &split_buf {
+            if is_numeric(split_word.word) {
+                continue;
+            }
+            let word_start = global_offset + split_word.start_byte;
+            let word_end = word_start + split_word.word.len();
+            if is_within_skip_range(word_start, word_end, skip_ranges) {
+                continue;
+            }
+            candidates.push(WordCandidate {
+                word: split_word.word,
+                start_byte: word_start,
+                end_byte: word_end,
+            });
+        }
+    }
 }
 
 fn is_numeric(s: &str) -> bool {
@@ -301,142 +352,141 @@ pub fn get_word_from_string(start_utf16: usize, end_utf16: usize, text: &str) ->
 }
 
 #[cfg(test)]
-mod parser_tests {
+mod tests {
     use super::*;
 
     #[test]
-    fn test_spell_checking() {
+    fn test_extract_words_plain_text() {
         let text = "HelloWorld calc_wrld";
-        let results = find_locations(text, LanguageType::Text, |_| false, &[]);
-        println!("{results:?}");
-        assert_eq!(results.len(), 4);
+        let (words, langs) = extract_all_words(text, LanguageType::Text, &|_| true, &[]);
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word).collect();
+        assert!(word_strings.contains(&"Hello"));
+        assert!(word_strings.contains(&"World"));
+        assert!(word_strings.contains(&"calc"));
+        assert!(word_strings.contains(&"wrld"));
+        assert_eq!(words.len(), 4);
+        assert!(langs.contains(&LanguageType::Text));
     }
 
     #[test]
-    fn test_get_words_from_text() {
-        let text = r#"
-            HelloWorld calc_wrld
-            I'm a contraction, don't ignore me
-            this is a 3rd line.
-            "#;
-        let expected = vec![
-            ("Hello", (13, 18)),
-            ("World", (18, 23)),
-            ("calc", (24, 28)),
-            ("wrld", (29, 33)),
-            ("I'm", (46, 49)),
-            ("a", (50, 51)),
-            ("contraction", (52, 63)),
-            ("don't", (65, 70)),
-            ("ignore", (71, 77)),
-            ("me", (78, 80)),
-            ("this", (93, 97)),
-            ("is", (98, 100)),
-            ("a", (101, 102)),
-            ("rd", (104, 106)),
-            ("line", (107, 111)),
-        ];
-        let processor = TextProcessor::new(text, &[]);
-        let words = processor.extract_words();
-        println!("{words:?}");
-        for word in words {
-            let loc = word.locations.first().unwrap();
-            let pos = (loc.start_byte, loc.end_byte);
-            assert!(
-                expected.contains(&(word.word.as_str(), pos)),
-                "Expected word '{}' to be at position {:?}",
-                word.word,
-                pos
-            );
-        }
-    }
-
-    #[test]
-    fn test_contraction() {
+    fn test_extract_words_contraction() {
         let text = "I'm a contraction, wouldn't you agree'?";
-        let processor = TextProcessor::new(text, &[]);
-        let words = processor.extract_words();
-        println!("{words:?}");
+        let (words, _) = extract_all_words(text, LanguageType::Text, &|_| true, &[]);
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word).collect();
         let expected = ["I'm", "a", "contraction", "wouldn't", "you", "agree"];
-        for word in words {
-            assert!(expected.contains(&word.word.as_str()));
+        for e in &expected {
+            assert!(word_strings.contains(e), "Expected word '{e}' not found");
         }
+    }
+
+    #[test]
+    fn test_extract_words_code() {
+        let text = "// a comment\nfn main() {}";
+        let (words, langs) = extract_all_words(text, LanguageType::Rust, &|_| true, &[]);
+        assert!(!words.is_empty());
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word).collect();
+        assert!(
+            word_strings.contains(&"comment"),
+            "Should find 'comment' in Rust comment"
+        );
+        assert!(langs.contains(&LanguageType::Rust));
+    }
+
+    #[test]
+    fn test_extract_words_tag_filter() {
+        let text = "// comment\nlet x = \"string value\";";
+        let (words, _) = extract_all_words(
+            text,
+            LanguageType::Rust,
+            &|tag| tag.starts_with("comment"),
+            &[],
+        );
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word).collect();
+        assert!(word_strings.contains(&"comment"));
+        assert!(!word_strings.contains(&"string"));
+        assert!(!word_strings.contains(&"value"));
+    }
+
+    #[test]
+    fn test_extract_words_with_skip_patterns() {
+        let text = "check https://example.com this";
+        let url_pattern = Regex::new(r"https?://[^\s]+").unwrap();
+        let (words, _) = extract_all_words(text, LanguageType::Text, &|_| true, &[url_pattern]);
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word).collect();
+        assert!(word_strings.contains(&"check"));
+        assert!(word_strings.contains(&"this"));
+        assert!(!word_strings.contains(&"https"));
+        assert!(!word_strings.contains(&"example"));
+    }
+
+    #[test]
+    fn test_extract_words_code_duplicates() {
+        let text = "// wrld foo wrld";
+        let (words, _) = extract_all_words(text, LanguageType::Rust, &|_| true, &[]);
+        let wrld_words: Vec<_> = words.iter().filter(|w| w.word == "wrld").collect();
+        assert_eq!(wrld_words.len(), 2, "Expected two occurrences of 'wrld'");
+    }
+
+    #[test]
+    fn test_markdown_injection_discovers_languages() {
+        let text =
+            "# Hello\n\nSome text.\n\n```python\ndef foo(): pass\n```\n\n```bash\necho hi\n```\n";
+        let (_, langs) = extract_all_words(text, LanguageType::Markdown, &|_| true, &[]);
+        assert!(langs.contains(&LanguageType::Markdown));
+        assert!(langs.contains(&LanguageType::Python));
+        assert!(langs.contains(&LanguageType::Bash));
+    }
+
+    #[test]
+    fn test_markdown_injection_extracts_code_words() {
+        let text = "# Hello\n\n```python\ndef some_functin(): pass\n```\n";
+        let (words, _) = extract_all_words(text, LanguageType::Markdown, &|_| true, &[]);
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word).collect();
+        assert!(word_strings.contains(&"functin"));
+        assert!(word_strings.contains(&"Hello"));
+    }
+
+    #[test]
+    fn test_markdown_unknown_language_skipped() {
+        let text = "# Hello\n\n```unknownlang\nbadwwword\n```\n";
+        let (words, _) = extract_all_words(text, LanguageType::Markdown, &|_| true, &[]);
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word).collect();
+        assert!(!word_strings.contains(&"badwwword"));
+    }
+
+    #[test]
+    fn test_markdown_html_block_injection() {
+        let text = "# Hello\n\n<div>\n  <p>A misspeled word</p>\n</div>\n\nMore text.\n";
+        let (words, langs) = extract_all_words(text, LanguageType::Markdown, &|_| true, &[]);
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word).collect();
+        assert!(langs.contains(&LanguageType::HTML));
+        assert!(word_strings.contains(&"misspeled"));
+        assert!(!word_strings.contains(&"div"));
     }
 
     #[test]
     fn test_get_word_from_string() {
-        // Test with ASCII characters
         let text = "Hello World";
         assert_eq!(get_word_from_string(0, 5, text), "Hello");
         assert_eq!(get_word_from_string(6, 11, text), "World");
 
-        // Test with partial words
-        assert_eq!(get_word_from_string(2, 5, text), "llo");
-
-        // Test with Unicode characters
         let unicode_text = "こんにちは世界";
         assert_eq!(get_word_from_string(0, 5, unicode_text), "こんにちは");
         assert_eq!(get_word_from_string(5, 7, unicode_text), "世界");
 
-        // Test with emoji (which can be multi-codepoint)
         let emoji_text = "Hello 👨‍👩‍👧‍👦 World";
         assert_eq!(get_word_from_string(6, 17, emoji_text), "👨‍👩‍👧‍👦");
     }
+
     #[test]
     fn test_unicode_character_handling() {
         crate::logging::init_test_logging();
         let text = "©<div>badword</div>";
-        let processor = TextProcessor::new(text, &[]);
-        let words = processor.extract_words();
-        println!("{words:?}");
-
-        // Make sure "badword" is included and correctly positioned
-        assert!(words.iter().any(|word| word.word == "badword"));
-
-        // If "badword" is found, verify its position
-        if let Some(pos) = words.iter().find(|word| word.word == "badword") {
-            // The correct position should be 6 (after ©<div>)
-            let start_byte = pos.locations.first().unwrap().start_byte;
-            let end_byte = pos.locations.first().unwrap().end_byte;
-            assert_eq!(
-                start_byte, 7,
-                "Expected 'badword' to start at character position 7"
-            );
-            assert_eq!(end_byte, 14, "Expected 'badword' to be on end_byte 14");
-        } else {
-            panic!("Word 'badword' not found in the text");
-        }
+        let (words, _) = extract_all_words(text, LanguageType::Text, &|_| true, &[]);
+        let bad_word = words.iter().find(|w| w.word == "badword");
+        assert!(bad_word.is_some(), "Expected 'badword' to be found");
+        let bw = bad_word.unwrap();
+        assert_eq!(bw.start_byte, 7);
+        assert_eq!(bw.end_byte, 14);
     }
-
-    // Something is up with the HTML tree-sitter package
-    // #[test]
-    // fn test_spell_checking_with_unicode() {
-    //     crate::log::init_test_logging();
-    //     let text = "©<div>badword</div>";
-
-    //     // Mock spell check function that flags "badword"
-    //     let results = find_locations(text, LanguageType::Html, |word| word != "badword");
-
-    //     println!("{:?}", results);
-
-    //     // Ensure "badword" is flagged
-    //     let badword_result = results.iter().find(|loc| loc.word == "badword");
-    //     assert!(badword_result.is_some(), "Expected 'badword' to be flagged");
-
-    //     // Check if the location is correct
-    //     if let Some(location) = badword_result {
-    //         assert_eq!(
-    //             location.locations.len(),
-    //             1,
-    //             "Expected exactly one location for 'badword'"
-    //         );
-    //         let range = &location.locations[0];
-
-    //         // The word should start after "©<div>" which is 6 characters
-    //         assert_eq!(range.start_char, 6, "Wrong start position for 'badword'");
-
-    //         // The word should end after "badword" which is 13 characters from the start
-    //         assert_eq!(range.end_char, 13, "Wrong end position for 'badword'");
-    //     }
-    // }
 }
