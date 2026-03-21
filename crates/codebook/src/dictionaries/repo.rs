@@ -170,6 +170,10 @@ static TEXT_DICTIONARIES: LazyLock<Vec<TextRepo>> = LazyLock::new(|| {
             "csharp",
             "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/csharp/csharp.txt",
         ),
+        TextRepo::new(
+            "svelte",
+            "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/svelte/src/svelte.txt",
+        ),
     ]
 });
 
