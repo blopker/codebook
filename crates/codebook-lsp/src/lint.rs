@@ -4,6 +4,7 @@ use owo_colors::{OwoColorize, Stream, Style};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use string_offsets::{AllConfig, StringOffsets};
 
 const BOLD: Style = Style::new().bold();
 const DIM: Style = Style::new().dimmed();
@@ -20,21 +21,24 @@ fn fatal(msg: impl std::fmt::Display) -> ! {
 
 /// Computes a workspace-relative path string for a given file. Falls back to
 /// the absolute path if the file is outside the workspace or canonicalization fails.
-fn relative_to_root(root: &Path, path: &Path) -> String {
-    let root_canonical = match root.canonicalize() {
-        Ok(r) => r,
-        Err(_) => return path.to_string_lossy().to_string(),
+/// `root_canonical` should be the already-canonicalized workspace root.
+fn relative_to_root(root_canonical: Option<&Path>, path: &Path) -> String {
+    let Some(root_canonical) = root_canonical else {
+        return path.to_string_lossy().into_owned();
     };
     match path.canonicalize() {
-        Ok(canon) => match canon.strip_prefix(&root_canonical) {
-            Ok(rel) => rel.to_string_lossy().to_string(),
-            Err(_) => path.to_string_lossy().to_string(),
+        Ok(canon) => match canon.strip_prefix(root_canonical) {
+            Ok(rel) => rel.to_string_lossy().into_owned(),
+            Err(_) => path.to_string_lossy().into_owned(),
         },
-        Err(_) => path.to_string_lossy().to_string(),
+        Err(_) => path.to_string_lossy().into_owned(),
     }
 }
 
 /// Returns `true` if any spelling errors were found.
+///
+/// Exits with code 2 if infrastructure failures occurred (unreadable files,
+/// directory errors, unmatched or invalid patterns).
 pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> bool {
     let config = Arc::new(
         CodebookConfigFile::load(Some(root))
@@ -47,15 +51,27 @@ pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> b
     let codebook = Codebook::new(config.clone())
         .unwrap_or_else(|e| fatal(format!("failed to initialize: {e}")));
 
-    let resolved = resolve_paths(files, root);
+    // Canonicalize the root once here rather than once per file.
+    let root_canonical = root.canonicalize().ok();
+
+    let mut had_failure = false;
+    let resolved = resolve_paths(files, root, &mut had_failure);
 
     let mut seen_words: HashSet<String> = HashSet::new();
     let mut total_errors = 0usize;
     let mut files_with_errors = 0usize;
 
     for path in &resolved {
-        let relative = relative_to_root(root, path);
-        let error_count = check_file(path, &relative, &codebook, &mut seen_words, unique, suggest);
+        let relative = relative_to_root(root_canonical.as_deref(), path);
+        let error_count = check_file(
+            path,
+            &relative,
+            &codebook,
+            &mut seen_words,
+            unique,
+            suggest,
+            &mut had_failure,
+        );
         if error_count > 0 {
             total_errors += error_count;
             files_with_errors += 1;
@@ -69,13 +85,18 @@ pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> b
         files_with_errors.if_supports_color(Stream::Stderr, |t| t.style(BOLD)),
     );
 
+    if had_failure {
+        std::process::exit(2);
+    }
+
     total_errors > 0
 }
 
 /// Spell-checks a single file and prints any diagnostics to stdout.
 ///
-/// Returns the number of errors found (0 if the file was clean or unreadable).
+/// Returns the number of spelling errors found (0 if the file was clean).
 /// `relative` is the workspace-relative path used for display and ignore matching.
+/// Sets `*had_failure = true` on I/O errors so the caller can exit non-zero.
 fn check_file(
     path: &Path,
     relative: &str,
@@ -83,6 +104,7 @@ fn check_file(
     seen_words: &mut HashSet<String>,
     unique: bool,
     suggest: bool,
+    had_failure: &mut bool,
 ) -> usize {
     let text = match std::fs::read_to_string(path) {
         Ok(t) => t,
@@ -92,6 +114,7 @@ fn check_file(
                 "error:".if_supports_color(Stream::Stderr, |t| t.style(BOLD_RED)),
                 path.display()
             );
+            *had_failure = true;
             return 0;
         }
     };
@@ -102,8 +125,13 @@ fn check_file(
     // Sort by first occurrence in the file.
     locations.sort_by_key(|l| l.locations.first().map(|r| r.start_byte).unwrap_or(0));
 
+    // Build the offset table once per file – O(n) construction, O(1) per lookup –
+    // and gives Unicode character columns rather than raw byte offsets.
+    let offsets = StringOffsets::<AllConfig>::new(&text);
+
     // Collect (linecol, word, suggestions) first so we can compute pad_len for alignment.
-    // unique check is per-word (outer loop) so all ranges of a word are included or skipped together.
+    // The unique check is per-word (outer loop) so all ranges of a word are included
+    // or skipped together.
     let mut hits: Vec<(String, &str, Option<Vec<String>>)> = Vec::new();
     for wl in &locations {
         if unique && !seen_words.insert(wl.word.to_lowercase()) {
@@ -116,7 +144,7 @@ fn check_file(
             None
         };
 
-        // In unique mode only emit the first occurrence of each word
+        // In unique mode only emit the first occurrence of each word.
         let ranges = if unique {
             &wl.locations[..1]
         } else {
@@ -124,12 +152,10 @@ fn check_file(
         };
 
         for range in ranges {
-            let before = &text[..range.start_byte.min(text.len())];
-            let line = before.bytes().filter(|&b| b == b'\n').count() + 1;
-            let col = before
-                .rfind('\n')
-                .map(|p| before.len() - p)
-                .unwrap_or(before.len() + 1);
+            // utf8_to_char_pos returns 0-based line and Unicode-char column.
+            let pos = offsets.utf8_to_char_pos(range.start_byte.min(text.len()));
+            let line = pos.line + 1; // 0-based → 1-based
+            let col = pos.col + 1; // 0-based → 1-based
             hits.push((
                 format!("{line}:{col}"),
                 wl.word.as_str(),
@@ -202,33 +228,57 @@ fn print_config_source(config: &CodebookConfigFile) {
 }
 
 /// Resolves a mix of file paths, directories, and glob patterns into a sorted,
-/// deduplicated list of file paths. Non-absolute patterns are resolved relative to root.
-fn resolve_paths(patterns: &[String], root: &Path) -> Vec<PathBuf> {
+/// deduplicated list of file paths. Non-absolute patterns are resolved relative to `root`.
+///
+/// Sets `*had_failure = true` for unmatched patterns, invalid globs, or glob I/O errors.
+fn resolve_paths(patterns: &[String], root: &Path, had_failure: &mut bool) -> Vec<PathBuf> {
     let mut paths = Vec::new();
     for pattern in patterns {
         let p = PathBuf::from(pattern);
         let p = if p.is_absolute() { p } else { root.join(&p) };
         if p.is_dir() {
-            collect_dir(&p, &mut paths);
+            collect_dir(&p, &mut paths, had_failure);
         } else {
-            let pattern = p.to_string_lossy();
-            match glob::glob(&pattern) {
+            let pattern_str = p.to_string_lossy();
+            match glob::glob(&pattern_str) {
                 Ok(entries) => {
                     let mut matched = false;
-                    for entry in entries.flatten() {
-                        if entry.is_file() {
-                            paths.push(entry);
-                            matched = true;
-                        } else if entry.is_dir() {
-                            collect_dir(&entry, &mut paths);
-                            matched = true;
+                    for entry in entries {
+                        match entry {
+                            Ok(e) => {
+                                if e.is_file() {
+                                    paths.push(e);
+                                    matched = true;
+                                } else if e.is_dir() {
+                                    collect_dir(&e, &mut paths, had_failure);
+                                    matched = true;
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!(
+                                    "{} failed to read glob entry: {e}",
+                                    "error:"
+                                        .if_supports_color(Stream::Stderr, |t| t.style(BOLD_RED))
+                                );
+                                *had_failure = true;
+                            }
                         }
                     }
                     if !matched {
-                        eprintln!("codebook: no match for '{pattern}'");
+                        eprintln!(
+                            "{} no match for '{pattern_str}'",
+                            "error:".if_supports_color(Stream::Stderr, |t| t.style(BOLD_RED))
+                        );
+                        *had_failure = true;
                     }
                 }
-                Err(e) => eprintln!("codebook: invalid pattern '{pattern}': {e}"),
+                Err(e) => {
+                    eprintln!(
+                        "{} invalid pattern '{pattern_str}': {e}",
+                        "error:".if_supports_color(Stream::Stderr, |t| t.style(BOLD_RED))
+                    );
+                    *had_failure = true;
+                }
             }
         }
     }
@@ -237,11 +287,24 @@ fn resolve_paths(patterns: &[String], root: &Path) -> Vec<PathBuf> {
     paths
 }
 
-fn collect_dir(dir: &Path, out: &mut Vec<PathBuf>) {
-    walkdir::WalkDir::new(dir)
-        .follow_links(false)
-        .into_iter()
-        .flatten()
-        .filter(|e| e.file_type().is_file())
-        .for_each(|e| out.push(e.into_path()));
+/// Recursively collects all files under `dir` into `out`.
+/// Sets `*had_failure = true` for any directory-entry I/O error (e.g. permission denied).
+fn collect_dir(dir: &Path, out: &mut Vec<PathBuf>, had_failure: &mut bool) {
+    for entry in walkdir::WalkDir::new(dir).follow_links(false).into_iter() {
+        match entry {
+            Ok(e) => {
+                if e.file_type().is_file() {
+                    out.push(e.into_path());
+                }
+            }
+            Err(err) => {
+                eprintln!(
+                    "{} failed to read directory entry under '{}': {err}",
+                    "error:".if_supports_color(Stream::Stderr, |t| t.style(BOLD_RED)),
+                    dir.display()
+                );
+                *had_failure = true;
+            }
+        }
+    }
 }
