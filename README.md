@@ -1,7 +1,7 @@
 <br />
 <div align="center">
   <a href="https://github.com/blopker/codebook"> <img
-  src="assets/codebook-nt.webp" alt="Logo" width="200" > </a> <h3
+  src="https://raw.githubusercontent.com/blopker/codebook/main/assets/codebook-nt.webp" alt="Logo" width="200" > </a> <h3
   align="center">CODEBOOK</h3> <p align="center"> An unholy spell checker for
   code. <br /> <br /> <!-- <a
   href="https://github.com/blopker/codebook/releases/latest/">Download</a> -->
@@ -13,7 +13,7 @@
 ## Usage
 
 <img
-  src="assets/example.png" alt="Example" width="400" >
+  src="https://raw.githubusercontent.com/blopker/codebook/main/assets/example.png" alt="Example" width="400" >
 
 No configuration needed. Codebook will automatically detect the language you are editing and mark issues for you. Codebook will try to only mark issues for words that you create, where they are initially defined.
 

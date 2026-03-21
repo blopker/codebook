@@ -219,27 +219,7 @@ ignore_patterns = [
 
 ## Supported Languages
 
-> For the most up-to-date status, see the [main repository](https://github.com/blopker/codebook).
-
-| Language | Status | | Language | Status |
-|----------|--------|-|----------|--------|
-| C | ✅ Stable | | Markdown | ✅ Stable |
-| C# | ⚠️ Needs testing | | Odin | ✅ Stable |
-| C++ | ⚠️ Needs testing | | PHP | ⚠️ Needs testing |
-| CSS | ⚠️ Needs testing | | Plain Text | ✅ Stable |
-| Elixir | ⚠️ Needs testing | | Python | ✅ Stable |
-| Erlang | ⚠️ Needs testing | | Ruby | ✅ Stable |
-| Go | ✅ Stable | | Rust | ✅ Stable |
-| Haskell | ⚠️ Needs testing | | Swift | ⚠️ Needs testing |
-| HTML | ⚠️ Needs testing | | TOML | ✅ Stable |
-| Java | ✅ Stable | | TypeScript | ✅ Stable |
-| JavaScript | ✅ Stable | | Typst | ⚠️ Needs testing |
-| LaTeX | ⚠️ Needs testing | | VHDL | ⚠️ Needs testing |
-| Lua | ✅ Stable | | YAML | ⚠️ Needs testing |
-| | | | Zig | ✅ Stable |
-
-**✅ Stable** - fully tested.
-**⚠️ Needs testing** - works in basic cases, but needs real-world validation. If you use one of these, [open an issue](https://github.com/blopker/codebook/issues) to share what you find.
+Codebook supports 35+ programming languages. See the [full supported language list](https://github.com/blopker/codebook#supported-languages) in the main repository for current status.
 
 ---
 
