@@ -4,6 +4,9 @@ Important user-facing changes. See commit logs for more details.
 
 [Unreleased]
 
+[0.3.36]
+
+- Add `codebook lint` CLI command for running spell checks from the command line, with support for glob patterns and gitignore-aware directory walking
 - Add multi-language support for Markdown files: fenced code blocks are now spell-checked using the appropriate language grammar
 - Add Vue and Astro support
 - Add `<script>` and `<style>` injection to HTML spell-checking
