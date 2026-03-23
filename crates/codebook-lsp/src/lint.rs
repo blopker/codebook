@@ -1,6 +1,7 @@
 use codebook::Codebook;
 use codebook_config::{CodebookConfig, CodebookConfigFile};
 use ignore::WalkBuilder;
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -114,6 +115,10 @@ fn check_file(
 ) -> (usize, bool) {
     let text = match std::fs::read_to_string(path) {
         Ok(t) => t,
+        Err(e) if e.kind() == std::io::ErrorKind::InvalidData => {
+            // Binary / non-UTF-8 file — silently skip.
+            return (0, false);
+        }
         Err(e) => {
             err!("{}: {e}", path.display());
             return (0, true);
@@ -215,16 +220,24 @@ fn print_config_source(config: &CodebookConfigFile) {
     eprintln!("{label} {display}");
 }
 
+/// Builds a gitignore matcher from the `.gitignore` file in `root`, if present.
+fn build_gitignore(root: &Path) -> Gitignore {
+    let mut builder = GitignoreBuilder::new(root);
+    builder.add(root.join(".gitignore"));
+    builder.build().unwrap_or_else(|_| Gitignore::empty())
+}
+
 /// Resolves a mix of file paths, directories, and glob patterns into a sorted,
 /// deduplicated list of file paths. Directories are walked using the `ignore`
 /// crate, which automatically respects `.gitignore` rules and skips hidden
-/// files/directories.
+/// files/directories. Glob-matched files are also filtered against `.gitignore`.
 ///
 /// Returns `(paths, had_failure)`. `had_failure` is true for unmatched
 /// patterns, invalid globs, or walk I/O errors.
 fn resolve_paths(patterns: &[String], root: &Path) -> (Vec<PathBuf>, bool) {
     let mut paths = Vec::new();
     let mut had_failure = false;
+    let gitignore = build_gitignore(root);
 
     for pattern in patterns {
         // root.join() is a no-op when pattern is absolute
@@ -242,7 +255,9 @@ fn resolve_paths(patterns: &[String], root: &Path) -> (Vec<PathBuf>, bool) {
                     for entry in entries {
                         match entry {
                             Ok(e) if e.is_file() => {
-                                paths.push(e);
+                                if !gitignore.matched(&e, false).is_ignore() {
+                                    paths.push(e);
+                                }
                                 matched = true;
                             }
                             Ok(e) if e.is_dir() => {
