@@ -123,7 +123,11 @@ fn check_file(
     // Build the offset table once per file
     let offsets = StringOffsets::<AllConfig>::new(&text);
     let mut locations = codebook.spell_check(&text, None, Some(relative));
-    // Sort by first occurrence in the file.
+    // Sort inner locations first (HashSet iteration order is nondeterministic),
+    // then sort the outer list by first occurrence in the file.
+    for wl in &mut locations {
+        wl.locations.sort_by_key(|r| r.start_byte);
+    }
     locations.sort_by_key(|l| l.locations.first().map(|r| r.start_byte).unwrap_or(0));
 
     // Collect hits first so we can compute pad_len for column alignment. The

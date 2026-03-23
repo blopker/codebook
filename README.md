@@ -135,7 +135,7 @@ codebook-lsp lint --suggest src/
 codebook-lsp lint --unique src/
 ```
 
-The exit code is **0** if all files are clean, **1** if any spelling errors are found, and **2** if there was an unreadable files, invalid UTF-8, etc...
+The exit code is **0** if all files are clean, **1** if any spelling errors are found, and **2** if there were unreadable files, invalid UTF-8, etc.
 
 ## About
 
