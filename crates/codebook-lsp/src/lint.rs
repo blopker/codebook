@@ -1,5 +1,5 @@
 use codebook::Codebook;
-use codebook_config::CodebookConfigFile;
+use codebook_config::{CodebookConfig, CodebookConfigFile};
 use owo_colors::{OwoColorize, Stream, Style};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -74,6 +74,14 @@ pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> b
 
     for path in &resolved {
         let relative = relative_to_root(root_canonical.as_deref(), path);
+
+        if config.should_ignore_path(Path::new(&relative)) {
+            continue;
+        }
+        if !config.should_include_path(Path::new(&relative)) {
+            continue;
+        }
+
         let (errors, file_failure) =
             check_file(path, &relative, &codebook, &mut seen_words, unique, suggest);
         had_failure |= file_failure;
