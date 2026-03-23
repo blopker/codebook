@@ -117,6 +117,28 @@ Any editor that implements the Language Server Protocol should be compatible wit
 codebook-lsp serve
 ```
 
+### CLI (Lint) (Unstable)
+
+Codebook can also be used as a standalone command-line spell checker, which is useful for CI pipelines, pre-commit hooks, or one-off checks.
+
+Note: this command is currently experimental, unstable, and subject to breaking changes in future releases. Please submit feedback!
+
+```sh
+# Check specific files
+codebook-lsp lint src/main.rs src/lib.rs
+
+# Check all files in a directory (recursive)
+codebook-lsp lint src/
+
+# Show spelling suggestions
+codebook-lsp lint --suggest src/
+
+# Only report each misspelled word once across all files
+codebook-lsp lint --unique src/
+```
+
+The exit code is **0** if all files are clean, **1** if any spelling errors are found, and **2** if there were unreadable files, invalid UTF-8, etc.
+
 ## About
 
 Codebook is a spell checker for code. It binds together the venerable Tree Sitter and the fast spell checker [Spellbook](https://github.com/helix-editor/spellbook). Included is a Language Server for use in (theoretically) any editor. Everything is done in Rust to keep response times snappy and memory usage _low_.

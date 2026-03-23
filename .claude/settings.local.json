@@ -15,7 +15,8 @@
       "Bash(gh issue view:*)",
       "Bash(gh repo view:*)",
       "Bash(cargo build:*)",
-      "Bash(cargo search:*)"
+      "Bash(cargo search:*)",
+      "WebFetch(domain:docs.rs)"
     ]
   }
 }
