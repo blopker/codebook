@@ -117,9 +117,11 @@ Any editor that implements the Language Server Protocol should be compatible wit
 codebook-lsp serve
 ```
 
-### CLI (Lint)
+### CLI (Lint) (Unstable)
 
 Codebook can also be used as a standalone command-line spell checker, which is useful for CI pipelines, pre-commit hooks, or one-off checks.
+
+Note: this command is currently experimental, unstable, and subject to breaking changes in future releases. Please submit feedback!
 
 ```sh
 # Check specific files
