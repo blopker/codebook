@@ -1,7 +1,7 @@
 use codebook::Codebook;
 use codebook_config::{CodebookConfig, CodebookConfigFile};
+use globset::Glob;
 use ignore::WalkBuilder;
-use ignore::overrides::OverrideBuilder;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -239,38 +239,37 @@ fn resolve_paths(patterns: &[String], root: &Path) -> (Vec<PathBuf>, bool) {
         } else if p.is_file() {
             paths.push(p);
         } else {
-            // Treat as a glob pattern: walk with an override filter so that
-            // nested .gitignore files are respected automatically. We extract
-            // the static (non-glob) prefix of the path to use as the walk
-            // root, so absolute patterns work correctly.
+            // Treat as a glob pattern. Walk from the workspace root so that
+            // the full .gitignore hierarchy (parent + nested) is respected,
+            // then post-filter surviving files against the glob.
             let pattern_str = p.to_string_lossy();
-            let walk_root = glob_base_dir(&p);
-            // Build the glob portion relative to walk_root for the override.
-            let rel_pattern = p
-                .strip_prefix(&walk_root)
-                .map(|r| format!("/{}", r.to_string_lossy()))
-                .unwrap_or_else(|_| pattern_str.to_string());
-            let mut ob = OverrideBuilder::new(&walk_root);
-            if let Err(e) = ob.add(&rel_pattern) {
-                err!("invalid pattern '{pattern_str}': {e}");
-                had_failure = true;
-                continue;
-            }
-            match ob.build() {
-                Ok(overrides) => {
-                    let before = paths.len();
-                    let mut walker = WalkBuilder::new(&walk_root);
-                    walker.overrides(overrides);
-                    had_failure |= collect_walk(&mut walker, &mut paths);
-                    if paths.len() == before {
-                        err!("no match for '{pattern_str}'");
-                        had_failure = true;
-                    }
-                }
+            let matcher = match Glob::new(&pattern_str).map(|g| g.compile_matcher()) {
+                Ok(m) => m,
                 Err(e) => {
                     err!("invalid pattern '{pattern_str}': {e}");
                     had_failure = true;
+                    continue;
                 }
+            };
+            let before = paths.len();
+            let mut walker = WalkBuilder::new(root);
+            for entry in walker.follow_links(false).build() {
+                match entry {
+                    Ok(e) if e.file_type().is_some_and(|ft| ft.is_file()) => {
+                        if matcher.is_match(e.path()) {
+                            paths.push(e.into_path());
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        err!("walk error: {e}");
+                        had_failure = true;
+                    }
+                }
+            }
+            if paths.len() == before {
+                err!("no match for '{pattern_str}'");
+                had_failure = true;
             }
         }
     }
@@ -278,24 +277,6 @@ fn resolve_paths(patterns: &[String], root: &Path) -> (Vec<PathBuf>, bool) {
     paths.sort();
     paths.dedup();
     (paths, had_failure)
-}
-
-/// Extracts the longest non-glob prefix directory from a path pattern.
-/// For example, `/tmp/foo/**/*.rs` returns `/tmp/foo`.
-fn glob_base_dir(pattern: &Path) -> PathBuf {
-    let mut base = PathBuf::new();
-    for component in pattern.components() {
-        let s = component.as_os_str().to_string_lossy();
-        if s.contains('*') || s.contains('?') || s.contains('[') {
-            break;
-        }
-        base.push(component);
-    }
-    if base.as_os_str().is_empty() {
-        PathBuf::from(".")
-    } else {
-        base
-    }
 }
 
 /// Walks using the given `WalkBuilder`, collecting all files into `out`.
