@@ -28,7 +28,6 @@ env_logger.workspace = true
 fs2.workspace = true
 log.workspace = true
 lru.workspace = true
-glob.workspace = true
 ignore.workspace = true
 serde.workspace = true
 serde_json.workspace = true

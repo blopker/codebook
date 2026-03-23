@@ -462,7 +462,6 @@ dependencies = [
  "codebook_config",
  "env_logger",
  "fs2",
- "glob",
  "ignore",
  "log",
  "lru",

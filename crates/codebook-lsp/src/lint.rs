@@ -1,7 +1,7 @@
 use codebook::Codebook;
 use codebook_config::{CodebookConfig, CodebookConfigFile};
 use ignore::WalkBuilder;
-use ignore::gitignore::{Gitignore, GitignoreBuilder};
+use ignore::overrides::OverrideBuilder;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -220,58 +220,49 @@ fn print_config_source(config: &CodebookConfigFile) {
     eprintln!("{label} {display}");
 }
 
-/// Builds a gitignore matcher from the `.gitignore` file in `root`, if present.
-fn build_gitignore(root: &Path) -> Gitignore {
-    let mut builder = GitignoreBuilder::new(root);
-    builder.add(root.join(".gitignore"));
-    builder.build().unwrap_or_else(|_| Gitignore::empty())
-}
-
 /// Resolves a mix of file paths, directories, and glob patterns into a sorted,
-/// deduplicated list of file paths. Directories are walked using the `ignore`
-/// crate, which automatically respects `.gitignore` rules and skips hidden
-/// files/directories. Glob-matched files are also filtered against `.gitignore`.
+/// deduplicated list of file paths. All paths are resolved through the `ignore`
+/// crate's `WalkBuilder`, which respects `.gitignore` rules (including nested
+/// ones) and skips hidden files/directories.
 ///
 /// Returns `(paths, had_failure)`. `had_failure` is true for unmatched
 /// patterns, invalid globs, or walk I/O errors.
 fn resolve_paths(patterns: &[String], root: &Path) -> (Vec<PathBuf>, bool) {
     let mut paths = Vec::new();
     let mut had_failure = false;
-    let gitignore = build_gitignore(root);
 
     for pattern in patterns {
         // root.join() is a no-op when pattern is absolute
         let p = root.join(pattern);
         if p.is_dir() {
-            had_failure |= collect_dir(&p, &mut paths);
+            had_failure |= collect_walk(&mut WalkBuilder::new(&p), &mut paths);
         } else if p.is_file() {
             paths.push(p);
         } else {
-            // Try as a glob pattern
+            // Treat as a glob pattern: walk with an override filter so that
+            // nested .gitignore files are respected automatically. We extract
+            // the static (non-glob) prefix of the path to use as the walk
+            // root, so absolute patterns work correctly.
             let pattern_str = p.to_string_lossy();
-            match glob::glob(&pattern_str) {
-                Ok(entries) => {
-                    let mut matched = false;
-                    for entry in entries {
-                        match entry {
-                            Ok(e) if e.is_file() => {
-                                if !gitignore.matched(&e, false).is_ignore() {
-                                    paths.push(e);
-                                }
-                                matched = true;
-                            }
-                            Ok(e) if e.is_dir() => {
-                                had_failure |= collect_dir(&e, &mut paths);
-                                matched = true;
-                            }
-                            Ok(_) => {}
-                            Err(e) => {
-                                err!("failed to read glob entry: {e}");
-                                had_failure = true;
-                            }
-                        }
-                    }
-                    if !matched {
+            let walk_root = glob_base_dir(&p);
+            // Build the glob portion relative to walk_root for the override.
+            let rel_pattern = p
+                .strip_prefix(&walk_root)
+                .map(|r| format!("/{}", r.to_string_lossy()))
+                .unwrap_or_else(|_| pattern_str.to_string());
+            let mut ob = OverrideBuilder::new(&walk_root);
+            if let Err(e) = ob.add(&rel_pattern) {
+                err!("invalid pattern '{pattern_str}': {e}");
+                had_failure = true;
+                continue;
+            }
+            match ob.build() {
+                Ok(overrides) => {
+                    let before = paths.len();
+                    let mut walker = WalkBuilder::new(&walk_root);
+                    walker.overrides(overrides);
+                    had_failure |= collect_walk(&mut walker, &mut paths);
+                    if paths.len() == before {
                         err!("no match for '{pattern_str}'");
                         had_failure = true;
                     }
@@ -289,20 +280,35 @@ fn resolve_paths(patterns: &[String], root: &Path) -> (Vec<PathBuf>, bool) {
     (paths, had_failure)
 }
 
-/// Recursively collects all files under `dir` into `out`, respecting
-/// `.gitignore` rules and skipping hidden files/directories.
-/// Returns `true` if any I/O error occurred during the walk.
-fn collect_dir(dir: &Path, out: &mut Vec<PathBuf>) -> bool {
+/// Extracts the longest non-glob prefix directory from a path pattern.
+/// For example, `/tmp/foo/**/*.rs` returns `/tmp/foo`.
+fn glob_base_dir(pattern: &Path) -> PathBuf {
+    let mut base = PathBuf::new();
+    for component in pattern.components() {
+        let s = component.as_os_str().to_string_lossy();
+        if s.contains('*') || s.contains('?') || s.contains('[') {
+            break;
+        }
+        base.push(component);
+    }
+    if base.as_os_str().is_empty() {
+        PathBuf::from(".")
+    } else {
+        base
+    }
+}
+
+/// Walks using the given `WalkBuilder`, collecting all files into `out`.
+/// Respects `.gitignore` rules (including nested) and skips hidden
+/// files/directories. Returns `true` if any I/O error occurred.
+fn collect_walk(walker: &mut WalkBuilder, out: &mut Vec<PathBuf>) -> bool {
     let mut had_failure = false;
-    for entry in WalkBuilder::new(dir).follow_links(false).build() {
+    for entry in walker.follow_links(false).build() {
         match entry {
             Ok(e) if e.file_type().is_some_and(|ft| ft.is_file()) => out.push(e.into_path()),
             Ok(_) => {}
             Err(e) => {
-                err!(
-                    "failed to read directory entry under '{}': {e}",
-                    dir.display()
-                );
+                err!("walk error: {e}");
                 had_failure = true;
             }
         }
