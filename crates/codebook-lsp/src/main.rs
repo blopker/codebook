@@ -47,9 +47,11 @@ enum Commands {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    // Initialize logger early with stderr output and buffering
-    // Default to INFO for LSP, WARN for lint (to suppress LSP-oriented noise)
-    let is_lint = std::env::args().nth(1).as_deref() == Some("lint");
+    let cli = Cli::parse();
+
+    // Initialize logger early with stderr output and buffering.
+    // Default to INFO for LSP, WARN for lint (to suppress LSP-oriented noise).
+    let is_lint = matches!(cli.command, Some(Commands::Lint { .. }));
     let log_level = match env::var("RUST_LOG").as_deref() {
         Ok("debug") => LevelFilter::Debug,
         Ok("info") => LevelFilter::Info,
@@ -58,7 +60,6 @@ async fn main() {
     };
     LspLogger::init_early(log_level).expect("Failed to initialize early logger");
     debug!("Logger initialized with log level: {log_level:?}");
-    let cli = Cli::parse();
 
     let root = match cli.root.as_deref() {
         Some(path) => path,
@@ -79,9 +80,12 @@ async fn main() {
             unique,
             suggest,
         }) => {
-            if lint::run_lint(files, root, *unique, *suggest) {
-                std::process::exit(1);
-            }
+            let code = match lint::run_lint(files, root, *unique, *suggest) {
+                lint::LintResult::Clean => 0,
+                lint::LintResult::Errors => 1,
+                lint::LintResult::Failure => 2,
+            };
+            std::process::exit(code);
         }
         None => {}
     }

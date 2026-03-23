@@ -1,35 +1,25 @@
 use codebook::Codebook;
 use codebook_config::{CodebookConfig, CodebookConfigFile};
-use owo_colors::{OwoColorize, Stream, Style};
+use ignore::WalkBuilder;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use string_offsets::{AllConfig, StringOffsets};
 
-const BOLD: Style = Style::new().bold();
-const DIM: Style = Style::new().dimmed();
-const YELLOW: Style = Style::new().yellow();
-const BOLD_RED: Style = Style::new().bold().red();
-
 macro_rules! err {
     ($($arg:tt)*) => {
-        eprintln!(
-            "{} {}",
-            "error:".if_supports_color(Stream::Stderr, |t| t.style(BOLD_RED)),
-            format_args!($($arg)*)
-        )
+        eprintln!("error: {}", format_args!($($arg)*))
     };
 }
 
-macro_rules! paint {
-    ($val:expr, $stream:expr, $style:expr) => {
-        $val.if_supports_color($stream, |t| t.style($style))
-    };
-}
-
-fn fatal(msg: impl std::fmt::Display) -> ! {
-    err!("{msg}");
-    std::process::exit(2);
+/// Result of a lint run, mapped to exit codes by the caller.
+pub enum LintResult {
+    /// All files clean — exit 0.
+    Clean,
+    /// Spelling errors found — exit 1.
+    Errors,
+    /// Infrastructure failure (IO errors, bad patterns, etc.) — exit 2.
+    Failure,
 }
 
 /// Computes a workspace-relative path string for a given file. Falls back to
@@ -47,21 +37,25 @@ fn relative_to_root(root_canonical: Option<&Path>, path: &Path) -> String {
         .unwrap_or_else(|| path.to_string_lossy().into_owned())
 }
 
-/// Returns `true` if any spelling errors were found.
-///
-/// Exits with code 2 if infrastructure failures occurred (unreadable files,
-/// directory errors, unmatched or invalid patterns).
-pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> bool {
-    let config = Arc::new(
-        CodebookConfigFile::load(Some(root))
-            .unwrap_or_else(|e| fatal(format!("failed to load config: {e}"))),
-    );
+pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> LintResult {
+    let config = match CodebookConfigFile::load(Some(root)) {
+        Ok(c) => Arc::new(c),
+        Err(e) => {
+            err!("failed to load config: {e}");
+            return LintResult::Failure;
+        }
+    };
 
     print_config_source(&config);
     eprintln!();
 
-    let codebook = Codebook::new(config.clone())
-        .unwrap_or_else(|e| fatal(format!("failed to initialize: {e}")));
+    let codebook = match Codebook::new(config.clone()) {
+        Ok(c) => c,
+        Err(e) => {
+            err!("failed to initialize: {e}");
+            return LintResult::Failure;
+        }
+    };
 
     // Canonicalize the root once here rather than once per file.
     let root_canonical = root.canonicalize().ok();
@@ -93,16 +87,16 @@ pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> b
 
     let unique_label = if unique { "unique " } else { "" };
     eprintln!(
-        "Found {} {unique_label}spelling error(s) in {} file(s).",
-        paint!(total_errors, Stream::Stderr, BOLD),
-        paint!(files_with_errors, Stream::Stderr, BOLD),
+        "Found {total_errors} {unique_label}spelling error(s) in {files_with_errors} file(s)."
     );
 
     if had_failure {
-        std::process::exit(2);
+        LintResult::Failure
+    } else if total_errors > 0 {
+        LintResult::Errors
+    } else {
+        LintResult::Clean
     }
-
-    total_errors > 0
 }
 
 /// Spell-checks a single file and prints any diagnostics to stdout.
@@ -185,24 +179,13 @@ fn check_file(
 
     let pad_len = hits.iter().map(|(lc, _, _)| lc.len()).max().unwrap_or(0);
 
-    println!(
-        "{}",
-        display.if_supports_color(Stream::Stdout, |t| t.style(BOLD))
-    );
+    println!("{display}");
     for (linecol, word, suggestions) in &hits {
         let pad = " ".repeat(pad_len - linecol.len());
-        print!(
-            "  {}:{}{}  {}",
-            paint!(display, Stream::Stdout, DIM),
-            paint!(linecol, Stream::Stdout, YELLOW),
-            pad,
-            paint!(word, Stream::Stdout, BOLD_RED),
-        );
         if let Some(s) = suggestions {
-            let text = format!("→ {}", s.join(", "));
-            println!("  {}", paint!(text, Stream::Stdout, DIM));
+            println!("  {display}:{linecol}{pad}  {word}  -> {}", s.join(", "));
         } else {
-            println!();
+            println!("  {display}:{linecol}{pad}  {word}");
         }
     }
     println!();
@@ -229,19 +212,16 @@ fn print_config_source(config: &CodebookConfigFile) {
         .unwrap_or(&path)
         .display()
         .to_string();
-    eprintln!(
-        "{label} {}",
-        display.if_supports_color(Stream::Stderr, |t| t.style(DIM))
-    );
+    eprintln!("{label} {display}");
 }
 
 /// Resolves a mix of file paths, directories, and glob patterns into a sorted,
-/// deduplicated list of file paths. Non-absolute patterns are resolved relative
-/// to `root`. `Path::join` replaces the base when the argument is absolute, so
-/// no explicit `is_absolute` check is needed.
+/// deduplicated list of file paths. Directories are walked using the `ignore`
+/// crate, which automatically respects `.gitignore` rules and skips hidden
+/// files/directories.
 ///
 /// Returns `(paths, had_failure)`. `had_failure` is true for unmatched
-/// patterns, invalid globs, or glob I/O errors.
+/// patterns, invalid globs, or walk I/O errors.
 fn resolve_paths(patterns: &[String], root: &Path) -> (Vec<PathBuf>, bool) {
     let mut paths = Vec::new();
     let mut had_failure = false;
@@ -251,7 +231,10 @@ fn resolve_paths(patterns: &[String], root: &Path) -> (Vec<PathBuf>, bool) {
         let p = root.join(pattern);
         if p.is_dir() {
             had_failure |= collect_dir(&p, &mut paths);
+        } else if p.is_file() {
+            paths.push(p);
         } else {
+            // Try as a glob pattern
             let pattern_str = p.to_string_lossy();
             match glob::glob(&pattern_str) {
                 Ok(entries) => {
@@ -291,13 +274,14 @@ fn resolve_paths(patterns: &[String], root: &Path) -> (Vec<PathBuf>, bool) {
     (paths, had_failure)
 }
 
-/// Recursively collects all files under `dir` into `out`. Returns `true` if any
-/// directory-entry I/O error occurred.
+/// Recursively collects all files under `dir` into `out`, respecting
+/// `.gitignore` rules and skipping hidden files/directories.
+/// Returns `true` if any I/O error occurred during the walk.
 fn collect_dir(dir: &Path, out: &mut Vec<PathBuf>) -> bool {
     let mut had_failure = false;
-    for entry in walkdir::WalkDir::new(dir).follow_links(false) {
+    for entry in WalkBuilder::new(dir).follow_links(false).build() {
         match entry {
-            Ok(e) if e.file_type().is_file() => out.push(e.into_path()),
+            Ok(e) if e.file_type().is_some_and(|ft| ft.is_file()) => out.push(e.into_path()),
             Ok(_) => {}
             Err(e) => {
                 err!(
