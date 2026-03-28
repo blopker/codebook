@@ -19,6 +19,7 @@ pub enum LanguageType {
     Latex,
     Lua,
     Markdown,
+    OCaml,
     Odin,
     Php,
     Python,
@@ -228,6 +229,13 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         extensions: &["sh", "bash"],
     },
     LanguageSetting {
+        type_: LanguageType::OCaml,
+        ids: &["ocaml"],
+        dictionary_ids: &["ocaml"],
+        query: include_str!("queries/ocaml.scm"),
+        extensions: &["ml", "mli"]
+    },
+    LanguageSetting {
         type_: LanguageType::Odin,
         ids: &["odin"],
         dictionary_ids: &["odin"],
@@ -313,6 +321,7 @@ impl LanguageSetting {
             LanguageType::Latex => Some(codebook_tree_sitter_latex::LANGUAGE.into()),
             LanguageType::Lua => Some(tree_sitter_lua::LANGUAGE.into()),
             LanguageType::Markdown => Some(tree_sitter_md::LANGUAGE.into()),
+            LanguageType::OCaml => Some(tree_sitter_ocaml::LANGUAGE_OCAML.into()),
             LanguageType::Odin => Some(tree_sitter_odin_codebook::LANGUAGE.into()),
             LanguageType::Php => Some(tree_sitter_php::LANGUAGE_PHP.into()),
             LanguageType::Python => Some(tree_sitter_python::LANGUAGE.into()),
