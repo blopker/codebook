@@ -43,6 +43,7 @@ tree-sitter-javascript.workspace = true
 codebook-tree-sitter-latex.workspace = true
 tree-sitter-lua.workspace = true
 tree-sitter-md.workspace = true
+tree-sitter-ocaml.workspace = true
 tree-sitter-odin-codebook.workspace = true
 tree-sitter-php.workspace = true
 tree-sitter-python.workspace = true
