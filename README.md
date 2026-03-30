@@ -277,6 +277,7 @@ Project-specific configuration is loaded from either `codebook.toml` or `.codebo
 #  - Vietnamese: "vi_vn"
 #  - Polish: "pl"
 #  - Ukrainian: "uk"
+#  - Norwegian: "nb_no", "nn_no"
 dictionaries = ["en_us", "en_gb"]
 
 # Custom allowlist of words to ignore (case-insensitive)
