@@ -159,6 +159,16 @@ static HUNSPELL_DICTIONARIES: LazyLock<Vec<HunspellRepo>> = LazyLock::new(|| {
             "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/nn/index.aff",
             "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/nn/index.dic",
         ),
+        HunspellRepo::new(
+            "pt_pt",
+            "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/pt_PT/src/hunspell/Portuguese-European.aff",
+            "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/pt_PT/src/hunspell/Portuguese-European.dic",
+        ),
+        HunspellRepo::new(
+            "pt",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/pt/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/pt/index.dic",
+        ),
     ]
 });
 
