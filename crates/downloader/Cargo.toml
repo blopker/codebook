@@ -17,6 +17,7 @@ httpmock.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+base16ct.workspace = true
 chrono.workspace = true
 env_logger.workspace = true
 log.workspace = true

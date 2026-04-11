@@ -6,6 +6,7 @@ description = "A tool for building and managing spell-checking dictionaries"
 
 [dependencies]
 anyhow.workspace = true
+base16ct.workspace = true
 chrono.workspace = true
 clap.workspace = true
 git2.workspace = true

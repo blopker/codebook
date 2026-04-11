@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
 
+use base16ct::lower;
 use sha2::{Digest, Sha256};
 use tracing::debug;
 
@@ -24,8 +25,7 @@ pub fn calculate_sha256(path: &Path) -> Result<String> {
         hasher.update(&buffer[..bytes_read]);
     }
 
-    let hash = hasher.finalize();
-    let hash_str = format!("sha256:{:x}", hash);
+    let hash_str = lower::encode_string(&hasher.finalize());
 
     debug!("Calculated checksum for {}: {hash_str}", path.display());
     Ok(hash_str)

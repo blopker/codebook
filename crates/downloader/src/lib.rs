@@ -1,4 +1,5 @@
 use anyhow::Result;
+use base16ct::lower;
 use chrono::{DateTime, Utc};
 use log::info;
 use reqwest::blocking::{Client, Response};
@@ -340,9 +341,8 @@ impl Downloader {
 }
 
 fn hash_url(url: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(url.as_bytes());
-    format!("{:x}", hasher.finalize())
+    let hash = Sha256::digest(url.as_bytes());
+    lower::encode_string(&hash)
 }
 
 fn compute_file_hash(path: &Path) -> Result<String> {
@@ -359,7 +359,7 @@ fn compute_file_hash(path: &Path) -> Result<String> {
         hasher.update(&buffer[..count]);
     }
 
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(lower::encode_string(&hasher.finalize()))
 }
 
 fn parse_last_modified(response: &Response) -> Option<DateTime<Utc>> {
