@@ -4,6 +4,15 @@ Important user-facing changes. See commit logs for more details.
 
 [Unreleased]
 
+[0.3.37]
+
+- Add OCaml language support
+- Add Svelte support (via HTML injection, no extra dependency)
+- Add Czech (`cs`) dictionary
+- Add Norwegian dictionaries (`nb_no`, `nn_no`)
+- Add Portuguese (Portugal) dictionaries (`pt_pt`, `pt`)
+- Update dependencies
+
 [0.3.36]
 
 - Add `codebook lint` CLI command for running spell checks from the command line, with support for glob patterns and gitignore-aware directory walking

@@ -159,10 +159,10 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::HTML,
-        ids: &["html", "vue", "vue.js", "astro"],
+        ids: &["html", "vue", "vue.js", "astro", "svelte"],
         dictionary_ids: &["html"],
         query: include_str!("queries/html.scm"),
-        extensions: &["html", "htm", "vue", "astro"],
+        extensions: &["html", "htm", "vue", "astro", "svelte"],
     },
     LanguageSetting {
         type_: LanguageType::Css,
