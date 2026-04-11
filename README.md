@@ -264,6 +264,7 @@ Project-specific configuration is loaded from either `codebook.toml` or `.codebo
 # Default: ["en_us"]
 # Available dictionaries:
 #  - English: "en_us", "en_gb"
+#  - Czech: "cs"
 #  - German: "de", "de_at", "de_ch"
 #  - Dutch: "nl_nl"
 #  - Spanish: "es"
