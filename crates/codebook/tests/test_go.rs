@@ -255,3 +255,34 @@ fn test_go_location() {
         assert!(!not_expected.contains(&result.word.as_str()));
     }
 }
+
+#[test]
+fn test_go_imports_not_checked() {
+    utils::init_logging();
+    let sample_text = r#"
+    package main
+
+    import (
+        "fmt"
+        "net/http"
+        "github.com/someuserr/mypackagee"
+        myfmt "github.com/anotherr/fmtpkg"
+    )
+
+    func main() {
+        fmt.Println("hello")
+    }"#;
+    let processor = utils::get_processor();
+    let misspelled = processor
+        .spell_check(sample_text, Some(LanguageType::Go), None)
+        .to_vec();
+    let words: Vec<&str> = misspelled.iter().map(|w| w.word.as_str()).collect();
+    println!("Misspelled words: {words:?}");
+    // Import path contents should not be spell-checked
+    assert!(!words.contains(&"someuserr"));
+    assert!(!words.contains(&"mypackagee"));
+    assert!(!words.contains(&"anotherr"));
+    assert!(!words.contains(&"fmtpkg"));
+    // Import aliases are still checked
+    assert!(words.contains(&"myfmt"));
+}

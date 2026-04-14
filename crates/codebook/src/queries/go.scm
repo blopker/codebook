@@ -14,5 +14,7 @@
 (field_declaration tag: (raw_string_literal) @string.special)
 (const_spec name: (identifier) @identifier.constant)
 (range_clause left: (expression_list (identifier) @identifier.variable))
-(interpreted_string_literal) @string
-(array_type (interpreted_string_literal) @string)
+(argument_list (interpreted_string_literal) @string)
+(expression_list (interpreted_string_literal) @string)
+(binary_expression (interpreted_string_literal) @string)
+(literal_element (interpreted_string_literal) @string)
