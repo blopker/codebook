@@ -16,8 +16,8 @@
 (static_final_declaration name: (identifier) @identifier.variable)
 (enum_constant name: (identifier) @identifier.constant)
 
-; Variables (class fields)
-(initialized_identifier (identifier) @identifier.variable)
+; Fields (class/mixin instance variables)
+(initialized_identifier (identifier) @identifier.field)
 
 ; Parameters
 (formal_parameter name: (identifier) @identifier.parameter)
