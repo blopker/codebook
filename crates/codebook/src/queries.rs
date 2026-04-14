@@ -233,7 +233,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         ids: &["ocaml"],
         dictionary_ids: &["ocaml"],
         query: include_str!("queries/ocaml.scm"),
-        extensions: &["ml", "mli"]
+        extensions: &["ml", "mli"],
     },
     LanguageSetting {
         type_: LanguageType::Odin,

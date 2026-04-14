@@ -17,9 +17,9 @@ fn main() {
             .windows(2)
             .find(|w| w[0] == "--lang")
             .map(|w| w[1].as_str());
-        let file_arg = args
-            .iter()
-            .find(|a| *a != "--ast" && *a != "--lang" && !a.starts_with("--") && !a.contains("codebook"));
+        let file_arg = args.iter().find(|a| {
+            *a != "--ast" && *a != "--lang" && !a.starts_with("--") && !a.contains("codebook")
+        });
         match file_arg {
             Some(path) => dump_ast(path, lang_override),
             None => eprintln!("Usage: codebook --ast <file> [--lang <language>]"),

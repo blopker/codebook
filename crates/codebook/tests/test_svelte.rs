@@ -61,7 +61,11 @@ fn test_svelte_file_detection() {
     let sample_text = r#"<p>Misspeled word</p>
 "#;
     let results = processor
-        .spell_check(sample_text, Some(LanguageType::HTML), Some("component.svelte"))
+        .spell_check(
+            sample_text,
+            Some(LanguageType::HTML),
+            Some("component.svelte"),
+        )
         .to_vec();
     let misspelled: Vec<&str> = results.iter().map(|r| r.word.as_str()).collect();
     assert!(misspelled.contains(&"Misspeled"));
