@@ -1,0 +1,33 @@
+use codebook::{
+    parser::{TextRange, WordLocation},
+    queries::LanguageType,
+};
+
+
+#[test]
+fn test_toml_location() {
+    let sample_toml = r#"
+        name = "testx"
+        [dependencies]
+        toml = "0.5.8"
+        testz = "0.1.0"
+"#;
+    let expected = vec![WordLocation::new(
+        "testx".to_string(),
+        vec![TextRange {
+            start_byte: 17,
+            end_byte: 22,
+        }],
+    )];
+    let not_expected = ["testz"];
+    let processor = super::utils::get_processor();
+    let misspelled = processor
+        .spell_check(sample_toml, Some(LanguageType::TOML), None)
+        .to_vec();
+    println!("Misspelled words: {misspelled:?}");
+    assert_eq!(misspelled, expected);
+    assert!(misspelled[0].locations.len() == 1);
+    for result in misspelled {
+        assert!(!not_expected.contains(&result.word.as_str()));
+    }
+}
