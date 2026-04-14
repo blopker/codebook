@@ -159,6 +159,7 @@ Codebook is in active development. As better dictionaries are added, words that 
 | C#         | ⚠️     |
 | C++        | ⚠️     |
 | CSS        | ⚠️     |
+| Dart       | ⚠️     |
 | Elixir     | ⚠️     |
 | Erlang     | ⚠️     |
 | Go         | ✅     |
