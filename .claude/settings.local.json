@@ -16,7 +16,10 @@
       "Bash(gh repo view:*)",
       "Bash(cargo build:*)",
       "Bash(cargo search:*)",
-      "WebFetch(domain:docs.rs)"
+      "WebFetch(domain:docs.rs)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:index.crates.io)"
     ]
   }
 }

@@ -258,7 +258,35 @@ impl Downloader {
     }
 
     fn download_new(&self, url: &str) -> Result<PathBuf> {
+        let max_retries = 2;
+        let mut last_err = None;
+        for attempt in 0..=max_retries {
+            if attempt > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(500 * attempt as u64));
+            }
+            match self.try_download_new(url) {
+                Ok(path) => return Ok(path),
+                Err(e) => {
+                    log::warn!(
+                        "Download attempt {}/{} failed for {url}: {e}",
+                        attempt + 1,
+                        max_retries + 1
+                    );
+                    last_err = Some(e);
+                }
+            }
+        }
+        Err(last_err.unwrap())
+    }
+
+    fn try_download_new(&self, url: &str) -> Result<PathBuf> {
         let response = self.client().get(url).send()?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(anyhow::anyhow!(
+                "Download failed with status {status} for {url}"
+            ));
+        }
         let last_modified = parse_last_modified(&response);
         let temp_file = self.download_to_temp(response)?;
         let new_hash = compute_file_hash(temp_file.path())?;
