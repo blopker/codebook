@@ -1,6 +1,6 @@
 [package]
 name = "codebook_downloader"
-version = "0.3.37"
+version = "0.3.38"
 edition = "2024"
 description = "Dictionary downloading utility for the Codebook spell checker"
 authors = ["Codebook Contributors"]
