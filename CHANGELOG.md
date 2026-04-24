@@ -4,6 +4,12 @@ Important user-facing changes. See commit logs for more details.
 
 [Unreleased]
 
+[0.3.38]
+
+- Add Dart language support
+- Fix Go query to ignore import package URLs (#243)
+- Update dependencies
+
 [0.3.37]
 
 - Add OCaml language support
