@@ -309,10 +309,10 @@ impl LanguageServer for Backend {
                 data: None,
             }));
         }
-        match actions.is_empty() {
-            true => Ok(None),
-            false => Ok(Some(actions)),
+        if actions.is_empty() {
+            return Ok(None);
         }
+        Ok(Some(actions))
     }
 
     async fn execute_command(&self, params: ExecuteCommandParams) -> RpcResult<Option<Value>> {
