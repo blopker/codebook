@@ -22,6 +22,8 @@ lazy_static! {
         Regex::new(r"\b[0-9a-fA-F]{7,40}\b").expect("Valid git hash regex"),
         // Markdown/HTML links (URL part must not contain spaces)
         Regex::new(r"\[([^\]]+)\]\([^\s)]+\)").expect("Valid markdown link regex"),
+        // Non-Ascii characters
+        Regex::new(r"[^\x00-\x7F]+").expect("Valid non-ASCII regex"),
     ];
 }
 
@@ -82,5 +84,20 @@ mod tests {
         assert!(email_pattern.is_match("user@example.com"));
         assert!(email_pattern.is_match("test.email+tag@domain.co.uk"));
         assert!(!email_pattern.is_match("not an email"));
+    }
+    #[test]
+    fn test_non_ascii_pattern() {
+        let patterns = get_default_skip_patterns();
+        let non_ascii_pattern = &patterns[9];
+
+        assert!(non_ascii_pattern.is_match("你好世界")); // Chinese
+        assert!(non_ascii_pattern.is_match("こんにちは")); // Japanese - Hiragana
+        assert!(non_ascii_pattern.is_match("日本語")); // Japanese - Kanji
+        assert!(non_ascii_pattern.is_match("안녕하세요")); // Korean - Hangul
+        assert!(non_ascii_pattern.is_match("München")); // German Umlaut
+        assert!(non_ascii_pattern.is_match("étudiant")); // French accent
+        assert!(non_ascii_pattern.is_match("cañón")); // Spanish tilde
+        assert!(!non_ascii_pattern.is_match("Hello World"));
+        assert!(!non_ascii_pattern.is_match("1234567890!@#$%^&*()"));
     }
 }
