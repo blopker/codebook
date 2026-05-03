@@ -11,13 +11,16 @@ fn test_cpp_simple() {
         int calculatr(int numbr1, int numbr2, char operashun) {
             // This is an exampl function that performz calculashuns
             int resalt = 0;
-            return resalt;
+            int misspellled;
+            misspellled = 20;
+            return resalt + misspellled;
         }
     "#;
     let expected = vec![
         "calculashuns",
         "calculatr",
         "exampl",
+        "misspellled",
         "numbr",
         "operashun",
         "performz",
