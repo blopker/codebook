@@ -17,6 +17,8 @@
     declarator: (identifier) @identifier.variable)
 (pointer_declarator
     declarator: (identifier) @identifier.variable)
+(declaration
+    declarator: (identifier) @identifier.variable)
 (init_declarator
     (string_literal
         (string_content) @string))
