@@ -7,7 +7,7 @@ Important user-facing changes. See commit logs for more details.
 - German dictionaries (`de`, `de_at`, `de_ch`) now accept ASCII transliterations of umlauts and eszett (e.g., `Buecher` → `Bücher`, `Strasse` → `Straße`); suggestions also use transliterated variants for better recovery on typos (#253)
 - Add German example file (`examples/de.md`)
 - Add Slovenian dictionary (`sl`) and example file (`examples/sl.md`) (#210)
-- Add Persian dictionary (`fa`) (#254)
+- Add Persian/Farsi dictionary (`fa_ir`) (#254)
 - C: spell-check additional language constructs (#258)
 - C/C++: spell-check declarators without initializers (#256)
 - Ignore embedded scripts for unsupported languages in HTML/Markdown (skip fenced code blocks and `<script>` tags whose language has no Codebook grammar)
