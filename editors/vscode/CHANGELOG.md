@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fix `command 'codebook.addWord' already exists` crash when opening a multi-root workspace (#250). The extension now starts a single language server for the whole window. Note: in multi-root workspaces only the first folder's `codebook.toml` is honored; full per-folder project config support is tracked separately.
+
 ## 0.0.1
 
 - Initial release

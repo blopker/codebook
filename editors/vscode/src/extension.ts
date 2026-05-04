@@ -8,14 +8,12 @@ import {
 import { CodebookBinaryManager } from "./binary";
 import { DOCUMENT_SELECTOR } from "./languages";
 
-const DEFAULT_CLIENT_KEY = "__default__";
-
 let outputChannel: vscode.OutputChannel;
 let contextRef: vscode.ExtensionContext;
 let binaryManager: CodebookBinaryManager;
 let refreshPromise: Promise<void> = Promise.resolve();
 
-const clients = new Map<string, LanguageClient>();
+let client: LanguageClient | undefined;
 
 export async function activate(
   context: vscode.ExtensionContext
@@ -81,7 +79,7 @@ async function queueRefresh(options: RefreshOptions = {}): Promise<void> {
 }
 
 async function refreshClients(options: RefreshOptions = {}): Promise<void> {
-  await stopAllClients();
+  await stopClient();
 
   if (options.invalidateCache) {
     await binaryManager.invalidateCache();
@@ -89,37 +87,33 @@ async function refreshClients(options: RefreshOptions = {}): Promise<void> {
 
   try {
     const binaryPath = await binaryManager.getBinaryPath(options.forceDownload);
-    const folders = vscode.workspace.workspaceFolders;
-    if (!folders || folders.length === 0) {
-      await startClient(undefined, binaryPath);
-    } else {
-      for (const folder of folders) {
-        await startClient(folder, binaryPath);
-      }
-    }
+    await startClient(binaryPath);
   } catch (error) {
     outputChannel.appendLine(String(error));
     vscode.window.showErrorMessage(String(error));
   }
 }
 
-async function startClient(
-  folder: vscode.WorkspaceFolder | undefined,
-  binaryPath: string
-): Promise<void> {
-  const key = folder?.uri.toString() ?? DEFAULT_CLIENT_KEY;
-  if (clients.has(key)) {
+async function startClient(binaryPath: string): Promise<void> {
+  if (client) {
     return;
   }
 
-  const root = determineRoot(folder);
-  const config = vscode.workspace.getConfiguration("codebook", folder);
+  const folders = vscode.workspace.workspaceFolders;
+  const primaryFolder = folders?.[0];
+  const root = determineRoot(primaryFolder);
+  const config = vscode.workspace.getConfiguration("codebook", primaryFolder);
   const logLevel = config.get<string>("logLevel", "info");
 
   const args = [`--root=${root}`, "serve"];
   outputChannel.appendLine(
-    `Starting Codebook (${args.join(" ")}) for ${folder?.name ?? root}`
+    `Starting Codebook (${args.join(" ")}) for ${primaryFolder?.name ?? root}`
   );
+  if (folders && folders.length > 1) {
+    outputChannel.appendLine(
+      `Multi-root workspace detected; using ${primaryFolder?.name ?? root} as the project config root. Per-folder codebook.toml files in other folders are not yet honored.`
+    );
+  }
 
   const serverOptions: ServerOptions = {
     run: {
@@ -148,16 +142,14 @@ async function startClient(
     documentSelector: DOCUMENT_SELECTOR,
     diagnosticCollectionName: "codebook",
     outputChannel,
-    workspaceFolder: folder,
   };
 
-  const client = new LanguageClient(
-    `codebook-${key}`,
+  client = new LanguageClient(
+    "codebook",
     "Codebook",
     serverOptions,
     clientOptions
   );
-  clients.set(key, client);
   contextRef.subscriptions.push(client);
   await client.start();
 }
@@ -172,20 +164,19 @@ function determineRoot(folder: vscode.WorkspaceFolder | undefined): string {
     return path.dirname(editor.document.uri.fsPath);
   }
 
-  const defaultWorkspace = vscode.workspace.workspaceFolders?.[0];
-  if (defaultWorkspace) {
-    return defaultWorkspace.uri.fsPath;
-  }
-
   return process.cwd();
 }
 
-async function stopAllClients(): Promise<void> {
-  const runningClients = Array.from(clients.values());
-  clients.clear();
-  await Promise.allSettled(runningClients.map((client) => client.stop()));
+async function stopClient(): Promise<void> {
+  const running = client;
+  client = undefined;
+  if (running) {
+    await running.stop().catch((error) => {
+      outputChannel.appendLine(`Error stopping Codebook client: ${error}`);
+    });
+  }
 }
 
 export async function deactivate(): Promise<void> {
-  await stopAllClients();
+  await stopClient();
 }
