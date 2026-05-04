@@ -284,6 +284,7 @@ Project-specific configuration is loaded from either `codebook.toml` or `.codebo
 #  - Norwegian: "nb_no", "nn_no"
 #  - Portuguese (Portugal): "pt_pt", "pt"
 #  - Persian/Farsi: "fa_ir"
+#  - Slovenian: "sl"
 dictionaries = ["en_us", "en_gb"]
 
 # Custom allowlist of words to ignore (case-insensitive)
