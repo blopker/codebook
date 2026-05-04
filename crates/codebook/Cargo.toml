@@ -60,6 +60,7 @@ tree-sitter-yaml.workspace = true
 tree-sitter-zig.workspace = true
 tree-sitter-c-sharp.workspace = true
 tree-sitter.workspace = true
+unicode-script.workspace = true
 unicode-segmentation.workspace = true
 
 codebook_config.workspace = true

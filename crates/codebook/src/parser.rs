@@ -7,6 +7,7 @@ use std::str::FromStr;
 use std::sync::{LazyLock, Mutex};
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
+use unicode_script::{Script, UnicodeScript};
 use unicode_segmentation::UnicodeSegmentation;
 
 /// Global parser cache protected by a mutex. Serializes all tree-sitter
@@ -310,6 +311,9 @@ fn extract_words_from_text<'a>(
         if !is_alphabetic(word) {
             continue;
         }
+        if has_unsupported_script(word) {
+            continue;
+        }
         let global_offset = base_offset + offset;
         if is_within_skip_range(global_offset, global_offset + word.len(), skip_ranges) {
             continue;
@@ -339,6 +343,26 @@ fn is_numeric(s: &str) -> bool {
 
 fn is_alphabetic(c: &str) -> bool {
     c.chars().any(|c| c.is_alphabetic())
+}
+
+/// Returns true if any character in the word belongs to a script we have no
+/// dictionary for. Filtering whole tokens (rather than substrings) avoids
+/// emitting partial fragments like the leading "M" of "München" — Latin
+/// scripts with diacritics still flow through to the Hunspell dictionaries
+/// that handle French, German, etc.
+fn has_unsupported_script(word: &str) -> bool {
+    // Fast path: ASCII bytes can't belong to any unsupported script, and
+    // `str::is_ascii` is a SIMD byte-loop, much cheaper than per-char script
+    // lookups across the Unicode range table.
+    if word.is_ascii() {
+        return false;
+    }
+    word.chars().any(|c| {
+        matches!(
+            c.script(),
+            Script::Han | Script::Hiragana | Script::Katakana | Script::Hangul | Script::Thai
+        )
+    })
 }
 
 /// Get a UTF-8 word from a string given the start and end bytes in utf16.
@@ -488,5 +512,76 @@ mod tests {
         let bw = bad_word.unwrap();
         assert_eq!(bw.start_byte, 7);
         assert_eq!(bw.end_byte, 14);
+    }
+
+    #[test]
+    fn test_has_unsupported_script() {
+        // CJK / Hiragana / Katakana / Hangul / Thai → unsupported
+        assert!(has_unsupported_script("简体中文"));
+        assert!(has_unsupported_script("繁體中文"));
+        assert!(has_unsupported_script("にほんご"));
+        assert!(has_unsupported_script("カタカナ"));
+        assert!(has_unsupported_script("한국어"));
+        assert!(has_unsupported_script("ภาษาไทย"));
+
+        // Latin (incl. diacritics) and Cyrillic / Greek → supported
+        assert!(!has_unsupported_script("hello"));
+        assert!(!has_unsupported_script("café"));
+        assert!(!has_unsupported_script("München"));
+        assert!(!has_unsupported_script("naïve"));
+        assert!(!has_unsupported_script("Tiếng")); // Vietnamese (vi_vn dict)
+        assert!(!has_unsupported_script("Привет")); // Russian
+        assert!(!has_unsupported_script("Ωμέγα")); // Greek
+
+        // Mixed token: any unsupported char taints the whole word
+        assert!(has_unsupported_script("hello世界"));
+    }
+
+    #[test]
+    fn test_extract_words_skips_unsupported_scripts() {
+        let text = "// 简体中文\n// 繁體中文\n// にほんご\n// ภาษาไทย\n// 한국어\n// hello world\n";
+        let (words, _) = extract_all_words(text, LanguageType::Rust, &|_| true, &[]);
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word).collect();
+
+        // None of the CJK/Thai/Hangul tokens should appear as candidates.
+        for forbidden in [
+            "简", "体", "中", "文", "繁", "體", "に", "ほ", "ん", "ご", "ภ", "า", "ษ", "ไ", "ท",
+            "ย", "한", "국", "어",
+        ] {
+            assert!(
+                !word_strings.iter().any(|w| w.contains(forbidden)),
+                "expected no candidate containing {forbidden:?}, got {word_strings:?}"
+            );
+        }
+
+        // Latin words still come through.
+        assert!(word_strings.contains(&"hello"));
+        assert!(word_strings.contains(&"world"));
+    }
+
+    #[test]
+    fn test_extract_words_keeps_supported_non_ascii() {
+        // Latin diacritics, Cyrillic, and Vietnamese should still be extracted
+        // for downstream dictionary lookup.
+        let text = "café München Tiếng Привет";
+        let (words, _) = extract_all_words(text, LanguageType::Text, &|_| true, &[]);
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word).collect();
+        assert!(word_strings.contains(&"café"), "got {word_strings:?}");
+        assert!(word_strings.contains(&"München"), "got {word_strings:?}");
+        assert!(word_strings.contains(&"Tiếng"), "got {word_strings:?}");
+        assert!(word_strings.contains(&"Привет"), "got {word_strings:?}");
+    }
+
+    #[test]
+    fn test_extract_words_mixed_diacritic_token_kept_whole() {
+        // The PR-#252 regex `[^\x00-\x7F]+` would split "München" into "M"
+        // and "nchen" — both garbage. We extract the whole token so the
+        // German Hunspell dict can resolve it.
+        let text = "Die Stadt München liegt in Bayern.";
+        let (words, _) = extract_all_words(text, LanguageType::Text, &|_| true, &[]);
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word).collect();
+        assert!(word_strings.contains(&"München"), "got {word_strings:?}");
+        assert!(!word_strings.contains(&"M"));
+        assert!(!word_strings.contains(&"nchen"));
     }
 }
