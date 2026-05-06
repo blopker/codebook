@@ -5,20 +5,20 @@
     "": {
       "name": "codebook-vscode",
       "dependencies": {
-        "adm-zip": "^0.5.12",
-        "tar": "^7.5.3",
+        "adm-zip": "^0.5.17",
+        "tar": "^7.5.13",
         "vscode-languageclient": "^9.0.1",
         "which": "^4.0.0",
       },
       "devDependencies": {
-        "@types/adm-zip": "^0.5.7",
-        "@types/node": "^20.12.7",
+        "@types/adm-zip": "^0.5.8",
+        "@types/node": "^20.19.39",
         "@types/tar": "^6.1.13",
-        "@types/vscode": "^1.80.0",
+        "@types/vscode": "1.109.0",
         "@types/which": "^3.0.4",
-        "@vscode/vsce": "^3.7.0",
-        "esbuild": "^0.27.2",
-        "typescript": "^5.4.0",
+        "@vscode/vsce": "^3.9.1",
+        "esbuild": "^0.27.7",
+        "typescript": "^5.9.3",
       },
     },
   },
@@ -165,7 +165,7 @@
 
     "@types/tar": ["@types/tar@6.1.13", "", { "dependencies": { "@types/node": "*", "minipass": "^4.0.0" } }, "sha512-IznnlmU5f4WcGTh2ltRu/Ijpmk8wiWXfF0VA4s+HPjHZgvFggk1YaIkbo5krX/zUCzWF8N/l4+W/LNxnvAJ8nw=="],
 
-    "@types/vscode": ["@types/vscode@1.118.0", "", {}, "sha512-Ah6eTlqDcwIMELEVwQMO++rJAFBRz/oLluLD/vWdYrH1KuI9kfpaM+7pg0OvvascgcJy+ghLCERAYouM4QbzGw=="],
+    "@types/vscode": ["@types/vscode@1.109.0", "", {}, "sha512-0Pf95rnwEIwDbmXGC08r0B4TQhAbsHQ5UyTIgVgoieDe4cOnf92usuR5dEczb6bTKEp7ziZH4TV1TRGPPCExtw=="],
 
     "@types/which": ["@types/which@3.0.4", "", {}, "sha512-liyfuo/106JdlgSchJzXEQCVArk0CvevqPote8F8HgWgJ3dRCcTHgJIsLDuee0kxk/mhbInzIZk3QWSZJ8R+2w=="],
 

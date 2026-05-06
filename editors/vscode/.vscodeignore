@@ -3,6 +3,7 @@
 .vscode/
 .vscode-test/
 src/
+scripts/
 tsconfig.json
 bun.lock
 node_modules/
