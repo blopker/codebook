@@ -19,7 +19,7 @@ jobs:
     name: Benchmark
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
       - name: Run benchmark
@@ -28,7 +28,7 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
       - name: Build
@@ -40,13 +40,27 @@ jobs:
     name: Integration Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
       - name: Run integration tests
         run: make integration_test
+
+  vscode_package:
+    name: VS Code Package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+        working-directory: editors/vscode
+      - name: Package extension
+        run: bun run package
+        working-directory: editors/vscode
 
   build:
     name: Build ${{ matrix.platform.project }} - ${{ matrix.platform.release_for }}
@@ -115,9 +129,9 @@ jobs:
           echo "CARGO_HOME=D:\cargo_home" >> $env:GITHUB_ENV
           Write-Host "Set CARGO_HOME to D:\cargo_home"
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Build binary
-        uses: houseabsolute/actions-rust-cross@v1
+        uses: houseabsolute/actions-rust-cross@v1.0.7
         with:
           command: ${{ matrix.platform.command }}
           target: ${{ matrix.platform.target }}
@@ -133,7 +147,7 @@ jobs:
           fi
           cd -
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.platform.bin }}-${{ matrix.platform.target }}
           path: ${{ matrix.platform.name }}
@@ -148,11 +162,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: codebook-lsp*
       - name: Make release
-        uses: softprops/action-gh-release@37fd9d0351a2df198244c8ef9f56d02d1f921e20
+        uses: softprops/action-gh-release@v3
         with:
           files: codebook-lsp*/*
           prerelease: true

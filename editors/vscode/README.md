@@ -49,7 +49,7 @@ Codebook combines [Tree Sitter](https://tree-sitter.github.io) and [Spellbook](h
 
 ## Requirements
 
-- **VS Code** `1.80.0` or later
+- A recent version of **VS Code**
 - **OS:** macOS (x86_64, aarch64), Linux (x86_64, aarch64), Windows (x86_64, arm64)
 - No other dependencies. The `codebook-lsp` binary is downloaded and managed automatically on first activation.
 

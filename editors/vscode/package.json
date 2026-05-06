@@ -15,7 +15,7 @@
   },
   "homepage": "https://github.com/blopker/codebook",
   "engines": {
-    "vscode": "^1.80.0"
+    "vscode": "^1.109.0"
   },
   "categories": [
     "Linters",
@@ -38,6 +38,7 @@
     "build": "esbuild src/extension.ts --bundle --outdir=dist --external:vscode --format=cjs --platform=node --sourcemap --minify",
     "watch": "esbuild src/extension.ts --bundle --outdir=dist --external:vscode --format=cjs --platform=node --sourcemap --watch",
     "typecheck": "tsc -p . --noEmit",
+    "sync-vscode-engine": "bun run scripts/sync-vscode-engine.ts",
     "package": "bun run build && vsce package --no-dependencies",
     "publish": "bun run build && vsce publish --no-dependencies"
   },
@@ -76,19 +77,13 @@
     }
   },
   "dependencies": {
-    "adm-zip": "^0.5.17",
-    "tar": "^7.5.13",
-    "vscode-languageclient": "^9.0.1",
-    "which": "^4.0.0"
+    "vscode-languageclient": "^9.0.1"
   },
   "devDependencies": {
-    "@types/adm-zip": "^0.5.8",
     "@types/node": "^20.19.39",
-    "@types/tar": "^6.1.13",
-    "@types/vscode": "^1.118.0",
-    "@types/which": "^3.0.4",
+    "@types/vscode": "1.109.0",
     "@vscode/vsce": "^3.9.1",
-    "esbuild": "^0.27.7",
-    "typescript": "^5.9.3"
+    "esbuild": "0.28.0",
+    "typescript": "6.0.3"
   }
 }

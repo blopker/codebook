@@ -5,10 +5,9 @@ import * as path from "node:path";
 import * as os from "node:os";
 import * as https from "node:https";
 import type { IncomingMessage } from "node:http";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { pipeline } from "node:stream/promises";
-import AdmZip from "adm-zip";
-import * as tar from "tar";
-import which from "which";
 
 const BINARY_BASENAME = "codebook-lsp";
 const BINARY_FILENAME =
@@ -16,6 +15,7 @@ const BINARY_FILENAME =
 const VERSION_FILENAME = "codebook.version";
 const USER_AGENT = "codebook-vscode-extension";
 const MAX_REDIRECTS = 5;
+const execFileAsync = promisify(execFile);
 
 interface GithubAsset {
   name: string;
@@ -29,8 +29,6 @@ interface GithubRelease {
   prerelease?: boolean;
   assets: GithubAsset[];
 }
-
-type ArchiveType = "tar-gz" | "zip";
 
 export class CodebookBinaryManager {
   private binaryPath?: string;
@@ -186,12 +184,7 @@ export class CodebookBinaryManager {
           );
 
           progress.report({ message: "Extracting archive" });
-          if (assetInfo.type === "zip") {
-            const zip = new AdmZip(archivePath);
-            zip.extractAllTo(versionDir, true);
-          } else {
-            await tar.x({ cwd: versionDir, file: archivePath });
-          }
+          await extractArchive(archivePath, versionDir);
         },
       );
     } finally {
@@ -257,11 +250,33 @@ async function ensureExecutable(filePath: string): Promise<void> {
 }
 
 async function findOnPath(): Promise<string | undefined> {
+  const pathEntries = (process.env.PATH ?? "").split(path.delimiter);
+  const extensions =
+    process.platform === "win32"
+      ? (process.env.PATHEXT ?? ".EXE;.CMD;.BAT;.COM").split(";")
+      : [""];
+
+  for (const entry of pathEntries) {
+    for (const extension of extensions) {
+      const candidate = path.join(entry, `${BINARY_BASENAME}${extension}`);
+      if (await isExecutable(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+async function isExecutable(filePath: string): Promise<boolean> {
   try {
-    const result = await which(BINARY_BASENAME, { nothrow: true });
-    return result ?? undefined;
+    await fsp.access(
+      filePath,
+      process.platform === "win32" ? fs.constants.F_OK : fs.constants.X_OK,
+    );
+    return true;
   } catch {
-    return undefined;
+    return false;
   }
 }
 
@@ -277,7 +292,6 @@ async function fileExists(filePath: string): Promise<boolean> {
 function resolveAssetName(): {
   filename: string;
   descriptor: string;
-  type: ArchiveType;
 } {
   let archPart: string;
   if (process.arch === "x64") {
@@ -290,23 +304,19 @@ function resolveAssetName(): {
 
   let osPart: string;
   let extension: string;
-  let type: ArchiveType;
 
   switch (process.platform) {
     case "darwin":
       osPart = "apple-darwin";
       extension = "tar.gz";
-      type = "tar-gz";
       break;
     case "linux":
       osPart = "unknown-linux-musl";
       extension = "tar.gz";
-      type = "tar-gz";
       break;
     case "win32":
       osPart = "pc-windows-msvc";
       extension = "zip";
-      type = "zip";
       break;
     default:
       throw new Error(`Unsupported operating system: ${process.platform}`);
@@ -315,8 +325,25 @@ function resolveAssetName(): {
   return {
     filename: `codebook-lsp-${archPart}-${osPart}.${extension}`,
     descriptor: `${archPart}-${osPart}`,
-    type,
   };
+}
+
+async function extractArchive(archivePath: string, destination: string) {
+  try {
+    await execFileAsync("tar", ["-xf", archivePath, "-C", destination]);
+  } catch (error) {
+    if (process.platform !== "win32") {
+      throw error;
+    }
+
+    await execFileAsync("powershell", [
+      "-NoProfile",
+      "-Command",
+      "Expand-Archive -LiteralPath $args[0] -DestinationPath $args[1] -Force",
+      archivePath,
+      destination,
+    ]);
+  }
 }
 
 function extractReleaseVersion(release: GithubRelease): string {
