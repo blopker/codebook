@@ -106,8 +106,8 @@ macro_rules! assert_word_locations_match {
 
             if a_loc  != e_loc {
                 panic!(
-                    "location mismatch at index {}:\n actual = {:#?}\n expected = {:#?}",
-                    i, a, e
+                    "location mismatch for \"{}\" at index {}:\n actual = {:#?}\n expected = {:#?}",
+                    a.word, i, a_loc, e_loc
                 );
             }
         }
