@@ -97,7 +97,14 @@ macro_rules! assert_word_locations_match {
                 );
             }
 
-            if a != e {
+            // Locations are not necessarily sorted by start byte, so
+            // sort them before comparison.
+            let mut a_loc = a.locations.clone();
+            let mut e_loc = e.locations.clone();
+            a_loc.sort_by(|l1, l2| l1.start_byte.cmp(&l2.start_byte));
+            e_loc.sort_by(|l1, l2| l1.start_byte.cmp(&l2.start_byte));
+
+            if a_loc  != e_loc {
                 panic!(
                     "location mismatch at index {}:\n actual = {:#?}\n expected = {:#?}",
                     i, a, e
@@ -118,19 +125,6 @@ fn test_get_expected_misspellings_simple() {
         result.misspellings,
         vec![
             WordLocation::new(
-                "a".to_string(),
-                vec![
-                    TextRange {
-                        start_byte: 1,
-                        end_byte: 2
-                    },
-                    TextRange {
-                        start_byte: 3,
-                        end_byte: 4
-                    },
-                ]
-            ),
-            WordLocation::new(
                 "A".to_string(),
                 vec![TextRange {
                     start_byte: 7,
@@ -143,7 +137,20 @@ fn test_get_expected_misspellings_simple() {
                     start_byte: 9,
                     end_byte: 11
                 }]
-            )
+            ),
+            WordLocation::new(
+                "a".to_string(),
+                vec![
+                    TextRange {
+                        start_byte: 1,
+                        end_byte: 2
+                    },
+                    TextRange {
+                        start_byte: 3,
+                        end_byte: 4
+                    },
+                ]
+            ),
         ]
     );
 }
