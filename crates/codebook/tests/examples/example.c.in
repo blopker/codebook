@@ -2,7 +2,7 @@ int @@calculatr@@(int @@numbr@@1, int @@numbr@@2, char @@operashun@@) {
     // This is an @@exampl@@ function that @@performz@@ @@calculashuns@@
     int @@resalt@@ = 0;
     int @@misspellled@@;
-    return @@resalt@@ + @@misspellled@@;
+    return resalt + misspellled;
 }
 
 #define @@MACROCONST@@ 3
@@ -17,7 +17,7 @@ enum @@Colrs@@ { @@Grean@@ };
 struct User@@Accaunt@@ {
     char* @@usrrnamee@@;
     int @@ballancee@@;
-    float @@intrest_rate@@;
+    float @@intrest@@_rate;
 };
 
 void foo() {
