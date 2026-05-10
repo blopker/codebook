@@ -55,12 +55,7 @@
         "codebook.binaryPath": {
           "type": "string",
           "default": "",
-          "description": "Absolute path to an existing codebook-lsp binary. Leave empty to allow the extension to manage the download."
-        },
-        "codebook.enablePrerelease": {
-          "type": "boolean",
-          "default": false,
-          "description": "Allow downloading pre-release builds when managing the language server binary."
+          "description": "Absolute path to an existing codebook-lsp binary. Leave empty to use the binary bundled with the extension (or one found on PATH)."
         },
         "codebook.logLevel": {
           "type": "string",

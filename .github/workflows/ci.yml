@@ -48,20 +48,6 @@ jobs:
       - name: Run integration tests
         run: make integration_test
 
-  vscode_package:
-    name: VS Code Package
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-        working-directory: editors/vscode
-      - name: Package extension
-        run: bun run package
-        working-directory: editors/vscode
-
   build:
     name: Build ${{ matrix.platform.project }} - ${{ matrix.platform.release_for }}
     if: github.event.pull_request.draft == false
@@ -151,6 +137,76 @@ jobs:
         with:
           name: ${{ matrix.platform.bin }}-${{ matrix.platform.target }}
           path: ${{ matrix.platform.name }}
+
+  vscode_package:
+    name: VS Code Package - ${{ matrix.platform.vsce_target }}
+    if: github.event.pull_request.draft == false
+    needs:
+      - build
+    strategy:
+      matrix:
+        platform:
+          - vsce_target: linux-x64
+            rust_target: x86_64-unknown-linux-musl
+            archive: codebook-lsp-x86_64-unknown-linux-musl.tar.gz
+            bin: codebook-lsp
+          - vsce_target: linux-arm64
+            rust_target: aarch64-unknown-linux-musl
+            archive: codebook-lsp-aarch64-unknown-linux-musl.tar.gz
+            bin: codebook-lsp
+          - vsce_target: darwin-x64
+            rust_target: x86_64-apple-darwin
+            archive: codebook-lsp-x86_64-apple-darwin.tar.gz
+            bin: codebook-lsp
+          - vsce_target: darwin-arm64
+            rust_target: aarch64-apple-darwin
+            archive: codebook-lsp-aarch64-apple-darwin.tar.gz
+            bin: codebook-lsp
+          - vsce_target: win32-x64
+            rust_target: x86_64-pc-windows-msvc
+            archive: codebook-lsp-x86_64-pc-windows-msvc.zip
+            bin: codebook-lsp.exe
+          - vsce_target: win32-arm64
+            rust_target: aarch64-pc-windows-msvc
+            archive: codebook-lsp-aarch64-pc-windows-msvc.zip
+            bin: codebook-lsp.exe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+        working-directory: editors/vscode
+      - name: Download LSP archive
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.platform.bin }}-${{ matrix.platform.rust_target }}
+          path: lsp-archive
+      - name: Stage LSP binary
+        run: |
+          mkdir -p editors/vscode/bin
+          if [[ "${{ matrix.platform.archive }}" == *.zip ]]; then
+            unzip -o "lsp-archive/${{ matrix.platform.archive }}" -d editors/vscode/bin
+          else
+            tar xzf "lsp-archive/${{ matrix.platform.archive }}" -C editors/vscode/bin
+          fi
+          chmod +x "editors/vscode/bin/${{ matrix.platform.bin }}" || true
+          ls -la editors/vscode/bin
+      - name: Package extension
+        working-directory: editors/vscode
+        run: |
+          bun run build
+          bunx vsce package \
+            --no-dependencies \
+            --target ${{ matrix.platform.vsce_target }} \
+            -o "codebook-vscode-${{ matrix.platform.vsce_target }}.vsix"
+      - name: Upload VSIX
+        uses: actions/upload-artifact@v7
+        with:
+          name: codebook-vscode-${{ matrix.platform.vsce_target }}
+          path: editors/vscode/codebook-vscode-${{ matrix.platform.vsce_target }}.vsix
+
   release:
     name: Release
     permissions:
@@ -158,17 +214,20 @@ jobs:
     needs:
       - build
       - test
+      - vscode_package
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v8
         with:
-          pattern: codebook-lsp*
+          pattern: codebook-*
       - name: Make release
         uses: softprops/action-gh-release@v3
         with:
-          files: codebook-lsp*/*
+          files: |
+            codebook-lsp*/*
+            codebook-vscode-*/*
           prerelease: true
           generate_release_notes: true
           draft: false

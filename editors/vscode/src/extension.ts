@@ -48,19 +48,11 @@ export async function activate(
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration(async (event) => {
-      const invalidateCache =
-        event.affectsConfiguration("codebook.binaryPath") ||
-        event.affectsConfiguration("codebook.enablePrerelease");
-      const forceDownload = event.affectsConfiguration(
-        "codebook.enablePrerelease"
-      );
-
       if (
         event.affectsConfiguration("codebook.binaryPath") ||
-        event.affectsConfiguration("codebook.enablePrerelease") ||
         event.affectsConfiguration("codebook.logLevel")
       ) {
-        await queueRefresh({ forceDownload, invalidateCache });
+        await queueRefresh();
       }
     })
   );
@@ -68,25 +60,16 @@ export async function activate(
   await queueRefresh();
 }
 
-type RefreshOptions = {
-  forceDownload?: boolean;
-  invalidateCache?: boolean;
-};
-
-async function queueRefresh(options: RefreshOptions = {}): Promise<void> {
-  refreshPromise = refreshPromise.then(() => refreshClients(options));
+async function queueRefresh(): Promise<void> {
+  refreshPromise = refreshPromise.then(() => refreshClients());
   await refreshPromise;
 }
 
-async function refreshClients(options: RefreshOptions = {}): Promise<void> {
+async function refreshClients(): Promise<void> {
   await stopClient();
 
-  if (options.invalidateCache) {
-    await binaryManager.invalidateCache();
-  }
-
   try {
-    const binaryPath = await binaryManager.getBinaryPath(options.forceDownload);
+    const binaryPath = await binaryManager.getBinaryPath();
     await startClient(binaryPath);
   } catch (error) {
     outputChannel.appendLine(String(error));
