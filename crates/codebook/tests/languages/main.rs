@@ -1,3 +1,4 @@
+mod assert_helpers;
 mod utils;
 
 mod test_c;
