@@ -89,7 +89,7 @@ impl<'de> Deserialize<'de> for ConfigSettings {
         D: serde::Deserializer<'de>,
     {
         fn to_lowercase_vec(v: Vec<String>) -> Vec<String> {
-            v.into_iter().map(|s| s.to_ascii_lowercase()).collect()
+            v.into_iter().map(|s| s.to_lowercase()).collect()
         }
         #[derive(Deserialize)]
         struct Helper {
@@ -200,7 +200,7 @@ impl ConfigSettings {
 
     /// Insert a word into the allowlist, returning true when it was newly added.
     pub fn insert_word(&mut self, word: &str) -> bool {
-        let word = word.to_ascii_lowercase();
+        let word = word.to_lowercase();
         if self.words.contains(&word) {
             return false;
         }
@@ -260,13 +260,13 @@ impl ConfigSettings {
 
     /// Check if a word is explicitly allowed.
     pub fn is_allowed_word(&self, word: &str) -> bool {
-        let word = word.to_ascii_lowercase();
+        let word = word.to_lowercase();
         self.words.iter().any(|w| w == &word)
     }
 
     /// Check if a word should be flagged.
     pub fn should_flag_word(&self, word: &str) -> bool {
-        let word = word.to_ascii_lowercase();
+        let word = word.to_lowercase();
         self.flag_words.iter().any(|w| w == &word)
     }
 
@@ -311,8 +311,8 @@ mod tests {
     fn test_deserialization() {
         let toml_str = r#"
         dictionaries = ["EN_US", "en_GB"]
-        words = ["CodeBook", "Rust"]
-        flag_words = ["TODO", "FIXME"]
+        words = ["CodeBook", "Rust", "Апгрейдить"]
+        flag_words = ["TODO", "FIXME", "Ошибка"]
         include_paths = ["src/**/*.rs", "lib/"]
         ignore_paths = ["**/*.md", "target/"]
         ignore_patterns = ["^```.*$", "^//.*$"]
@@ -322,8 +322,8 @@ mod tests {
         let config: ConfigSettings = toml::from_str(toml_str).unwrap();
 
         assert_eq!(config.dictionaries, vec!["en_us", "en_gb"]);
-        assert_eq!(config.words, vec!["codebook", "rust"]);
-        assert_eq!(config.flag_words, vec!["todo", "fixme"]);
+        assert_eq!(config.words, vec!["codebook", "rust", "апгрейдить"]);
+        assert_eq!(config.flag_words, vec!["todo", "fixme", "ошибка"]);
         assert_eq!(config.include_paths, vec!["src/**/*.rs", "lib/"]);
         assert_eq!(config.ignore_paths, vec!["**/*.md", "target/"]);
 
@@ -507,6 +507,20 @@ mod tests {
         let config: ConfigSettings = toml::from_str(toml_str).unwrap();
 
         assert_eq!(config, ConfigSettings::default());
+    }
+
+    #[test]
+    fn test_unicode_words_ignore_case() {
+        let mut config = ConfigSettings::default();
+
+        assert!(config.insert_word("Апгрейдить"));
+        assert!(!config.insert_word("апгрейдить"));
+        assert_eq!(config.words, vec!["апгрейдить"]);
+        assert!(config.is_allowed_word("АПГРЕЙДИТЬ"));
+        assert!(config.is_allowed_word("апгрейдить"));
+
+        config.flag_words.push("ошибка".to_string());
+        assert!(config.should_flag_word("Ошибка"));
     }
 
     #[test]
