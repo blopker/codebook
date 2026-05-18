@@ -88,9 +88,6 @@ impl<'de> Deserialize<'de> for ConfigSettings {
     where
         D: serde::Deserializer<'de>,
     {
-        fn to_lowercase_vec(v: Vec<String>) -> Vec<String> {
-            v.into_iter().map(|s| s.to_lowercase()).collect()
-        }
         #[derive(Deserialize)]
         struct Helper {
             #[serde(default)]
@@ -115,11 +112,18 @@ impl<'de> Deserialize<'de> for ConfigSettings {
             exclude_tags: Vec<String>,
         }
 
+        // Dictionary IDs are language codes (e.g. "en_US") — normalize to lowercase
+        // so lookups are case-insensitive. Word lists keep their original casing and
+        // are compared via unicase::eq.
         let helper = Helper::deserialize(deserializer)?;
         Ok(ConfigSettings {
-            dictionaries: to_lowercase_vec(helper.dictionaries),
-            words: to_lowercase_vec(helper.words),
-            flag_words: to_lowercase_vec(helper.flag_words),
+            dictionaries: helper
+                .dictionaries
+                .into_iter()
+                .map(|s| s.to_ascii_lowercase())
+                .collect(),
+            words: helper.words,
+            flag_words: helper.flag_words,
             include_paths: helper.include_paths,
             ignore_paths: helper.ignore_paths,
             ignore_patterns: helper.ignore_patterns,
@@ -199,14 +203,13 @@ impl ConfigSettings {
     }
 
     /// Insert a word into the allowlist, returning true when it was newly added.
+    /// Existing entries differing only in case are treated as duplicates.
     pub fn insert_word(&mut self, word: &str) -> bool {
-        let word = word.to_lowercase();
-        if self.words.contains(&word) {
+        if self.words.iter().any(|w| unicase::eq(w.as_str(), word)) {
             return false;
         }
-        self.words.push(word);
+        self.words.push(word.to_string());
         self.words.sort();
-        self.words.dedup();
         true
     }
 
@@ -260,14 +263,12 @@ impl ConfigSettings {
 
     /// Check if a word is explicitly allowed.
     pub fn is_allowed_word(&self, word: &str) -> bool {
-        let word = word.to_lowercase();
-        self.words.iter().any(|w| w == &word)
+        self.words.iter().any(|w| unicase::eq(w.as_str(), word))
     }
 
     /// Check if a word should be flagged.
     pub fn should_flag_word(&self, word: &str) -> bool {
-        let word = word.to_lowercase();
-        self.flag_words.iter().any(|w| w == &word)
+        self.flag_words.iter().any(|w| unicase::eq(w.as_str(), word))
     }
 
     /// Retrieve the configured minimum word length.
@@ -322,8 +323,8 @@ mod tests {
         let config: ConfigSettings = toml::from_str(toml_str).unwrap();
 
         assert_eq!(config.dictionaries, vec!["en_us", "en_gb"]);
-        assert_eq!(config.words, vec!["codebook", "rust", "апгрейдить"]);
-        assert_eq!(config.flag_words, vec!["todo", "fixme", "ошибка"]);
+        assert_eq!(config.words, vec!["CodeBook", "Rust", "Апгрейдить"]);
+        assert_eq!(config.flag_words, vec!["TODO", "FIXME", "Ошибка"]);
         assert_eq!(config.include_paths, vec!["src/**/*.rs", "lib/"]);
         assert_eq!(config.ignore_paths, vec!["**/*.md", "target/"]);
 
@@ -515,7 +516,7 @@ mod tests {
 
         assert!(config.insert_word("Апгрейдить"));
         assert!(!config.insert_word("апгрейдить"));
-        assert_eq!(config.words, vec!["апгрейдить"]);
+        assert_eq!(config.words, vec!["Апгрейдить"]);
         assert!(config.is_allowed_word("АПГРЕЙДИТЬ"));
         assert!(config.is_allowed_word("апгрейдить"));
 
@@ -665,7 +666,7 @@ mod tests {
         let config: ConfigSettings = toml::from_str(toml_str).unwrap();
 
         assert_eq!(config.dictionaries, vec!["en_us"]);
-        assert_eq!(config.words, vec!["codebook"]);
+        assert_eq!(config.words, vec!["CodeBook"]);
         assert_eq!(config.flag_words, Vec::<String>::new());
         assert_eq!(config.ignore_paths, Vec::<String>::new());
         assert_eq!(config.ignore_patterns, Vec::<String>::new());
