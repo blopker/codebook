@@ -1,6 +1,9 @@
 (comment) @comment
 
-(string_content) @string
+; String content inside type annotations (forward references, generic args)
+; belongs to the type checker, not the spell checker — skip it.
+((string_content) @string
+  (#not-has-ancestor? @string "type"))
 
 (function_definition
     name: (identifier) @identifier.function)
