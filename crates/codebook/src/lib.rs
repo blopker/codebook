@@ -11,7 +11,8 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
 
-use codebook_config::CodebookConfig;
+use codebook_config::helpers::build_ignore_regexes;
+use codebook_config::{CodebookConfig, ConfigSettings};
 use dictionaries::{dictionary, manager::DictionaryManager};
 use dictionary::Dictionary;
 use log::debug;
@@ -39,6 +40,7 @@ impl Codebook {
         language: Option<queries::LanguageType>,
         file_path: Option<&str>,
     ) -> Vec<parser::WordLocation> {
+        // ignore_paths and include_paths are evaluated BEFORE overrides
         if let Some(file_path) = file_path {
             if self.config.should_ignore_path(Path::new(file_path)) {
                 return Vec::new();
@@ -48,11 +50,16 @@ impl Codebook {
             }
         }
 
+        // Resolve per-file settings (applies matching overrides)
+        let resolved = file_path.and_then(|fp| self.config.resolve_for_file(Path::new(fp)));
+
         let language = self.resolve_language(language, file_path);
 
         // Combine default and user skip patterns
         let mut all_patterns = get_default_skip_patterns().clone();
-        if let Some(user_patterns) = self.config.get_ignore_patterns() {
+        if let Some(ref settings) = resolved {
+            all_patterns.extend(build_ignore_regexes(&settings.ignore_patterns));
+        } else if let Some(user_patterns) = self.config.get_ignore_patterns() {
             all_patterns.extend(user_patterns);
         }
 
@@ -64,11 +71,17 @@ impl Codebook {
             &all_patterns,
         );
 
-        // Load dictionaries for all languages encountered
-        let dictionaries = self.get_dictionaries_for_languages(&languages_found);
+        // Load dictionaries for all languages encountered (using resolved settings if any)
+        let dictionaries =
+            self.get_dictionaries_for_languages(&languages_found, resolved.as_deref());
 
         // Check words against dictionaries
-        checker::check_words(&candidates, &dictionaries, self.config.as_ref())
+        checker::check_words(
+            &candidates,
+            &dictionaries,
+            self.config.as_ref(),
+            resolved.as_deref(),
+        )
     }
 
     fn resolve_language(
@@ -86,11 +99,16 @@ impl Codebook {
     }
 
     /// Gather dictionaries for all languages encountered in a file.
+    /// If `resolved` is Some, its dictionary list is used in place of the base config's.
     fn get_dictionaries_for_languages(
         &self,
         languages: &HashSet<queries::LanguageType>,
+        resolved: Option<&ConfigSettings>,
     ) -> Vec<Arc<dyn Dictionary>> {
-        let mut dictionary_ids = self.config.get_dictionary_ids();
+        let mut dictionary_ids = match resolved {
+            Some(settings) => settings.dictionary_ids(),
+            None => self.config.get_dictionary_ids(),
+        };
 
         for lang in languages {
             dictionary_ids.extend(lang.dictionary_ids());
@@ -119,7 +137,7 @@ impl Codebook {
 
     pub fn get_suggestions(&self, word: &str) -> Option<Vec<String>> {
         let max_results = 5;
-        let dictionaries = self.get_dictionaries_for_languages(&HashSet::new());
+        let dictionaries = self.get_dictionaries_for_languages(&HashSet::new(), None);
         let mut is_misspelled = false;
         let suggestions: Vec<Vec<String>> = dictionaries
             .iter()

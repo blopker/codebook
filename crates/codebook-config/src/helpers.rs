@@ -57,7 +57,7 @@ pub(crate) fn unix_cache_dir() -> PathBuf {
 
 /// Compile user-provided ignore regex patterns, dropping invalid entries.
 /// Patterns are compiled with multiline mode so `^` and `$` match line boundaries.
-pub(crate) fn build_ignore_regexes(patterns: &[String]) -> Vec<Regex> {
+pub fn build_ignore_regexes(patterns: &[String]) -> Vec<Regex> {
     patterns
         .iter()
         .filter_map(
