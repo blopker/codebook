@@ -1,6 +1,6 @@
 [package]
 name = "codebook-lsp"
-version = "0.3.30"
+version = "0.3.39"
 edition = "2024"
 description = "A code-aware spell checker with language server implementation, installable via cargo install"
 authors = ["Codebook Contributors"]
@@ -28,6 +28,8 @@ env_logger.workspace = true
 fs2.workspace = true
 log.workspace = true
 lru.workspace = true
+globset.workspace = true
+ignore.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 string-offsets.workspace = true

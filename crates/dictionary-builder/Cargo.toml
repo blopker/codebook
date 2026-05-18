@@ -1,11 +1,12 @@
 [package]
 name = "dictionary-builder"
-version = "0.3.30"
+version = "0.3.39"
 edition = "2024"
 description = "A tool for building and managing spell-checking dictionaries"
 
 [dependencies]
 anyhow.workspace = true
+base16ct.workspace = true
 chrono.workspace = true
 clap.workspace = true
 git2.workspace = true

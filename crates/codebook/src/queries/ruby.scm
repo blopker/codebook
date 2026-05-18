@@ -1,12 +1,12 @@
 (string) @string
 (comment) @comment
-(assignment (identifier) @identifier)
+(assignment (identifier) @identifier.variable)
 (method
-    (method_parameters (keyword_parameter (identifier) @identifier)))
+    (method_parameters (keyword_parameter (identifier) @identifier.parameter)))
 (method
-    (method_parameters (identifier) @identifier))
-(method name: (identifier) @identifier)
+    (method_parameters (identifier) @identifier.parameter))
+(method name: (identifier) @identifier.function)
 (heredoc_body
-    (heredoc_content) @string
+    (heredoc_content) @string.heredoc
     (heredoc_end) @language
     (#downcase! @language))

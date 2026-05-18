@@ -1,0 +1,5 @@
+nolintbegin
+nolintend
+nolintnextline
+nullptr
+tparam

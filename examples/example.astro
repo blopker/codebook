@@ -1,0 +1,102 @@
+---
+// Astro frontmattr - this is TypeScript
+// Note: parsed as HTML text since no dedicated Astro grammar exists yet
+import { getColection } from "astro:content";
+
+interface BlogPst {
+    titel: string;
+    descriptin: string;
+    publishDat: Date;
+}
+
+const allPsts = await getColection("blog");
+const sortetPosts = allPsts.sort(
+    (a, b) => b.data.publishDat.valueOf() - a.data.publishDat.valueOf(),
+);
+---
+
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>My Blag - A colection of artcles</title>
+    </head>
+    <body>
+        <header>
+            <h1>Welcom to my blag</h1>
+            <p>A personl colection of thoghts and artcles.</p>
+        </header>
+
+        <main>
+            <section class="blog-postz">
+                <h2>Recnt Artcles</h2>
+                {
+                    sortetPosts.map((pst) => (
+                        <article>
+                            <h3>{pst.data.titel}</h3>
+                            <p>{pst.data.descriptin}</p>
+                            <time datetime={pst.data.publishDat.toISOString()}>
+                                {pst.data.publishDat.toLocaleDateString()}
+                            </time>
+                        </article>
+                    ))
+                }
+            </section>
+
+            <aside>
+                <h2>Abot the Authr</h2>
+                <p>
+                    I'm a sofware developr who enjois writing abot technolgy and
+                    programing.
+                </p>
+            </aside>
+        </main>
+
+        <footer>
+            <p>Copyrigt 2024. All rigths reservd.</p>
+        </footer>
+    </body>
+</html>
+
+<script>
+    // Clent-side JavaScrpt for interactivty
+    document.addEventListener("DOMContentLoaded", () => {
+        const articls = document.querySelectorAll("article");
+
+        // Add clik handlrs to each artcle
+        articls.forEach((articl) => {
+            articl.addEventListener("click", () => {
+                const descriptin = articl.querySelector("p");
+                descriptin.classList.toggle("expandd");
+            });
+        });
+
+        // Simpl serch functonality
+        const serchInput = document.getElementById("serch");
+        if (serchInput) {
+            serchInput.addEventListener("input", (evnt) => {
+                const qurey = evnt.target.value.toLowerCase();
+                articls.forEach((articl) => {
+                    const titel = articl
+                        .querySelector("h3")
+                        .textContent.toLowerCase();
+                    articl.style.display = titel.includes(qurey)
+                        ? "block"
+                        : "none";
+                });
+            });
+        }
+    });
+</script>
+
+<style>
+    .blog-postz {
+        display: grid;
+        gap: 20px;
+    }
+
+    article {
+        border: 1px solid #ccc;
+        padding: 16px;
+        border-radius: 8px;
+    }
+</style>

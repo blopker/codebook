@@ -1,0 +1,211 @@
+use codebook::{
+    parser::{TextRange, WordLocation},
+    queries::LanguageType,
+};
+
+
+fn example_file_path(file: &str) -> String {
+    // get root of the project through CARGO_MANIFEST_DIR
+    format!("tests/examples/{file}")
+}
+
+#[test]
+fn test_ignore_file() {
+    super::utils::init_logging();
+    let processor = super::utils::get_processor();
+    let results = processor.spell_check("badword", None, Some("ignore.txt"));
+    assert_eq!(results.len(), 0);
+}
+
+#[test]
+fn test_include_paths_allowlist() {
+    super::utils::init_logging();
+    let processor = super::utils::get_processor_with_include("**/*.rs");
+    assert!(
+        !processor
+            .spell_check("badword", Some(LanguageType::Text), Some("src/main.rs"))
+            .is_empty()
+    );
+    assert!(
+        processor
+            .spell_check("badword", Some(LanguageType::Text), Some("src/main.py"))
+            .is_empty()
+    );
+}
+
+#[test]
+fn test_include_paths_empty_includes_everything() {
+    super::utils::init_logging();
+    let processor = super::utils::get_processor();
+    assert!(
+        !processor
+            .spell_check("badword", Some(LanguageType::Text), Some("src/main.rs"))
+            .is_empty()
+    );
+    assert!(
+        !processor
+            .spell_check("badword", Some(LanguageType::Text), Some("src/main.py"))
+            .is_empty()
+    );
+}
+
+#[test]
+fn test_ignore_paths_takes_precedence_over_include_paths() {
+    super::utils::init_logging();
+    let processor = super::utils::get_processor_with_include_and_ignore("**/*.rs", "**/*.rs");
+    assert_eq!(
+        processor
+            .spell_check("badword", Some(LanguageType::Text), Some("src/main.rs"))
+            .len(),
+        0
+    );
+}
+
+#[test]
+fn test_example_files_word_locations() {
+    super::utils::init_logging();
+    let files: Vec<(&str, Vec<WordLocation>)> = vec![
+        (
+            "example.py",
+            vec![WordLocation::new(
+                "Pthon".to_string(),
+                vec![TextRange {
+                    start_byte: 10,
+                    end_byte: 15,
+                }],
+            )],
+        ),
+        (
+            "example.ts",
+            vec![WordLocation::new(
+                "mistkes".to_string(),
+                vec![TextRange {
+                    start_byte: 315,
+                    end_byte: 322,
+                }],
+            )],
+        ),
+        // ("example.md", vec!["bvd", "splellin", "wolrd"]),
+        (
+            "example.txt",
+            vec![WordLocation {
+                word: "Splellin".to_string(),
+                locations: vec![TextRange {
+                    start_byte: 10,
+                    end_byte: 18,
+                }],
+            }],
+        ),
+        (
+            "example.md",
+            vec![
+                WordLocation {
+                    word: "wolrd".to_string(),
+                    locations: vec![TextRange {
+                        start_byte: 26,
+                        end_byte: 31,
+                    }],
+                },
+                WordLocation {
+                    word: "Wolrd".to_string(),
+                    locations: vec![TextRange {
+                        start_byte: 20,
+                        end_byte: 25,
+                    }],
+                },
+                WordLocation {
+                    word: "regulr".to_string(),
+                    locations: vec![TextRange {
+                        start_byte: 38,
+                        end_byte: 44,
+                    }],
+                },
+            ],
+        ),
+    ];
+    for file in files {
+        let path = example_file_path(file.0);
+        println!("Checking file: {path:?}");
+        let text = std::fs::read_to_string(path).unwrap();
+        let processor = super::utils::get_processor();
+        let results = processor.spell_check(&text, Some(LanguageType::Text), None);
+        println!("Misspelled words: {results:?}");
+        for expected in file.1 {
+            let found = results.iter().find(|r| r.word == expected.word).unwrap();
+            assert_eq!(found.locations, expected.locations);
+        }
+    }
+}
+
+#[test]
+fn test_example_files() {
+    super::utils::init_logging();
+    let files = [
+        ("example.html", vec!["Spelin", "Wolrd", "sor"]),
+        ("example.py", vec!["Pthon", "Wolrd"]),
+        (
+            "example.md",
+            vec!["Wolrd", "bvd", "regulr", "splellin", "wolrd"],
+        ),
+        ("example.txt", vec!["Splellin"]),
+        ("example.rs", vec!["birt", "calclate", "curent", "jalopin"]),
+        (
+            "example.go",
+            vec!["speling", "Wolrd", "mispeled", "Funcion"],
+        ),
+        (
+            "example.js",
+            vec![
+                "Accaunt",
+                "Calculater",
+                "Exportt",
+                "Funcshun",
+                "Funktion",
+                "Inputt",
+                "Numbr",
+                "Numbrs",
+                "Pleese",
+                "additshun",
+                "arra",
+            ],
+        ),
+        (
+            "example.ts",
+            vec![
+                "Accaunt", "Exportt", "Funcshun", "Funktion", "Inputt", "Numbr", "Numbrs",
+            ],
+        ),
+        (
+            "example.lua",
+            vec![
+                "exampl",
+                "Helo",
+                "Wrold",
+                "mesage",
+                "countr",
+                "Accont",
+                "calculat",
+                "intrest",
+                "calculatr",
+                "numbr",
+                "operashun",
+            ],
+        ),
+    ];
+    for mut file in files {
+        let path = example_file_path(file.0);
+        println!("---------- Checking file: {path:?} ----------");
+        let processor = super::utils::get_processor();
+        let results = processor.spell_check_file(&path);
+        let mut misspelled = results
+            .iter()
+            .map(|r| r.word.as_str())
+            .collect::<Vec<&str>>();
+        misspelled.sort();
+        file.1.sort();
+        println!("Misspelled words: {misspelled:?}");
+        for word in &file.1 {
+            assert!(misspelled.contains(word), "Word: {}", word);
+        }
+    }
+}

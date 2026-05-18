@@ -68,7 +68,7 @@ const userAccaunt = {
 function getComponentddt() {
   return (
     <divv>
-      <h1>Hello, {userAccaunt.usrname}</h1>
+      <h1>Helloz, {userAccaunt.usrname}</h1>
       <p>Your ballance is: {userAccaunt.ballance}</p>
     </divv>
   );

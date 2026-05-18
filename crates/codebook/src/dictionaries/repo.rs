@@ -1,5 +1,7 @@
 use std::sync::LazyLock;
 
+use super::transliteration::Transliteration;
+
 static CODEBOOK_DICTIONARY: &str = include_str!("./combined.gen.txt");
 
 #[derive(Clone, Debug)]
@@ -7,6 +9,7 @@ pub struct HunspellRepo {
     pub aff_url: String,
     pub dict_url: String,
     pub name: String,
+    pub transliteration: Option<Transliteration>,
 }
 
 impl HunspellRepo {
@@ -15,7 +18,13 @@ impl HunspellRepo {
             aff_url: aff_url.to_string(),
             dict_url: dict_url.to_string(),
             name: name.to_string(),
+            transliteration: None,
         }
+    }
+
+    pub fn with_transliteration(mut self, t: Transliteration) -> Self {
+        self.transliteration = Some(t);
+        self
     }
 }
 
@@ -60,6 +69,11 @@ static HUNSPELL_DICTIONARIES: LazyLock<Vec<HunspellRepo>> = LazyLock::new(|| {
             "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/en-GB/index.dic",
         ),
         HunspellRepo::new(
+            "cs",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/cs/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/cs/index.dic",
+        ),
+        HunspellRepo::new(
             "es",
             "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/es/index.aff",
             "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/es/index.dic",
@@ -68,17 +82,20 @@ static HUNSPELL_DICTIONARIES: LazyLock<Vec<HunspellRepo>> = LazyLock::new(|| {
             "de",
             "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/de/index.aff",
             "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/de/index.dic",
-        ),
+        )
+        .with_transliteration(Transliteration::German),
         HunspellRepo::new(
             "de_at",
             "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/de-AT/index.aff",
             "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/de-AT/index.dic",
-        ),
+        )
+        .with_transliteration(Transliteration::German),
         HunspellRepo::new(
             "de_ch",
             "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/de-CH/index.aff",
             "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/de-CH/index.dic",
-        ),
+        )
+        .with_transliteration(Transliteration::German),
         HunspellRepo::new(
             "fr",
             "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/fr/index.aff",
@@ -143,6 +160,41 @@ static HUNSPELL_DICTIONARIES: LazyLock<Vec<HunspellRepo>> = LazyLock::new(|| {
             "pl",
             "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/pl/index.aff",
             "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/pl/index.dic",
+        ),
+        HunspellRepo::new(
+            "uk",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/uk/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/uk/index.dic",
+        ),
+        HunspellRepo::new(
+            "nb_no",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/nb/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/nb/index.dic",
+        ),
+        HunspellRepo::new(
+            "nn_no",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/nn/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/nn/index.dic",
+        ),
+        HunspellRepo::new(
+            "pt_pt",
+            "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/pt_PT/src/hunspell/Portuguese-European.aff",
+            "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/pt_PT/src/hunspell/Portuguese-European.dic",
+        ),
+        HunspellRepo::new(
+            "pt",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/pt/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/pt/index.dic",
+        ),
+        HunspellRepo::new(
+            "fa_ir",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/fa/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/fa/index.dic",
+        ),
+        HunspellRepo::new(
+            "sl",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/sl/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/sl/index.dic",
         ),
     ]
 });
@@ -246,5 +298,33 @@ mod tests {
             non_snake_case.is_empty(),
             "Found names not in snake_case format: {non_snake_case:?}"
         );
+    }
+
+    #[test]
+    fn german_dictionaries_opt_into_german_transliteration() {
+        let german_ids = ["de", "de_at", "de_ch"];
+        for id in german_ids {
+            let repo = HUNSPELL_DICTIONARIES
+                .iter()
+                .find(|d| d.name == id)
+                .unwrap_or_else(|| panic!("missing repo for {id}"));
+            assert_eq!(
+                repo.transliteration,
+                Some(Transliteration::German),
+                "expected German transliteration on {id}"
+            );
+        }
+
+        // No other Hunspell entries should currently carry transliteration.
+        for repo in HUNSPELL_DICTIONARIES.iter() {
+            if german_ids.contains(&repo.name.as_str()) {
+                continue;
+            }
+            assert!(
+                repo.transliteration.is_none(),
+                "{} unexpectedly has transliteration set",
+                repo.name
+            );
+        }
     }
 }

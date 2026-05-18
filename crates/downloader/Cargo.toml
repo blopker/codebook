@@ -1,6 +1,6 @@
 [package]
 name = "codebook_downloader"
-version = "0.3.30"
+version = "0.3.39"
 edition = "2024"
 description = "Dictionary downloading utility for the Codebook spell checker"
 authors = ["Codebook Contributors"]
@@ -17,12 +17,14 @@ httpmock.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+base16ct.workspace = true
 chrono.workspace = true
 env_logger.workspace = true
 log.workspace = true
 reqwest.workspace = true
 rustls.workspace = true
 rustls-platform-verifier.workspace = true
+webpki-roots.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

@@ -1,8 +1,7 @@
-
 <br />
 <div align="center">
   <a href="https://github.com/blopker/codebook"> <img
-  src="assets/codebook-nt.webp" alt="Logo" width="200" > </a> <h3
+  src="https://raw.githubusercontent.com/blopker/codebook/main/assets/codebook-nt.webp" alt="Logo" width="200" > </a> <h3
   align="center">CODEBOOK</h3> <p align="center"> An unholy spell checker for
   code. <br /> <br /> <!-- <a
   href="https://github.com/blopker/codebook/releases/latest/">Download</a> -->
@@ -14,7 +13,7 @@
 ## Usage
 
 <img
-  src="assets/example.png" alt="Example" width="400" >
+  src="https://raw.githubusercontent.com/blopker/codebook/main/assets/example.png" alt="Example" width="400" >
 
 No configuration needed. Codebook will automatically detect the language you are editing and mark issues for you. Codebook will try to only mark issues for words that you create, where they are initially defined.
 
@@ -47,12 +46,12 @@ If quickfix code actions are not showing up for specific languages, ensure your 
 
 Codebook can also be enabled for the [Helix
 editor](https://helix-editor.com/) by adding the LSP to the
-[language.toml](https://docs.helix-editor.com/languages.html) configuration
+[languages.toml](https://docs.helix-editor.com/languages.html) configuration
 file.
 
 First, [install Codebook](#installation), and ensure that `codebook-lsp` is installed into your `$PATH`.
 
-Then, add into the Helix config file:
+Then, add into the Helix `languages.toml` configuration file:
 
 ```toml
 [language-server.codebook]
@@ -118,6 +117,28 @@ Any editor that implements the Language Server Protocol should be compatible wit
 codebook-lsp serve
 ```
 
+### CLI (Lint) (Unstable)
+
+Codebook can also be used as a standalone command-line spell checker, which is useful for CI pipelines, pre-commit hooks, or one-off checks.
+
+Note: this command is currently experimental, unstable, and subject to breaking changes in future releases. Please submit feedback!
+
+```sh
+# Check specific files
+codebook-lsp lint src/main.rs src/lib.rs
+
+# Check all files in a directory (recursive)
+codebook-lsp lint src/
+
+# Show spelling suggestions
+codebook-lsp lint --suggest src/
+
+# Only report each misspelled word once across all files
+codebook-lsp lint --unique src/
+```
+
+The exit code is **0** if all files are clean, **1** if any spelling errors are found, and **2** if there were unreadable files, invalid UTF-8, etc.
+
 ## About
 
 Codebook is a spell checker for code. It binds together the venerable Tree Sitter and the fast spell checker [Spellbook](https://github.com/helix-editor/spellbook). Included is a Language Server for use in (theoretically) any editor. Everything is done in Rust to keep response times snappy and memory usage _low_.
@@ -132,34 +153,38 @@ Codebook is in active development. As better dictionaries are added, words that 
 
 ### Supported Programming Languages
 
-| Language | Status |
-| --- | --- |
-| C | ✅ |
-| C# | ⚠️ |
-| C++ | ⚠️ |
-| CSS | ⚠️ |
-| Elixir | ⚠️ |
-| Erlang | ⚠️ |
-| Go | ✅ |
-| Haskell | ⚠️ |
-| HTML | ⚠️ |
-| Java | ✅ |
-| JavaScript | ✅ |
-| LaTeX | ⚠️ |
-| Lua | ✅ |
-| Markdown | ✅ |
-| Odin | ✅ |
-| PHP | ⚠️ |
-| Plain Text | ✅ |
-| Python | ✅ |
-| Ruby | ✅ |
-| Rust | ✅ |
-| Swift | ⚠️ |
-| TOML | ✅ |
-| TypeScript | ✅ |
-| Typst | ⚠️ |
-| YAML | ⚠️ |
-| Zig | ✅ |
+| Language   | Status |
+| ---------- | ------ |
+| C          | ✅     |
+| C#         | ⚠️     |
+| C++        | ⚠️     |
+| CSS        | ⚠️     |
+| Dart       | ⚠️     |
+| Elixir     | ⚠️     |
+| Erlang     | ⚠️     |
+| Go         | ✅     |
+| Haskell    | ⚠️     |
+| HTML       | ⚠️     |
+| Java       | ✅     |
+| JavaScript | ✅     |
+| LaTeX      | ⚠️     |
+| Lua        | ✅     |
+| Markdown   | ✅     |
+| OCaml      | ⚠️     |
+| Odin       | ✅     |
+| PHP        | ⚠️     |
+| Plain Text | ✅     |
+| Python     | ✅     |
+| Ruby       | ✅     |
+| Rust       | ✅     |
+| Svelte     | ⚠️     |
+| Swift      | ⚠️     |
+| TOML       | ✅     |
+| TypeScript | ✅     |
+| Typst      | ⚠️     |
+| VHDL       | ⚠️     |
+| YAML       | ⚠️     |
+| Zig        | ✅     |
 
 ✅ = Good to go.
 ⚠️ = Supported, but needs more testing. Help us improve!
@@ -177,9 +202,10 @@ If you are a Zed user, you may skip this step and consult the [Zed section](#zed
    - Prebuilt archives are published for macOS (x86_64, aarch64), Linux (x86_64, aarch64), and Windows (x86_64, arm64).
    - Windows artifacts are provided as `.zip` files; macOS and Linux artifacts are `.tar.gz`.
 2. Extract the binary from the archive, and move it somewhere on your system `$PATH`.
-  - `~/.local/bin/codebook-lsp`
-  - `/usr/bin/codebook-lsp`
-  - Etc...
+
+- `~/.local/bin/codebook-lsp`
+- `/usr/bin/codebook-lsp`
+- Etc...
 
 ### Eget Installation
 
@@ -241,6 +267,7 @@ Project-specific configuration is loaded from either `codebook.toml` or `.codebo
 # Default: ["en_us"]
 # Available dictionaries:
 #  - English: "en_us", "en_gb"
+#  - Czech: "cs"
 #  - German: "de", "de_at", "de_ch"
 #  - Dutch: "nl_nl"
 #  - Spanish: "es"
@@ -253,6 +280,11 @@ Project-specific configuration is loaded from either `codebook.toml` or `.codebo
 #  - Latvian: "lv"
 #  - Vietnamese: "vi_vn"
 #  - Polish: "pl"
+#  - Ukrainian: "uk"
+#  - Norwegian: "nb_no", "nn_no"
+#  - Portuguese (Portugal): "pt_pt", "pt"
+#  - Persian/Farsi: "fa_ir"
+#  - Slovenian: "sl"
 dictionaries = ["en_us", "en_gb"]
 
 # Custom allowlist of words to ignore (case-insensitive)
@@ -264,7 +296,13 @@ words = ["codebook", "rustc"]
 # Default: []
 flag_words = ["todo", "fixme"]
 
-# List of glob patterns for paths to ignore when spell checking
+# List of glob patterns for paths to include when spell checking (allowlist)
+# Only files matching one of these patterns will be spell-checked.
+# Default: [] (empty = include everything)
+include_paths = ["src/**/*.rs", "lib/**/*.rs"]
+
+# List of glob patterns for paths to ignore when spell checking (blocklist)
+# Takes precedence over include_paths.
 # Default: []
 ignore_paths = ["target/**/*", "**/*.json", ".git/**/*"]
 
@@ -284,6 +322,19 @@ ignore_patterns = [
 # Set to 0 to check all words including single letters
 # Set to 2 to check words with 2 or more characters
 min_word_length = 3
+
+# Filter which parts of your code are spell-checked by tag.
+# Tags use a dot-separated hierarchy (e.g., "comment", "identifier.function").
+# Matching is prefix-based: "comment" matches "comment", "comment.line",
+# "comment.block", etc.
+#
+# Only check these tags (if set, everything else is excluded)
+# Default: [] (empty = check everything)
+include_tags = ["comment", "string"]
+#
+# Exclude these tags from checking (takes precedence over include_tags)
+# Default: []
+exclude_tags = ["string.heredoc"]
 
 # Whether to use global configuration (project config only)
 # Set to false to completely ignore global settings
@@ -310,6 +361,7 @@ use_global = true
 The `ignore_patterns` configuration allows you to define custom regex patterns to skip during spell checking. Here are important details about how they work:
 
 **Default Patterns**: Codebook already includes built-in regex patterns for common technical strings, so you don't need to define these yourself:
+
 - URLs: `https?://[^\s]+`
 - Hex colors: `#[0-9a-fA-F]{3,8}` (like `#deadbeef`, `#fff`)
 - Email addresses: `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`
@@ -320,6 +372,7 @@ The `ignore_patterns` configuration allows you to define custom regex patterns t
 - Markdown links: `\[([^\]]+)\]\(([^)]+)\)`
 
 **How Patterns Are Matched**:
+
 - Patterns are matched against the full source text
 - Words that fall entirely within a matched range are skipped
 - **Multiline mode is enabled**: `^` and `$` match line boundaries, not just start/end of file
@@ -327,11 +380,13 @@ The `ignore_patterns` configuration allows you to define custom regex patterns t
 - Example: `'vim\.opt\.[a-z]+'` matches `vim.opt.showmode`, so `showmode` is skipped
 
 **TOML Literal Strings**: Use single quotes for regex patterns to avoid escaping backslashes:
+
 - `'\b'` for word boundaries (no escaping needed)
 - `'\d'` for digits (no escaping needed)
 - `'\\'` for literal backslashes
 
 **Examples**:
+
 ```toml
 ignore_patterns = [
     '\b[ATCG]+\b',           # DNA sequences with word boundaries
@@ -342,6 +397,26 @@ ignore_patterns = [
 ```
 
 **Tip**: Include the identifier in your pattern. `'vim\.opt\.[a-z]+'` skips `showmode` in `vim.opt.showmode`, but `'vim\.opt\.'` alone won't (it only matches up to the dot).
+
+### Tag-Based Filtering
+
+Codebook categorizes every piece of text it checks using **tags** — dot-separated labels like `comment`, `string`, `identifier.function`, etc. You can use `include_tags` and `exclude_tags` to control which categories are spell-checked.
+
+Matching is **prefix-based**: `"comment"` matches `comment`, `comment.line`, `comment.block`, etc. `include_tags` narrows what is checked (allowlist), and `exclude_tags` removes from that set (blocklist, takes precedence). This works the same way as `include_paths`/`ignore_paths`.
+
+```toml
+# Only check comments and strings, ignore all identifiers
+include_tags = ["comment", "string"]
+
+# Check everything except variable and parameter names
+exclude_tags = ["identifier.variable", "identifier.parameter"]
+
+# Both can be combined: check comments and strings, but skip heredocs
+include_tags = ["comment", "string"]
+exclude_tags = ["string.heredoc"]
+```
+
+For the full list of available tags, see the [query tag reference](crates/codebook/src/queries/README.md).
 
 ### LSP Initialization Options
 
@@ -410,6 +485,7 @@ To add a new Hunspell-compatible dictionary:
 1. Locate the `HUNSPELL_DICTIONARIES` static vector (for Hunspell dictionaries) or `TEXT_DICTIONARIES` (for plain text word lists)
 
 1. Add a new entry using the appropriate constructor. For Hunspell dictionaries:
+
    ```rs /dev/null/example.rs#L1-5
    HunspellRepo::new(
        "nl_nl",  // Dictionary name in snake_case
@@ -436,75 +512,16 @@ To add a new Hunspell-compatible dictionary:
 
 For plain text dictionaries, use `TextRepo::new()` instead and add to `TEXT_DICTIONARIES`.
 
-
 ## Adding New Programming Language Support
 
-Codebook uses Tree-sitter support additional programming languages. Here's how to add support for a new language:
-
-### 1. Create a Tree-sitter Query
-
-Each language needs a Tree-sitter query file that defines which parts of the code should be checked for spelling issues. The query needs to capture:
-
-- Identifiers (variable names, function names, class names, etc.)
-- String literals
-- Comments
-
-Create a new `.scm` file in `codebook/crates/codebook/src/queries/` named after your language (e.g., `java.scm`).
-
-### 2. Understand the Language's AST
-
-To write an effective query, you need to understand the Abstract Syntax Tree (AST) structure of your language. Use these tools:
-
-- [Tree-sitter Playground](https://tree-sitter.github.io/tree-sitter/7-playground.html): Interactively explore how Tree-sitter parses code
-- [Tree-sitter Visualizer](https://blopker.github.io/ts-visualizer/): Visualize the AST of your code in a more detailed way
-
-A good approach is to:
-1. Write sample code with identifiers, strings, and comments
-2. Paste it into the playground/visualizer
-3. Observe the node types used for each element
-4. Create capture patterns that target only definition nodes, not usages
-
-### 3. Update the Language Settings
-
-Add your language to `codebook/crates/codebook/src/queries.rs`:
-
-1. Add a new variant to the `LanguageType` enum
-2. Add a new entry to the `LANGUAGE_SETTINGS` array with:
-   - The language type
-   - File extensions for your language
-   - Language identifiers
-   - Path to your query file
-
-### 4. Add the Tree-sitter Grammar
-
-Make sure the appropriate Tree-sitter grammar is added as a dependency in `Cargo.toml` and update the `language()` function in `queries.rs` to return the correct language parser.
-
-### 5. Test Your Implementation
-
-Run the tests to ensure your query is valid:
-```bash
-cargo test -p codebook queries::tests::test_all_queries_are_valid
-```
-
-Additional language tests should go in `codebook/tests`. There are many example tests to copy.
-
-You can also test with real code files to verify that Codebook correctly identifies spelling issues in your language. Example files should go in `examples/` and contain at least one spelling error to pass integration tests.
-
-### Tips for Writing Effective Queries
-
-- Focus on capturing definitions, not usages
-- Include only nodes that contain user-defined text (not keywords)
-- Test with representative code samples
-- Start simple and add complexity as needed
-- Look at existing language queries for patterns
-
-If you've successfully added support for a new language, please consider contributing it back to Codebook with a pull request!
+See the [query development guide](crates/codebook/src/queries/README.md) for instructions on adding Tree-sitter queries for new languages, the tag naming convention, and tips for writing effective queries.
 
 ## Running Tests
 
 Run test with `make test` after cloning. Integration tests are also available with `make integration_test`, but requires BunJS to run.
 
 ## Acknowledgments
+
 - Harper: https://writewithharper.com/
 - Harper Zed: https://github.com/Stef16Robbe/harper_zed
 - Spellbook: https://github.com/helix-editor/spellbook

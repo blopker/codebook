@@ -7,6 +7,7 @@ use std::{
 use super::{
     dictionary::{self, TextDictionary},
     repo::{DictionaryRepo, HunspellRepo, TextRepo, get_repo},
+    transliteration::TransliteratingDictionary,
 };
 use codebook_downloader::Downloader;
 use dictionary::{Dictionary, HunspellDictionary};
@@ -78,7 +79,11 @@ impl DictionaryManager {
                     return None;
                 }
             };
-        Some(Arc::new(dict))
+        let base: Arc<dyn Dictionary> = Arc::new(dict);
+        Some(match repo.transliteration {
+            Some(t) => Arc::new(TransliteratingDictionary::new(base, t.variants_fn())),
+            None => base,
+        })
     }
 
     fn get_text_dictionary(&self, repo: TextRepo) -> Option<Arc<dyn Dictionary>> {

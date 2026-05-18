@@ -1,3 +1,72 @@
+# Changelog
+
+Important user-facing changes. See commit logs for more details.
+
+[0.3.39]
+
+- German dictionaries (`de`, `de_at`, `de_ch`) now accept ASCII transliterations of umlauts and eszett (e.g., `Buecher` → `Bücher`, `Strasse` → `Straße`); suggestions also use transliterated variants for better recovery on typos (#253)
+- Add German example file (`examples/de.md`)
+- Add Slovenian dictionary (`sl`) and example file (`examples/sl.md`) (#210)
+- Add Persian/Farsi dictionary (`fa_ir`) (#254)
+- C: spell-check additional language constructs (#258)
+- C/C++: spell-check declarators without initializers (#256)
+- Ignore embedded scripts for unsupported languages in HTML/Markdown (skip fenced code blocks and `<script>` tags whose language has no Codebook grammar)
+- Update dependencies
+
+[0.3.38]
+
+- Add Dart language support
+- Fix Go query to ignore import package URLs (#243)
+- Update dependencies
+
+[0.3.37]
+
+- Add OCaml language support
+- Add Svelte support (via HTML injection, no extra dependency)
+- Add Czech (`cs`) dictionary
+- Add Norwegian dictionaries (`nb_no`, `nn_no`)
+- Add Portuguese (Portugal) dictionaries (`pt_pt`, `pt`)
+- Update dependencies
+
+[0.3.36]
+
+- Add `codebook lint` CLI command for running spell checks from the command line, with support for glob patterns and gitignore-aware directory walking
+- Add multi-language support for Markdown files: fenced code blocks are now spell-checked using the appropriate language grammar
+- Add Vue and Astro support
+- Add `<script>` and `<style>` injection to HTML spell-checking
+
+[0.3.35]
+
+- Add tag-based filtering (`include_tags`/`exclude_tags`) to control which parts of code are spell-checked (comments, strings, identifiers, etc.)
+- Rename tree-sitter capture names to use dot-separated namespace convention (e.g., `@identifier.function` instead of `@func_declaration`)
+- Add SECURITY.md
+- Update dependencies
+
+[0.3.34]
+
+- Fix crash in Termux by falling back to bundled Mozilla CA roots on Android (#230)
+
+[0.3.33]
+
+- Fix TSX/JSX language detection in editors that use non-VS Code language IDs (e.g., Zed)
+- Update dependencies
+
+[0.3.32]
+
+- Add Ukrainian dictionary (`uk`)
+- Add `include_paths` option to only allow specific files & paths
+- Add C++ modules extension (`.cppm`)
+- Fix bug where duplicate word misspellings were ignored in release builds
+- Relax base64 regex
+- Update dependencies
+
+[0.3.31]
+
+- Add VHDL language support
+- Add C and C++ word list
+- Fix thread unsafe tree-sitter parsers by adding mutex
+- Regenerate wordlist
+
 [0.3.30]
 
 - Add YAML support
@@ -12,6 +81,10 @@
 [0.3.29]
 
 - Add support for the Erlang language
+
+[0.3.28]
+
+- Fix test regression
 
 [0.3.27]
 

@@ -1,5 +1,6 @@
 mod file_cache;
 mod init_options;
+mod lint;
 mod lsp;
 mod lsp_logger;
 
@@ -30,19 +31,35 @@ enum Commands {
     Serve {},
     /// Remove server cache
     Clean {},
+    /// Check files for spelling errors
+    Lint {
+        /// Files or glob patterns to spell-check
+        #[arg(required = true)]
+        files: Vec<String>,
+        /// Only report each misspelled word once, ignoring duplicates across files
+        #[arg(short = 'u', long)]
+        unique: bool,
+        /// Show spelling suggestions for each misspelled word
+        #[arg(short = 's', long)]
+        suggest: bool,
+    },
 }
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    // Initialize logger early with stderr output and buffering
-    // Default to INFO level, will be adjusted when LSP client connects
+    let cli = Cli::parse();
+
+    // Initialize logger early with stderr output and buffering.
+    // Default to INFO for LSP, WARN for lint (to suppress LSP-oriented noise).
+    let is_lint = matches!(cli.command, Some(Commands::Lint { .. }));
     let log_level = match env::var("RUST_LOG").as_deref() {
         Ok("debug") => LevelFilter::Debug,
+        Ok("info") => LevelFilter::Info,
+        _ if is_lint => LevelFilter::Warn,
         _ => LevelFilter::Info,
     };
     LspLogger::init_early(log_level).expect("Failed to initialize early logger");
     debug!("Logger initialized with log level: {log_level:?}");
-    let cli = Cli::parse();
 
     let root = match cli.root.as_deref() {
         Some(path) => path,
@@ -57,6 +74,18 @@ async fn main() {
             let config = CodebookConfigFile::default();
             info!("Cleaning: {:?}", config.cache_dir);
             config.clean_cache()
+        }
+        Some(Commands::Lint {
+            files,
+            unique,
+            suggest,
+        }) => {
+            let code = match lint::run_lint(files, root, *unique, *suggest) {
+                lint::LintResult::Clean => 0,
+                lint::LintResult::Errors => 1,
+                lint::LintResult::Failure => 2,
+            };
+            std::process::exit(code);
         }
         None => {}
     }

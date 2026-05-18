@@ -1,5 +1,5 @@
 (comment) @comment
 (string) @string
-(variable) @identifier
-(module) @identifier
+(variable) @identifier.variable
+(module) @identifier.module
 (name) @identifier

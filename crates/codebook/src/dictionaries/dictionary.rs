@@ -1,4 +1,5 @@
 use lru::LruCache;
+use unicase::UniCase;
 
 use std::{
     collections::HashSet,
@@ -6,10 +7,6 @@ use std::{
     path::PathBuf,
     sync::{Arc, RwLock},
 };
-
-use crate::parser::{WordLocation, find_locations};
-use crate::queries::LanguageType;
-use regex::Regex;
 
 pub trait Dictionary: Send + Sync {
     fn check(&self, word: &str) -> bool;
@@ -136,13 +133,12 @@ impl Dictionary for HunspellDictionary {
 
 #[derive(Debug)]
 pub struct TextDictionary {
-    words: HashSet<String>,
+    words: HashSet<UniCase<String>>,
 }
 
 impl Dictionary for TextDictionary {
     fn check(&self, word: &str) -> bool {
-        let lower = word.to_ascii_lowercase();
-        self.words.contains(&lower)
+        self.words.contains(&UniCase::new(word.to_string()))
     }
     fn suggest(&self, _word: &str) -> Vec<String> {
         vec![]
@@ -154,7 +150,7 @@ impl TextDictionary {
         let words = word_list
             .lines()
             .filter(|s| !s.is_empty() && !s.starts_with('#'))
-            .map(|s| s.to_ascii_lowercase())
+            .map(|s| UniCase::new(s.to_string()))
             .collect();
         Self { words }
     }
@@ -165,20 +161,9 @@ impl TextDictionary {
     }
 
     /// Get a reference to the internal HashSet for batch operations
-    pub fn word_set(&self) -> &HashSet<String> {
+    pub fn word_set(&self) -> &HashSet<UniCase<String>> {
         &self.words
     }
-}
-
-/// Integration helper to use any Dictionary trait with optimized batch processing
-pub fn find_locations_with_dictionary_batch(
-    text: &str,
-    language: LanguageType,
-    dictionary: &dyn Dictionary,
-    skip_patterns: &[Regex],
-) -> Vec<WordLocation> {
-    // For non-HashSet dictionaries, we still get deduplication benefits
-    find_locations(text, language, |word| dictionary.check(word), skip_patterns)
 }
 
 #[cfg(test)]
@@ -204,5 +189,40 @@ mod dictionary_tests {
         let suggestions = dict.suggest("alice");
         println!("{suggestions:?}");
         assert!(suggestions.contains(&"alice".to_string()));
+    }
+
+    #[test]
+    fn test_text_dictionary_unicode_ignore_case() {
+        let dict = TextDictionary::new("Апгрейдить\nИИ\n");
+
+        assert!(dict.check("апгрейдить"));
+        assert!(dict.check("АПГРЕЙДИТЬ"));
+        assert!(dict.check("ии"));
+        assert!(dict.check("ИИ"));
+    }
+
+    #[test]
+    fn test_text_dictionary_preserves_original_case() {
+        let dict = TextDictionary::new("Straße\n");
+
+        assert!(dict.check("straße"));
+        assert!(dict.check("STRAßE"));
+        // Stored entry keeps its original casing rather than being lowercased.
+        assert!(dict.word_set().contains(&UniCase::new("Straße".to_string())));
+    }
+
+    #[test]
+    fn test_text_dictionary_full_case_folding() {
+        // unicase handles cases that to_lowercase() cannot collapse.
+        let dict = TextDictionary::new("Straße\nΣίγμα\n");
+
+        // ß <-> SS: full case folding
+        assert!(dict.check("STRASSE"));
+        assert!(dict.check("strasse"));
+        assert!(dict.check("Straße"));
+
+        // Greek sigma (Σ/σ/ς) all fold together
+        assert!(dict.check("ΣΊΓΜΑ"));
+        assert!(dict.check("σίγμα"));
     }
 }
