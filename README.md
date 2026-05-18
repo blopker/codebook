@@ -348,6 +348,7 @@ use_global = true
 2. If `use_global = false` in project config, global settings are ignored entirely
 3. If no project config exists, global config is used
 4. If neither exists, default settings are used
+5. Any matching `[[overrides]]` blocks are then layered on top (global first, then project) — see [Scoped Overrides](#scoped-overrides)
 
 ### Working with Configurations
 
@@ -417,6 +418,55 @@ exclude_tags = ["string.heredoc"]
 ```
 
 For the full list of available tags, see the [query tag reference](crates/codebook/src/queries/README.md).
+
+### Scoped Overrides
+
+Use `[[overrides]]` blocks to tailor settings to specific files. Each block matches files by glob pattern (relative to the project root) and can replace or append to the base config.
+
+```toml
+# Base config applies everywhere
+dictionaries = ["en_us"]
+words = ["codebook"]
+flag_words = ["todo"]
+
+# Markdown files: add British English and allow a few prose-specific words
+[[overrides]]
+paths = ["**/*.md", "**/*.mdx"]
+extra_dictionaries = ["en_gb"]
+extra_words = ["frontmatter", "callout"]
+
+# Rust files: flag a few extra words
+[[overrides]]
+paths = ["**/*.rs"]
+extra_flag_words = ["xxx", "hack"]
+
+# German docs: swap out the dictionary entirely
+[[overrides]]
+paths = ["docs/de/**/*"]
+dictionaries = ["de"]
+```
+
+**Available fields**
+
+| Field                   | Behavior |
+| ----------------------- | -------- |
+| `paths`                 | Required. Glob patterns matched against the file path relative to the project root. A file matches the block if it matches *any* pattern. |
+| `dictionaries`          | Replaces the resolved `dictionaries` list. |
+| `words`                 | Replaces the resolved `words` list. |
+| `flag_words`            | Replaces the resolved `flag_words` list. |
+| `ignore_patterns`       | Replaces the resolved `ignore_patterns` list. |
+| `extra_dictionaries`    | Appends to the resolved `dictionaries` list. |
+| `extra_words`           | Appends to the resolved `words` list. |
+| `extra_flag_words`      | Appends to the resolved `flag_words` list. |
+| `extra_ignore_patterns` | Appends to the resolved `ignore_patterns` list. |
+
+Glob syntax matches `ignore_paths`: `*` (no separator), `**` (any directories), `?` (any single char), and `{a,b}` alternation.
+
+**Resolution order:** all matching overrides are applied in declaration order, so later blocks win on the same field. Global overrides are applied before project overrides, so project settings always have the final say. If both a replace field (e.g., `words`) and its append sibling (`extra_words`) appear in the same block, replace runs first and then append is layered on top.
+
+**Interaction with `ignore_paths`:** `ignore_paths` is evaluated *before* overrides — an ignored file is skipped entirely and no overrides apply to it.
+
+**Skipped silently:** an `[[overrides]]` block is dropped (with a warning) if `paths` is missing or empty, every glob is invalid, or no other field is set.
 
 ### LSP Initialization Options
 
