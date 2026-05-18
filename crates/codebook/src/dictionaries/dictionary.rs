@@ -137,7 +137,7 @@ pub struct TextDictionary {
 
 impl Dictionary for TextDictionary {
     fn check(&self, word: &str) -> bool {
-        let lower = word.to_ascii_lowercase();
+        let lower = word.to_lowercase();
         self.words.contains(&lower)
     }
     fn suggest(&self, _word: &str) -> Vec<String> {
@@ -150,7 +150,7 @@ impl TextDictionary {
         let words = word_list
             .lines()
             .filter(|s| !s.is_empty() && !s.starts_with('#'))
-            .map(|s| s.to_ascii_lowercase())
+            .map(|s| s.to_lowercase())
             .collect();
         Self { words }
     }
@@ -189,5 +189,15 @@ mod dictionary_tests {
         let suggestions = dict.suggest("alice");
         println!("{suggestions:?}");
         assert!(suggestions.contains(&"alice".to_string()));
+    }
+
+    #[test]
+    fn test_text_dictionary_unicode_ignore_case() {
+        let dict = TextDictionary::new("Апгрейдить\nИИ\n");
+
+        assert!(dict.check("апгрейдить"));
+        assert!(dict.check("АПГРЕЙДИТЬ"));
+        assert!(dict.check("ии"));
+        assert!(dict.check("ИИ"));
     }
 }
