@@ -307,34 +307,62 @@ fn extract_words_from_text<'a>(
     candidates: &mut Vec<WordCandidate<'a>>,
 ) {
     let mut split_buf = Vec::new();
-    for (offset, word) in text.split_word_bound_indices() {
-        if !is_alphabetic(word) {
-            continue;
-        }
-        if has_unsupported_script(word) {
-            continue;
-        }
-        let global_offset = base_offset + offset;
-        if is_within_skip_range(global_offset, global_offset + word.len(), skip_ranges) {
-            continue;
-        }
-        splitter::split_into(word, &mut split_buf);
-        for split_word in &split_buf {
-            if is_numeric(split_word.word) {
+    for (token_offset, token) in text.split_word_bound_indices() {
+        // UAX #29 rules WB13a/WB13b keep tokens like "1000\u{202F}kWh" together
+        // because NBSP/NNBSP are ExtendNumLet. The splitter assumes whitespace-
+        // free input, so split each segmenter token on Unicode whitespace here.
+        // Every char with the Unicode White_Space property is a word boundary
+        // for spell-checking, regardless of language.
+        for (sub_offset, word) in split_on_whitespace_indices(token) {
+            if !is_alphabetic(word) {
                 continue;
             }
-            let word_start = global_offset + split_word.start_byte;
-            let word_end = word_start + split_word.word.len();
-            if is_within_skip_range(word_start, word_end, skip_ranges) {
+            if has_unsupported_script(word) {
                 continue;
             }
-            candidates.push(WordCandidate {
-                word: split_word.word,
-                start_byte: word_start,
-                end_byte: word_end,
-            });
+            let global_offset = base_offset + token_offset + sub_offset;
+            if is_within_skip_range(global_offset, global_offset + word.len(), skip_ranges) {
+                continue;
+            }
+            splitter::split_into(word, &mut split_buf);
+            for split_word in &split_buf {
+                if is_numeric(split_word.word) {
+                    continue;
+                }
+                let word_start = global_offset + split_word.start_byte;
+                let word_end = word_start + split_word.word.len();
+                if is_within_skip_range(word_start, word_end, skip_ranges) {
+                    continue;
+                }
+                candidates.push(WordCandidate {
+                    word: split_word.word,
+                    start_byte: word_start,
+                    end_byte: word_end,
+                });
+            }
         }
     }
+}
+
+/// Iterate maximal non-whitespace runs in `s` with their byte offset.
+/// `str::split_whitespace` discards offsets, which we need for diagnostic spans.
+fn split_on_whitespace_indices(s: &str) -> impl Iterator<Item = (usize, &str)> {
+    let mut iter = s.char_indices().peekable();
+    std::iter::from_fn(move || {
+        while iter.peek().is_some_and(|&(_, c)| c.is_whitespace()) {
+            iter.next();
+        }
+        let start = iter.peek()?.0;
+        let mut end = s.len();
+        while let Some(&(i, c)) = iter.peek() {
+            if c.is_whitespace() {
+                end = i;
+                break;
+            }
+            iter.next();
+        }
+        Some((start, &s[start..end]))
+    })
 }
 
 fn is_numeric(s: &str) -> bool {
@@ -441,6 +469,51 @@ mod tests {
         assert!(word_strings.contains(&"this"));
         assert!(!word_strings.contains(&"https"));
         assert!(!word_strings.contains(&"example"));
+    }
+
+    #[test]
+    fn test_extract_words_nbsp_inside_token() {
+        // U+00A0 NO-BREAK SPACE between letters. The Unicode word segmenter
+        // (UAX #29 WB13a/WB13b) keeps "foo\u{00A0}bar" as a single token;
+        // we must split on the NBSP so the splitter sees clean words and
+        // diagnostic spans line up with the original text.
+        let text = "x foo\u{00A0}bar y";
+        let (words, _) = extract_all_words(text, LanguageType::Text, &|_| true, &[]);
+        let strings: Vec<&str> = words.iter().map(|w| w.word).collect();
+        assert!(strings.contains(&"foo"), "got {strings:?}");
+        assert!(strings.contains(&"bar"), "got {strings:?}");
+
+        let foo = words.iter().find(|w| w.word == "foo").unwrap();
+        let bar = words.iter().find(|w| w.word == "bar").unwrap();
+        assert_eq!(&text[foo.start_byte..foo.end_byte], "foo");
+        assert_eq!(&text[bar.start_byte..bar.end_byte], "bar");
+    }
+
+    #[test]
+    fn test_extract_words_nnbsp_between_number_and_unit() {
+        // Regression for the panic that killed the LSP on locales using
+        // U+202F NARROW NO-BREAK SPACE between a number and its unit
+        // (e.g. French "1000 kWh"). Must not panic and must yield the unit.
+        let text = "use 1000\u{202F}kWh today";
+        let (words, _) = extract_all_words(text, LanguageType::Text, &|_| true, &[]);
+        let strings: Vec<&str> = words.iter().map(|w| w.word).collect();
+        assert!(strings.contains(&"k"), "got {strings:?}");
+        assert!(strings.contains(&"Wh"), "got {strings:?}");
+        assert!(strings.contains(&"today"), "got {strings:?}");
+
+        let wh = words.iter().find(|w| w.word == "Wh").unwrap();
+        assert_eq!(&text[wh.start_byte..wh.end_byte], "Wh");
+    }
+
+    #[test]
+    fn test_extract_words_ideographic_space() {
+        // U+3000 IDEOGRAPHIC SPACE — Unicode White_Space, must act as a
+        // boundary like ASCII space.
+        let text = "hello\u{3000}world";
+        let (words, _) = extract_all_words(text, LanguageType::Text, &|_| true, &[]);
+        let strings: Vec<&str> = words.iter().map(|w| w.word).collect();
+        assert!(strings.contains(&"hello"), "got {strings:?}");
+        assert!(strings.contains(&"world"), "got {strings:?}");
     }
 
     #[test]
