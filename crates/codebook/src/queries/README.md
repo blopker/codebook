@@ -27,6 +27,21 @@ Every capture name is a **tag** that categorizes the matched text. Tags use a do
 
 Not every language needs every tag. HTML, for example, only uses `@comment` and `@string`. You can get a feel for which tags are available for a specific language by looking at the `scm` file for that language in this directory.
 
+### Custom Predicates
+
+In addition to tree-sitter's built-in predicates (`#eq?`, `#match?`, `#any-of?`, …), codebook evaluates one extra predicate:
+
+| Predicate | Effect |
+| --- | --- |
+| `(#not-has-ancestor? @capture "kind" ["kind" …])` | Drop the capture if any ancestor of the captured node has one of the listed tree-sitter node kinds. |
+
+Use this to narrow a broad capture instead of enumerating every positive context. For example, Python's `(string_content)` matches every string in the file, but inside type annotations (forward references, generic arguments) it's another tool's job:
+
+```scheme
+((string_content) @string
+  (#not-has-ancestor? @string "type"))
+```
+
 ### Injection Tags (Multi-Language Support)
 
 Injection tags tell codebook to re-parse a region of the file using a different language's grammar. This is how Markdown code blocks, HTML `<script>` tags, and similar multi-language files are handled.

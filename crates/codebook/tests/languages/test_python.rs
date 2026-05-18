@@ -345,6 +345,52 @@ fn test_python_import_statements() {
 }
 
 #[test]
+fn test_python_type_annotations() {
+    super::utils::init_logging();
+    let processor = super::utils::get_processor();
+
+    // Variable annotations, parameter annotations, and return types — both
+    // bare identifiers and string forward references — should be ignored.
+    // Regression test for https://github.com/blopker/codebook/issues/187.
+    let sample = r#"
+from typing import Union
+
+a: no_typpoa = ...
+b: 'no_typpob' = ...
+c: "no_typpoc" = ...
+d: """no_typpod""" = ...
+e: str | no_typpoe | "no_typpof" = ...
+f: Union[str, no_typpog, "no_typpoh"] = ...
+g: list["no_typpoi"] = ...
+
+def func(
+    param_a: no_typpoj,
+    param_b: 'no_typpok',
+    param_d: no_typpom = ...,
+):
+    pass
+
+def func2() -> str | no_typpon | "no_typpoo":
+    pass
+    "#;
+
+    let misspelled = processor
+        .spell_check(sample, Some(LanguageType::Python), None)
+        .to_vec();
+    let words: Vec<&str> = misspelled.iter().map(|r| r.word.as_str()).collect();
+    println!("Misspelled words: {words:?}");
+    for forbidden in [
+        "typpoa", "typpob", "typpoc", "typpod", "typpoe", "typpof", "typpog", "typpoh", "typpoi",
+        "typpoj", "typpok", "typpom", "typpon", "typpoo",
+    ] {
+        assert!(
+            !words.contains(&forbidden),
+            "did not expect {forbidden:?} in type annotation, got {words:?}"
+        );
+    }
+}
+
+#[test]
 fn test_python_functions() {
     super::utils::init_logging();
     let processor = super::utils::get_processor();

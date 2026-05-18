@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::{LazyLock, Mutex};
 use streaming_iterator::StreamingIterator;
-use tree_sitter::{Parser, Query, QueryCursor};
+use tree_sitter::{Node, Parser, Query, QueryCursor, QueryPredicateArg};
 use unicode_script::{Script, UnicodeScript};
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -16,10 +16,21 @@ use unicode_segmentation::UnicodeSegmentation;
 static PARSER_CACHE: LazyLock<Mutex<HashMap<LanguageType, Parser>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+/// One `(#not-has-ancestor? @capture "kind" ...)` rule, pre-parsed so the
+/// hot path does no string scanning. Drops a match's capture when any
+/// ancestor of the captured node has a kind in `kinds`.
+struct NotHasAncestorRule {
+    capture_index: u32,
+    kinds: Vec<String>,
+}
+
 /// Pre-compiled query for a language, with its capture names.
 struct CompiledQuery {
     query: Query,
     capture_names: Vec<String>,
+    /// Indexed by `pattern_index`. Empty inner vec = no filtering for that
+    /// pattern, which is the common case across all .scm files.
+    not_has_ancestor: Vec<Vec<NotHasAncestorRule>>,
 }
 
 /// All tree-sitter queries compiled eagerly at startup. Since queries come
@@ -42,16 +53,77 @@ static COMPILED_QUERIES: LazyLock<HashMap<LanguageType, CompiledQuery>> = LazyLo
             .iter()
             .map(|s| s.to_string())
             .collect();
+        let not_has_ancestor = (0..query.pattern_count())
+            .map(|i| parse_not_has_ancestor(&query, i, setting.type_))
+            .collect();
         map.insert(
             setting.type_,
             CompiledQuery {
                 query,
                 capture_names,
+                not_has_ancestor,
             },
         );
     }
     map
 });
+
+/// Extract `(#not-has-ancestor? @cap "kind" ...)` rules from a pattern's
+/// general predicates. Other custom predicates pass through unchanged.
+/// Malformed predicates panic at startup so .scm authors get an immediate
+/// error rather than a silent no-op at runtime.
+fn parse_not_has_ancestor(
+    query: &Query,
+    pattern_index: usize,
+    language: LanguageType,
+) -> Vec<NotHasAncestorRule> {
+    let mut rules = Vec::new();
+    for pred in query.general_predicates(pattern_index) {
+        if &*pred.operator != "not-has-ancestor?" {
+            continue;
+        }
+        let mut args = pred.args.iter();
+        let capture_index = match args.next() {
+            Some(QueryPredicateArg::Capture(i)) => *i,
+            _ => panic!(
+                "{:?}: #not-has-ancestor? must take a capture as its first argument",
+                language
+            ),
+        };
+        let kinds: Vec<String> = args
+            .map(|a| match a {
+                QueryPredicateArg::String(s) => s.to_string(),
+                QueryPredicateArg::Capture(_) => panic!(
+                    "{:?}: #not-has-ancestor? takes string node kinds after the capture",
+                    language
+                ),
+            })
+            .collect();
+        assert!(
+            !kinds.is_empty(),
+            "{:?}: #not-has-ancestor? needs at least one node kind",
+            language
+        );
+        rules.push(NotHasAncestorRule {
+            capture_index,
+            kinds,
+        });
+    }
+    rules
+}
+
+/// Returns true if any ancestor of `node` has a kind in `kinds`.
+fn has_ancestor_kind(node: Node, kinds: &[String]) -> bool {
+    let mut cur = node.parent();
+    while let Some(parent) = cur {
+        let kind = parent.kind();
+        if kinds.iter().any(|k| k == kind) {
+            return true;
+        }
+        cur = parent.parent();
+    }
+    false
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Ord, Eq, PartialOrd, Hash)]
 pub struct TextRange {
@@ -211,6 +283,11 @@ fn extract_recursive<'a>(
     let mut matches_query = cursor.matches(&compiled.query, root_node, provider);
 
     while let Some(match_) = matches_query.next() {
+        // Per-pattern `#not-has-ancestor?` rules. Cheap: the inner vec is
+        // empty for every pattern in every .scm except the rare ones that
+        // declare a rule, so we pay one `is_empty` check on the hot path.
+        let ancestor_rules = &compiled.not_has_ancestor[match_.pattern_index];
+
         // First pass: look for dynamic injection pairs in this match
         let mut injection_content: Option<tree_sitter::Node> = None;
         let mut injection_language_text: Option<&str> = None;
@@ -263,6 +340,15 @@ fn extract_recursive<'a>(
             }
 
             if tag == "language" || tag == "injection.language" {
+                continue;
+            }
+
+            // Apply any `#not-has-ancestor?` rules that target this capture.
+            if !ancestor_rules.is_empty()
+                && ancestor_rules.iter().any(|rule| {
+                    rule.capture_index == capture.index && has_ancestor_kind(node, &rule.kinds)
+                })
+            {
                 continue;
             }
 
