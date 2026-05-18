@@ -6,6 +6,7 @@ enum CharType {
     Underscore,
     Period,
     Colon,
+    Whitespace,
 }
 
 #[derive(Debug, PartialEq)]
@@ -33,12 +34,8 @@ pub fn split_into<'a>(s: &'a str, result: &mut Vec<SplitRef<'a>>) {
     let mut char_iter = s.char_indices().peekable();
 
     while let Some((byte_pos, c)) = char_iter.next() {
-        assert!(
-            !c.is_whitespace(),
-            "There should be no white space in the input: '{s}'"
-        );
-
         let char_type = match c {
+            ch if ch.is_whitespace() => CharType::Whitespace,
             ch if ch.is_uppercase() => CharType::Upper,
             ch if ch.is_ascii_digit() => CharType::Digit,
             '_' => CharType::Underscore,
@@ -61,13 +58,20 @@ pub fn split_into<'a>(s: &'a str, result: &mut Vec<SplitRef<'a>>) {
             }
             _ => matches!(
                 char_type,
-                CharType::Underscore | CharType::Period | CharType::Colon
+                CharType::Underscore
+                    | CharType::Period
+                    | CharType::Colon
+                    | CharType::Whitespace
             ),
         };
 
         if should_split && byte_pos > word_start_byte {
             let word_slice = &s[word_start_byte..byte_pos];
-            if !word_slice.is_empty() && !word_slice.chars().all(|c| matches!(c, '_' | '.' | ':')) {
+            if !word_slice.is_empty()
+                && !word_slice
+                    .chars()
+                    .all(|c| matches!(c, '_' | '.' | ':') || c.is_whitespace())
+            {
                 result.push(SplitRef {
                     word: word_slice,
                     start_byte: word_start_byte,
@@ -78,7 +82,10 @@ pub fn split_into<'a>(s: &'a str, result: &mut Vec<SplitRef<'a>>) {
 
         if matches!(
             char_type,
-            CharType::Underscore | CharType::Period | CharType::Colon
+            CharType::Underscore
+                | CharType::Period
+                | CharType::Colon
+                | CharType::Whitespace
         ) {
             if let Some((next_byte_pos, _)) = char_iter.peek() {
                 word_start_byte = *next_byte_pos;
@@ -93,7 +100,11 @@ pub fn split_into<'a>(s: &'a str, result: &mut Vec<SplitRef<'a>>) {
     // Handle final word
     if word_start_byte < s.len() {
         let word_slice = &s[word_start_byte..];
-        if !word_slice.is_empty() && !word_slice.chars().all(|c| matches!(c, '_' | '.' | ':')) {
+        if !word_slice.is_empty()
+            && !word_slice
+                .chars()
+                .all(|c| matches!(c, '_' | '.' | ':') || c.is_whitespace())
+        {
             result.push(SplitRef {
                 word: word_slice,
                 start_byte: word_start_byte,
@@ -285,6 +296,35 @@ mod tests {
                 }
             ]
         );
+    }
+
+    #[test]
+    fn test_narrow_nbsp_between_number_and_unit() {
+        // Unicode word segmentation keeps "1000\u{202F}kWh" as a single token
+        // (WB13a/WB13b). The splitter must not panic on the embedded whitespace
+        // — it should treat U+202F (narrow no-break space) as a separator.
+        let words: Vec<&str> = split("1000\u{202F}kWh")
+            .into_iter()
+            .map(|s| s.word)
+            .collect();
+        assert_eq!(words, vec!["1000", "k", "Wh"]);
+    }
+
+    #[test]
+    fn test_nbsp_between_letters() {
+        // U+00A0 NO-BREAK SPACE as an in-token separator: prior to the fix this
+        // panicked the assertion. Now it splits like ASCII whitespace.
+        let words: Vec<&str> = split("foo\u{00A0}bar")
+            .into_iter()
+            .map(|s| s.word)
+            .collect();
+        assert_eq!(words, vec!["foo", "bar"]);
+    }
+
+    #[test]
+    fn test_ascii_space_is_separator() {
+        let words: Vec<&str> = split("hello world").into_iter().map(|s| s.word).collect();
+        assert_eq!(words, vec!["hello", "world"]);
     }
 
     #[test]
