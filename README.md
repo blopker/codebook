@@ -1,25 +1,126 @@
 <br />
 <div align="center">
-  <a href="https://github.com/blopker/codebook"> <img
-  src="https://raw.githubusercontent.com/blopker/codebook/main/assets/codebook-nt.webp" alt="Logo" width="200" > </a> <h3
-  align="center">CODEBOOK</h3> <p align="center"> An unholy spell checker for
-  code. <br /> <br /> <!-- <a
-  href="https://github.com/blopker/codebook/releases/latest/">Download</a> -->
-  <br /> <br /> <a href="https://github.com/blopker/codebook/issues">Report
-  Bug</a> · <a href="https://github.com/blopker/codebook/issues">Request
-  Feature</a> </p>
+  <a href="https://github.com/blopker/codebook">
+    <img src="https://raw.githubusercontent.com/blopker/codebook/main/assets/codebook-nt.webp" alt="Logo" width="200">
+  </a>
+  <h3 align="center">CODEBOOK</h3>
+  <p align="center">
+    An unholy spell checker for code.
+    <br /><br />
+    <a href="#installation">Install</a>
+    ·
+    <a href="https://github.com/blopker/codebook/issues">Report Bug</a>
+    ·
+    <a href="https://github.com/blopker/codebook/issues">Request Feature</a>
+  </p>
 </div>
-
-## Usage
-
-<img
-  src="https://raw.githubusercontent.com/blopker/codebook/main/assets/example.png" alt="Example" width="400" >
-
-No configuration needed. Codebook will automatically detect the language you are editing and mark issues for you. Codebook will try to only mark issues for words that you create, where they are initially defined.
 
 Please give a ⭐ if you find Codebook useful!
 
-**Supported platforms:** Prebuilt archives are published for macOS (x86_64, aarch64), Linux (x86_64, aarch64), and Windows (x86_64, arm64).
+## About
+
+Codebook is a spell checker for code. It binds together the venerable Tree Sitter and the fast spell checker [Spellbook](https://github.com/helix-editor/spellbook). Included is a Language Server for use in (theoretically) any editor. Everything is done in Rust to keep response times snappy and memory usage _low_.
+
+No configuration needed. Codebook will automatically detect the language you are editing and mark issues for you. Codebook will try to only mark issues for words that you create, where they are initially defined.
+
+<img src="https://raw.githubusercontent.com/blopker/codebook/main/assets/example.png" alt="Example" width="400">
+
+However, if you are looking for a traditional spell checker for _prose_, Codebook may not be what you are looking for. For example, capitalization issues are handled loosely and grammar checking is out of scope.
+
+To see the motivations behind Codebook, read [this blog post](https://blopker.com/writing/09-survey-of-the-current-state-of-code-spell-checking/).
+
+## Goals
+
+Spell checking is complicated, and opinions about how it should be done, especially for code, differ. This section is about the trade-offs that steer decisions.
+
+### Privacy
+
+No remote calls for spell checking or analytics. Once dictionaries are cached, Codebook needs to be usable offline. Codebook will never send the contents of files to a remote server.
+
+### Don't be annoying
+
+Codebook should have high signal and low noise. It should only highlight words that users have control over. For example, a misspelled word in an imported function should not be highlighted as the user can't do anything about it.
+
+As a consequence, Codebook only marks issues for terms where they are defined, and not where they are used. Correcting both the definition (flagged by Codebook) and all subsequent uses should be done by other language specific tooling - usually available as a LSP for that language.
+
+### Efficient
+
+All features will be weighed against their impact on CPU and memory. Codebook should be fast enough to spell check on every keystroke on even low-end hardware.
+
+## Features
+
+### Code-aware spell checking
+
+Codebook will only check the parts of your code where a normal linter wouldn't. Comments, string literals and variable definitions for example. Codebook knows how to split camel case and snake case variables, and makes suggestions in the original case.
+
+### Language Server
+
+Codebook comes with a language server. Originally developed for the Zed editor, this language server can be integrated into any editor that supports the language server protocol.
+
+### Dictionary Management
+
+Codebook comes with a dictionary manager, which will automatically download and cache dictionaries.
+
+### Hierarchical Configuration
+
+Codebook uses a hierarchical configuration system with global (user-level) and project-specific settings, giving you flexibility to set defaults and override them as needed per project.
+
+## Supported Languages
+
+✅ **Good to go:** C, Go, Java, JavaScript, Lua, Markdown, Odin, Plain Text, Python, Ruby, Rust, TOML, TypeScript, Zig
+
+⚠️ **Supported, needs more testing** (help us improve!): C#, C++, CSS, Dart, Elixir, Erlang, Haskell, HTML, LaTeX, OCaml, PHP, Svelte, Swift, Typst, VHDL, YAML
+
+If Codebook is not marking issues you think it should, please file a GitHub issue!
+
+## Installation
+
+If you are a Zed user, you may skip this step and consult the [Zed section](#zed) of this document. Otherwise, you will need to install the `codebook-lsp` binary and make it available on your `$PATH`. You have a number of options to do this.
+
+### Manual download
+
+1. Download the latest release for your architecture from the [releases](https://github.com/blopker/codebook/releases) page.
+   - Prebuilt archives are published for macOS (x86_64, aarch64), Linux (x86_64, aarch64), and Windows (x86_64, arm64).
+   - Windows artifacts are provided as `.zip` files; macOS and Linux artifacts are `.tar.gz`.
+2. Extract the binary from the archive, and move it somewhere on your system `$PATH`.
+
+- `~/.local/bin/codebook-lsp`
+- `/usr/bin/codebook-lsp`
+- Etc...
+
+### eget
+
+You can install the latest release using [eget](https://github.com/zyedidia/eget):
+
+```sh
+eget blopker/codebook
+```
+
+### Arch Linux
+
+You can install the Codebook LSP using pacman:
+
+```sh
+pacman -S codebook-lsp
+```
+
+### Cargo
+
+You can also install the Codebook LSP using Cargo:
+
+```sh
+cargo install codebook-lsp
+```
+
+To install directly from the GitHub repository:
+
+```sh
+cargo install --git https://github.com/blopker/codebook codebook-lsp
+```
+
+### From source
+
+You may also build `codebook` from source by cloning the repository and running `make build`.
 
 ## Integrations
 
@@ -49,7 +150,7 @@ editor](https://helix-editor.com/) by adding the LSP to the
 [languages.toml](https://docs.helix-editor.com/languages.html) configuration
 file.
 
-First, [install Codebook](#installation), and ensure that `codebook-lsp` is installed into your `$PATH`.
+Ensure that `codebook-lsp` is installed into your `$PATH` (see [Installation](#installation)).
 
 Then, add into the Helix `languages.toml` configuration file:
 
@@ -78,7 +179,7 @@ binding can be used to accept suggestions.
 
 [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) includes a [configuration for Codebook](https://github.com/neovim/nvim-lspconfig/blob/master/lsp/codebook.lua).
 
-First, [install Codebook](#installation), and ensure that `codebook-lsp` is installed into your `$PATH`.
+Ensure that `codebook-lsp` is installed into your `$PATH` (see [Installation](#installation)).
 
 [Install nvim-lspconfig](https://github.com/neovim/nvim-lspconfig?tab=readme-ov-file#install) if you have not already.
 Then, add the following to your Neovim configuration:
@@ -87,7 +188,9 @@ Then, add the following to your Neovim configuration:
 vim.lsp.enable('codebook')
 ```
 
-### VS Code (Unreleased)
+### VS Code
+
+> **Not yet in the Marketplace.** The extension is a work in progress. Install it locally from source if you want to try it. Feedback welcome!
 
 A VS Code extension lives in `editors/vscode`. The extension manages
 the `codebook-lsp` binary for you, starts it with the right flags, and exposes a
@@ -107,21 +210,19 @@ code --install-extension codebook-vscode-*.vsix
 Once the extension is installed it will activate automatically for every
 supported language.
 
-**Note**: This extension is a work in progress and is not in the Marketplace yet. If you try it out, we'd love feedback!
-
 ### Other Editors
 
-Any editor that implements the Language Server Protocol should be compatible with Codebook. To get started, follow the [installation instructions](#installation), then consult your editor's documentation to learn how to configure and enable a new language server. For your reference, the following command starts the server such that it listens on `STDIN` and emits on `STDOUT`:
+Any editor that implements the Language Server Protocol should be compatible with Codebook. After [installing Codebook](#installation), consult your editor's documentation to learn how to configure and enable a new language server. For your reference, the following command starts the server such that it listens on `STDIN` and emits on `STDOUT`:
 
 ```sh
 codebook-lsp serve
 ```
 
-### CLI (Lint) (Unstable)
+## CLI (Lint)
+
+> **Unstable.** The CLI ships with `codebook-lsp` today, but its flags and output are experimental and subject to breaking changes. Feedback welcome!
 
 Codebook can also be used as a standalone command-line spell checker, which is useful for CI pipelines, pre-commit hooks, or one-off checks.
-
-Note: this command is currently experimental, unstable, and subject to breaking changes in future releases. Please submit feedback!
 
 ```sh
 # Check specific files
@@ -138,108 +239,6 @@ codebook-lsp lint --unique src/
 ```
 
 The exit code is **0** if all files are clean, **1** if any spelling errors are found, and **2** if there were unreadable files, invalid UTF-8, etc.
-
-## About
-
-Codebook is a spell checker for code. It binds together the venerable Tree Sitter and the fast spell checker [Spellbook](https://github.com/helix-editor/spellbook). Included is a Language Server for use in (theoretically) any editor. Everything is done in Rust to keep response times snappy and memory usage _low_.
-
-However, if you are looking for a traditional spell checker for _prose_, Codebook may not be what you are looking for. For example, capitalization issues are handled loosely and grammar checking is out of scope.
-
-To see the motivations behind Codebook, read [this blog post](https://blopker.com/writing/09-survey-of-the-current-state-of-code-spell-checking/).
-
-## Status
-
-Codebook is in active development. As better dictionaries are added, words that were previously marked as misspelled (or spelled correctly), might change over time to improve correctness.
-
-### Supported Programming Languages
-
-| Language   | Status |
-| ---------- | ------ |
-| C          | ✅     |
-| C#         | ⚠️     |
-| C++        | ⚠️     |
-| CSS        | ⚠️     |
-| Dart       | ⚠️     |
-| Elixir     | ⚠️     |
-| Erlang     | ⚠️     |
-| Go         | ✅     |
-| Haskell    | ⚠️     |
-| HTML       | ⚠️     |
-| Java       | ✅     |
-| JavaScript | ✅     |
-| LaTeX      | ⚠️     |
-| Lua        | ✅     |
-| Markdown   | ✅     |
-| OCaml      | ⚠️     |
-| Odin       | ✅     |
-| PHP        | ⚠️     |
-| Plain Text | ✅     |
-| Python     | ✅     |
-| Ruby       | ✅     |
-| Rust       | ✅     |
-| Svelte     | ⚠️     |
-| Swift      | ⚠️     |
-| TOML       | ✅     |
-| TypeScript | ✅     |
-| Typst      | ⚠️     |
-| VHDL       | ⚠️     |
-| YAML       | ⚠️     |
-| Zig        | ✅     |
-
-✅ = Good to go.
-⚠️ = Supported, but needs more testing. Help us improve!
-❌ = Work has started, but there are issues.
-
-If Codebook is not marking issues you think it should, please file a GitHub issue!
-
-## Installation
-
-If you are a Zed user, you may skip this step and consult the [Zed section](#zed) of this document. Otherwise, you will need to install the `codebook-lsp` binary and make it available on your `$PATH`. You have a number of options to do this.
-
-### Manual
-
-1. Download the latest release for your architecture from the [releases](https://github.com/blopker/codebook/releases) page.
-   - Prebuilt archives are published for macOS (x86_64, aarch64), Linux (x86_64, aarch64), and Windows (x86_64, arm64).
-   - Windows artifacts are provided as `.zip` files; macOS and Linux artifacts are `.tar.gz`.
-2. Extract the binary from the archive, and move it somewhere on your system `$PATH`.
-
-- `~/.local/bin/codebook-lsp`
-- `/usr/bin/codebook-lsp`
-- Etc...
-
-### Eget Installation
-
-You can install the latest release using [eget](https://github.com/zyedidia/eget):
-
-```sh
-eget blopker/codebook
-```
-
-### Arch Linux
-
-You can install the Codebook LSP using pacman:
-
-```sh
-pacman -S codebook-lsp
-```
-
-### Cargo Install
-
-You can also install the Codebook LSP using Cargo:
-
-```sh
-cargo install codebook-lsp
-```
-
-To install directly from the GitHub repository:
-
-```sh
-cargo install --git https://github.com/blopker/codebook codebook-lsp
-```
-
-### From Source
-
-You may also build `codebook` from source by cloning the repository and running `make build`.
 
 ## Configuration
 
@@ -262,9 +261,11 @@ Project-specific configuration is loaded from either `codebook.toml` or `.codebo
 
 ### Configuration Options
 
+The block below shows all options at their default values. Comments show example values where defaults aren't illustrative.
+
 ```toml
-# List of dictionaries to use for spell checking
-# Default: ["en_us"]
+# Dictionaries to use for spell checking.
+# Example: ["en_us", "en_gb"]
 # Available dictionaries:
 #  - English: "en_us", "en_gb"
 #  - Czech: "cs"
@@ -285,60 +286,58 @@ Project-specific configuration is loaded from either `codebook.toml` or `.codebo
 #  - Portuguese (Portugal): "pt_pt", "pt"
 #  - Persian/Farsi: "fa_ir"
 #  - Slovenian: "sl"
-dictionaries = ["en_us", "en_gb"]
+dictionaries = ["en_us"]
 
-# Custom allowlist of words to ignore (case-insensitive)
-# Codebook will add words here when you select "Add to dictionary"
-# Default: []
-words = ["codebook", "rustc"]
+# Custom allowlist of words to ignore (case-insensitive).
+# Codebook adds words here when you select "Add to dictionary".
+# Example: ["codebook", "rustc"]
+words = []
 
-# Words that should always be flagged as incorrect
-# Default: []
-flag_words = ["todo", "fixme"]
+# Words that should always be flagged as incorrect.
+# Example: ["todo", "fixme"]
+flag_words = []
 
-# List of glob patterns for paths to include when spell checking (allowlist)
+# Glob patterns for paths to include when spell checking (allowlist).
 # Only files matching one of these patterns will be spell-checked.
-# Default: [] (empty = include everything)
-include_paths = ["src/**/*.rs", "lib/**/*.rs"]
+# Empty means include everything.
+# Example: ["src/**/*.rs", "lib/**/*.rs"]
+include_paths = []
 
-# List of glob patterns for paths to ignore when spell checking (blocklist)
+# Glob patterns for paths to ignore when spell checking (blocklist).
 # Takes precedence over include_paths.
-# Default: []
-ignore_paths = ["target/**/*", "**/*.json", ".git/**/*"]
+# Example: ["target/**/*", "**/*.json", ".git/**/*"]
+ignore_paths = []
 
-# List of regex patterns to ignore when spell checking
-# For code files: patterns match against the full source, tokens within matches are skipped
-# Tip: Use single quotes for literal strings to avoid escaping backslashes
-# Default: []
-ignore_patterns = [
-    '\b[ATCG]+\b',             # DNA sequences
-    '\d{3}-\d{2}-\d{4}',       # Social Security Number format
-    '^[A-Z]{2,}$',             # All caps words like "HTML", "CSS"
-    'https?://[^\s]+'          # URLs
-]
+# Regex patterns to ignore when spell checking. For code files, patterns match
+# against the full source and tokens within matches are skipped.
+# Tip: use single quotes for literal strings to avoid escaping backslashes.
+# Example:
+#   ignore_patterns = [
+#       '\b[ATCG]+\b',           # DNA sequences
+#       '\d{3}-\d{2}-\d{4}',     # Social Security Number format
+#       'https?://[^\s]+',       # URLs
+#   ]
+ignore_patterns = []
 
-# Minimum word length to check (words shorter than this are ignored)
-# Default: 3
-# Set to 0 to check all words including single letters
-# Set to 2 to check words with 2 or more characters
+# Minimum word length to check (words shorter than this are ignored).
+# Set to 0 to check all words including single letters.
 min_word_length = 3
 
 # Filter which parts of your code are spell-checked by tag.
 # Tags use a dot-separated hierarchy (e.g., "comment", "identifier.function").
 # Matching is prefix-based: "comment" matches "comment", "comment.line",
 # "comment.block", etc.
-#
-# Only check these tags (if set, everything else is excluded)
-# Default: [] (empty = check everything)
-include_tags = ["comment", "string"]
-#
-# Exclude these tags from checking (takes precedence over include_tags)
-# Default: []
-exclude_tags = ["string.heredoc"]
 
-# Whether to use global configuration (project config only)
-# Set to false to completely ignore global settings
-# Default: true
+# Only check these tags. Empty means check everything.
+# Example: ["comment", "string"]
+include_tags = []
+
+# Exclude these tags from checking (takes precedence over include_tags).
+# Example: ["string.heredoc"]
+exclude_tags = []
+
+# Whether to use global configuration.
+# Set to false to completely ignore global settings.
 use_global = true
 ```
 
@@ -348,7 +347,7 @@ use_global = true
 2. If `use_global = false` in project config, global settings are ignored entirely
 3. If no project config exists, global config is used
 4. If neither exists, default settings are used
-5. Any matching `[[overrides]]` blocks are then layered on top (global first, then project) — see [Scoped Overrides](#scoped-overrides)
+5. Any matching `[[overrides]]` blocks are then layered on top (global first, then project). See [Scoped Overrides](#scoped-overrides).
 
 ### Working with Configurations
 
@@ -401,7 +400,7 @@ ignore_patterns = [
 
 ### Tag-Based Filtering
 
-Codebook categorizes every piece of text it checks using **tags** — dot-separated labels like `comment`, `string`, `identifier.function`, etc. You can use `include_tags` and `exclude_tags` to control which categories are spell-checked.
+Codebook categorizes every piece of text it checks using **tags**: dot-separated labels like `comment`, `string`, `identifier.function`, etc. You can use `include_tags` and `exclude_tags` to control which categories are spell-checked.
 
 Matching is **prefix-based**: `"comment"` matches `comment`, `comment.line`, `comment.block`, etc. `include_tags` narrows what is checked (allowlist), and `exclude_tags` removes from that set (blocklist, takes precedence). This works the same way as `include_paths`/`ignore_paths`.
 
@@ -464,7 +463,7 @@ Glob syntax matches `ignore_paths`: `*` (no separator), `**` (any directories), 
 
 **Resolution order:** all matching overrides are applied in declaration order, so later blocks win on the same field. Global overrides are applied before project overrides, so project settings always have the final say. If both a replace field (e.g., `words`) and its append sibling (`extra_words`) appear in the same block, replace runs first and then append is layered on top.
 
-**Interaction with `ignore_paths`:** `ignore_paths` is evaluated *before* overrides — an ignored file is skipped entirely and no overrides apply to it.
+**Interaction with `ignore_paths`:** `ignore_paths` is evaluated *before* overrides. An ignored file is skipped entirely and no overrides apply to it.
 
 **Skipped silently:** an `[[overrides]]` block is dropped (with a warning) if `paths` is missing or empty, every glob is invalid, or no other field is set.
 
@@ -488,107 +487,17 @@ Example payload:
 }
 ```
 
-## Goals
+## Contributing
 
-Spell checking is complicated and opinions about how it should be done, especially with code, differs. This section is about the trade offs that steer decisions.
-
-### Privacy
-
-No remote calls for spell checking or analytics. Once dictionaries are cached, Codebook needs to be usable offline. Codebook will never send the contents of files to a remote server.
-
-### Don't be annoying
-
-Codebook should have high signal and low noise. It should only highlight words that users have control over. For example, a misspelled word in an imported function should not be highlighted as the user can't do anything about it.
-
-As a consequence, Codebook only marks issues for terms where they are defined, and not where they are used. Correcting both the definition (flagged by Codebook) and all subsequent uses should be done by other language specific tooling - usually available as a LSP for that language.
-
-### Efficient
-
-All features will be weighed against their impact on CPU and memory. Codebook should be fast enough to spell check on every keystroke on even low-end hardware.
-
-## Features
-
-### Code-aware spell checking
-
-Codebook will only check the parts of your code where a normal linter wouldn't. Comments, string literals and variable definitions for example. Codebook knows how to split camel case and snake case variables, and makes suggestions in the original case.
-
-### Language Server
-
-Codebook comes with a language server. Originally developed for the Zed editor, this language server can be integrated into any editor that supports the language server protocol.
-
-### Dictionary Management
-
-Codebook comes with a dictionary manager, which will automatically download and cache dictionaries.
-
-### Hierarchical Configuration
-
-Codebook uses a hierarchical configuration system with global (user-level) and project-specific settings, giving you flexibility to set defaults and override them as needed per project.
-
-## Adding a New Dictionary
-
-Dictionaries in Codebook are currently hardcoded in the dictionary repository file at `crates/codebook/src/dictionaries/repo.rs`.
-
-To add a new Hunspell-compatible dictionary:
-
-1. Open `crates/codebook/src/dictionaries/repo.rs`
-
-1. Locate the `HUNSPELL_DICTIONARIES` static vector (for Hunspell dictionaries) or `TEXT_DICTIONARIES` (for plain text word lists)
-
-1. Add a new entry using the appropriate constructor. For Hunspell dictionaries:
-
-   ```rs /dev/null/example.rs#L1-5
-   HunspellRepo::new(
-       "nl_nl",  // Dictionary name in snake_case
-       "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/nl/index.aff",
-       "https://raw.githubusercontent.com/wooorm/dictionaries/refs/heads/main/dictionaries/nl/index.dic",
-   ),
-   ```
-
-1. Follow the naming convention:
-   - Use `snake_case` format (e.g., `en_us`, `nl_nl`, `pt_br`)
-   - Language codes should be lowercase
-   - Names must be unique across all dictionaries
-
-1. Find dictionary sources:
-   - [wooorm/dictionaries](https://github.com/wooorm/dictionaries) - Large collection of Hunspell dictionaries
-   - [streetsidesoftware/cspell-dicts](https://github.com/streetsidesoftware/cspell-dicts) - CSpell dictionary collection
-   - Both `.aff` (affix rules) and `.dic` (word list) files are required for Hunspell dictionaries
-
-1. (Optional) Run the tests to verify your addition:
-   ```bash
-   cargo test test_dictionary_names_unique_and_snake_case
-   ```
-   This test ensures dictionary names are unique and follow the snake_case convention.
-
-For plain text dictionaries, use `TextRepo::new()` instead and add to `TEXT_DICTIONARIES`.
-
-## Adding New Programming Language Support
-
-See the [query development guide](crates/codebook/src/queries/README.md) for instructions on adding Tree-sitter queries for new languages, the tag naming convention, and tips for writing effective queries.
-
-## Running Tests
-
-Run test with `make test` after cloning. Integration tests are also available with `make integration_test`, but requires BunJS to run.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for instructions on running tests, adding new dictionaries, adding programming language support, and cutting a release.
 
 ## Acknowledgments
 
-- Harper: https://writewithharper.com/
-- Harper Zed: https://github.com/Stef16Robbe/harper_zed
-- Spellbook: https://github.com/helix-editor/spellbook
-- cSpell for VSCode: https://marketplace.visualstudio.com/items?itemName=streetsidesoftware.code-spell-checker
-- Vale: https://github.com/errata-ai/vale-ls
-- Tree-sitter Visualizer: https://intmainreturn0.com/ts-visualizer/
-- common-words: https://github.com/anvaka/common-words
-- Hunspell dictionaries in UTF-8: https://github.com/wooorm/dictionaries
-
-## Release
-
-To publish a new version:
-
-1. Update and commit changelog with new version number
-1. Run `make release-lsp`
-1. Follow instructions
-1. Wait for Actions to finish
-1. Go to GitHub Releases
-1. Un-mark "prerelease" and publish
-1. Run `make publish_crates` to upload to crates.io
+- [Harper](https://writewithharper.com/): grammar and prose linter
+- [Harper Zed](https://github.com/Stef16Robbe/harper_zed): Harper integration for the Zed editor
+- [Spellbook](https://github.com/helix-editor/spellbook): the Hunspell-compatible spell checker library Codebook is built on
+- [cSpell for VS Code](https://marketplace.visualstudio.com/items?itemName=streetsidesoftware.code-spell-checker): code spell checker for VS Code
+- [Vale](https://github.com/errata-ai/vale-ls): prose linter with LSP support
+- [Tree-sitter Visualizer](https://intmainreturn0.com/ts-visualizer/): interactive tool for exploring tree-sitter parses
+- [common-words](https://github.com/anvaka/common-words): dataset of common English words
+- [Hunspell dictionaries in UTF-8](https://github.com/wooorm/dictionaries): Hunspell dictionary collection used by Codebook
