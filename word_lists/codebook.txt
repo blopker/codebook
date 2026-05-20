@@ -27,6 +27,7 @@ gitlab
 gz
 hasher
 hashers
+ish
 keygen
 linter
 linux

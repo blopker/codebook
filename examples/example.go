@@ -20,7 +20,7 @@ func (u *Userr) GetUserr(prefixx string) Userr {
 
 func main() {
 	// I'm bad at speling alice
-	myfmt.Println("Hello, Wolrd!")
+	myfmt.Println("Hello, Fprintln!")
 	var alicz = "Alicz"
 	myfmt.Println("Hellol, " + alicz)
 	var rsvp = "RSVP"

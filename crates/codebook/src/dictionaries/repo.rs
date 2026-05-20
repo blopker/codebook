@@ -202,6 +202,14 @@ static HUNSPELL_DICTIONARIES: LazyLock<Vec<HunspellRepo>> = LazyLock::new(|| {
 static TEXT_DICTIONARIES: LazyLock<Vec<TextRepo>> = LazyLock::new(|| {
     vec![
         TextRepo::new(
+            "dart",
+            "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/dart/dict/dart.txt",
+        ),
+        TextRepo::new(
+            "go",
+            "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/golang/dict/go.txt",
+        ),
+        TextRepo::new(
             "rust",
             "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/rust/dict/rust.txt",
         ),
