@@ -382,19 +382,34 @@ impl Backend {
     fn config_handle(&self) -> Arc<CodebookConfigFile> {
         self.config
             .get_or_init(|| {
+                let options = self.initialize_options.read().unwrap();
+                let global_config_path = options.global_config_path.clone();
+                let project_config_path = options
+                    .config_path
+                    .clone()
+                    .map(|p| self.resolve_workspace_path(&p));
+                drop(options);
+
                 Arc::new(
-                    CodebookConfigFile::load_with_global_config(
+                    CodebookConfigFile::load_with_overrides(
                         Some(self.workspace_dir.as_path()),
-                        self.initialize_options
-                            .read()
-                            .unwrap()
-                            .global_config_path
-                            .clone(),
+                        global_config_path,
+                        project_config_path,
                     )
                     .expect("Unable to make config: {e}"),
                 )
             })
             .clone()
+    }
+
+    /// Resolve a user-provided path against the workspace directory.
+    /// Absolute paths are returned unchanged; relative paths are joined onto `workspace_dir`.
+    fn resolve_workspace_path(&self, path: &Path) -> PathBuf {
+        if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            self.workspace_dir.join(path)
+        }
     }
 
     fn codebook_handle(&self) -> Arc<Codebook> {

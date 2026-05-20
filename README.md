@@ -257,6 +257,8 @@ You can override this location if you sync your config elsewhere by providing `i
 
 Project-specific configuration is loaded from either `codebook.toml` or `.codebook.toml` in the project root. Codebook searches for this file starting from the current directory and moving up to parent directories.
 
+You can override this location by providing `initializationOptions.configPath` from your LSP client (relative paths are resolved against the workspace root). When the override file does not yet exist, Codebook starts with defaults and creates the file at that path the first time a write happens (e.g., "Add to dictionary"). Auto-discovery is disabled when this override is set.
+
 **Note:** Codebook picks which config to use on startup. If a config file is manually created or renamed (like switching between `codebook.toml` and `.codebook.toml`), restart your editor (or the LSP server) for the new file to be recognized.
 
 ### Configuration Options
@@ -473,6 +475,7 @@ Editors can pass `initializationOptions` when starting the Codebook LSP for LSP-
 
 - `logLevel` (`"trace" | "debug" | "info" | "warn" | "error"`, default `"info"`): sets the verbosity of logs.
 - `globalConfigPath` (string): overrides the auto-detected global `codebook.toml` path, useful if you sync configs from another location. On macOS and Linux, the `~/` prefix for the current user's home directory is supported.
+- `configPath` (string): overrides the project `codebook.toml` location. Relative paths are resolved against the workspace root, absolute paths are used as-is. When set, auto-discovery is skipped; the file is created at this path the first time Codebook needs to write (e.g., adding a word).
 - `checkWhileTyping` (bool, default `true`): when `false`, spelling diagnostics are only published on save instead of each keystroke. This is useful for example if performance is a problem, or the real-time diagnostics are annoying (sorry!).
 - `diagnosticSeverity` (`"error" | "warning" | "information" | "hint"`, default `"information"`): sets the severity of spell check diagnostics.
 
@@ -482,6 +485,7 @@ Example payload:
 {
   "logLevel": "debug",
   "globalConfigPath": "~/dotfiles/codebook.toml",
+  "configPath": "toolConfig/codebook.toml",
   "checkWhileTyping": false,
   "diagnosticSeverity": "information"
 }

@@ -46,7 +46,7 @@ The data model for configuration settings:
   - Linux/macOS fallback: `~/.config/codebook/codebook.toml`
   - Windows: `%APPDATA%\codebook\codebook.toml`
 - **Custom Overrides**:
-  - Consumers may call `CodebookConfigFile::load_with_global_config` to supply an explicit global config path (used by `codebook-lsp` when an LSP client provides `initializationOptions.globalConfigPath`).
+  - Consumers may call `CodebookConfigFile::load_with_overrides` to supply an explicit global config path and/or project config path. `codebook-lsp` wires these to `initializationOptions.globalConfigPath` and `initializationOptions.configPath` respectively. When a project override is set, auto-discovery is skipped; if the file does not exist, defaults are used until the first save creates it (with parent directories created as needed).
 
 - **Configuration Precedence**:
   - Project configuration overrides global configuration

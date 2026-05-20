@@ -2,6 +2,10 @@
 
 Important user-facing changes. See commit logs for more details.
 
+[Unreleased]
+
+- Allow overriding the project `codebook.toml` path via LSP initialization option `configPath` (workspace-relative; auto-discovery is skipped when set) (#236)
+
 [0.3.39]
 
 - German dictionaries (`de`, `de_at`, `de_ch`) now accept ASCII transliterations of umlauts and eszett (e.g., `Buecher` → `Bücher`, `Strasse` → `Straße`); suggestions also use transliterated variants for better recovery on typos (#253)

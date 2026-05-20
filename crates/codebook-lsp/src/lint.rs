@@ -64,16 +64,21 @@ pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> L
     let (resolved, mut had_failure) = resolve_paths(files, root);
 
     let mut seen_words: HashSet<String> = HashSet::new();
-    let mut total_errors = 0usize;
-    let mut files_with_errors = 0usize;
+    let mut total_errors = 0;
+    let mut files_with_errors: usize = 0;
+    let mut ignored = 0;
+    let mut excluded = 0;
 
     for path in &resolved {
         let relative = relative_to_root(root_canonical.as_deref(), path);
+        let rel_path = Path::new(&relative);
 
-        if config.should_ignore_path(Path::new(&relative)) {
+        if config.should_ignore_path(rel_path) {
+            ignored += 1;
             continue;
         }
-        if !config.should_include_path(Path::new(&relative)) {
+        if !config.should_include_path(rel_path) {
+            excluded += 1;
             continue;
         }
 
@@ -86,7 +91,12 @@ pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> L
         }
     }
 
+    let total = resolved.len();
+    let checked = total - ignored - excluded;
     let unique_label = if unique { "unique " } else { "" };
+    eprintln!(
+        "Out of {total} total file(s), checked {checked}, ignored {ignored}, and excluded {excluded}."
+    );
     eprintln!(
         "Found {total_errors} {unique_label}spelling error(s) in {files_with_errors} file(s)."
     );

@@ -82,29 +82,33 @@ impl Default for CodebookConfigFile {
 impl CodebookConfigFile {
     /// Load configuration by searching for both global and project-specific configs
     pub fn load(current_dir: Option<&Path>) -> Result<Self, io::Error> {
-        Self::load_with_global_config(current_dir, None)
+        Self::load_with_overrides(current_dir, None, None)
     }
 
-    /// Load configuration with an explicit global config override.
-    pub fn load_with_global_config(
+    /// Load configuration with explicit global and/or project config overrides.
+    ///
+    /// When `project_config_path` is provided, auto-discovery is skipped: the override
+    /// path is used even if the file does not yet exist (it will be created on save).
+    pub fn load_with_overrides(
         current_dir: Option<&Path>,
         global_config_path: Option<PathBuf>,
+        project_config_path: Option<PathBuf>,
     ) -> Result<Self, io::Error> {
         debug!("Initializing CodebookConfig");
 
-        if let Some(current_dir) = current_dir {
-            let current_dir = Path::new(current_dir);
-            Self::load_configs(current_dir, global_config_path)
-        } else {
-            let current_dir = env::current_dir()?;
-            Self::load_configs(&current_dir, global_config_path)
-        }
+        let current_dir = match current_dir {
+            Some(p) => PathBuf::from(p),
+            None => env::current_dir()?,
+        };
+
+        Self::load_configs(&current_dir, global_config_path, project_config_path)
     }
 
     /// Load both global and project configuration
     fn load_configs(
         start_dir: &Path,
         global_config_override: Option<PathBuf>,
+        project_config_override: Option<PathBuf>,
     ) -> Result<Self, io::Error> {
         let config = Self::default();
         let mut inner = config.inner.write().unwrap();
@@ -135,22 +139,42 @@ impl CodebookConfigFile {
             }
         }
 
-        // Then try to find and load project config
-        if let Some(project_path) = Self::find_project_config(start_dir)? {
-            debug!("Found project config at {}", project_path.display());
+        // Then resolve the project config path: use the override if provided,
+        // otherwise search up from start_dir.
+        let project_path = match project_config_override {
+            Some(override_path) => {
+                if override_path.exists() {
+                    Some(override_path)
+                } else {
+                    log::warn!(
+                        "Project config override {} does not exist; using defaults until the file is created (e.g., by adding a word).",
+                        override_path.display()
+                    );
+                    // Honor the override path so future saves create the file there
+                    // and don't fall back to auto-discovery.
+                    Some(override_path)
+                }
+            }
+            None => Self::find_project_config(start_dir)?,
+        };
+
+        if let Some(project_path) = project_path {
             let project_config = WatchedFile::new(Some(project_path.clone()));
 
-            inner.project_config = project_config
-                .load(|path| {
-                    Self::load_settings_from_file(path)
-                        .map_err(|e| format!("Failed to load project config: {}", e))
-                })
-                .unwrap_or_else(|e| {
-                    debug!("{}", e);
-                    WatchedFile::new(Some(project_path.clone()))
-                });
-
-            debug!("Loaded project config from {}", project_path.display());
+            if project_path.exists() {
+                inner.project_config = project_config
+                    .load(|path| {
+                        Self::load_settings_from_file(path)
+                            .map_err(|e| format!("Failed to load project config: {}", e))
+                    })
+                    .unwrap_or_else(|e| {
+                        debug!("{}", e);
+                        WatchedFile::new(Some(project_path.clone()))
+                    });
+                debug!("Loaded project config from {}", project_path.display());
+            } else {
+                inner.project_config = project_config;
+            }
         } else {
             info!("No project config found, using default");
             // Set path to start_dir if no config is found
@@ -335,6 +359,9 @@ impl CodebookConfigFile {
             "Saving project configuration to {}",
             project_config_path.display()
         );
+        if let Some(parent) = project_config_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
         fs::write(&project_config_path, content)
     }
 
@@ -891,7 +918,7 @@ mod tests {
             "#
         )?;
 
-        let config = CodebookConfigFile::load_configs(&sub_sub_dir, None)?;
+        let config = CodebookConfigFile::load_configs(&sub_sub_dir, None, None)?;
         assert!(config.snapshot().words.contains(&"testword".to_string()));
 
         // Check that the config file path is stored
@@ -915,13 +942,81 @@ mod tests {
             "#,
         )?;
 
-        let config = CodebookConfigFile::load_with_global_config(
+        let config = CodebookConfigFile::load_with_overrides(
             Some(workspace_dir.as_path()),
             Some(override_path.clone()),
+            None,
         )?;
 
         assert_eq!(config.global_config_path(), Some(override_path));
         assert!(config.is_allowed_word("customword"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_project_config_override_is_used() -> Result<(), io::Error> {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace_dir = temp_dir.path().join("workspace");
+        fs::create_dir_all(&workspace_dir)?;
+
+        // Drop a default-named file at the workspace root that should NOT be loaded.
+        fs::write(
+            workspace_dir.join("codebook.toml"),
+            r#"words = ["rootword"]"#,
+        )?;
+
+        let nested_dir = workspace_dir.join("toolConfig");
+        fs::create_dir_all(&nested_dir)?;
+        let override_path = nested_dir.join("codebook.toml");
+        fs::write(&override_path, r#"words = ["nestedword"]"#)?;
+
+        let config = CodebookConfigFile::load_with_overrides(
+            Some(workspace_dir.as_path()),
+            None,
+            Some(override_path.clone()),
+        )?;
+
+        assert_eq!(config.project_config_path(), Some(override_path));
+        assert!(config.is_allowed_word("nestedword"));
+        assert!(!config.is_allowed_word("rootword"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_project_config_override_missing_file_used_on_save() -> Result<(), io::Error> {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace_dir = temp_dir.path().join("workspace");
+        fs::create_dir_all(&workspace_dir)?;
+        // Auto-discovery would pick this up if the override were not honored.
+        fs::write(
+            workspace_dir.join("codebook.toml"),
+            r#"words = ["rootword"]"#,
+        )?;
+
+        // Override points to a path that doesn't exist yet, inside a nested dir
+        // that doesn't exist either.
+        let override_path = workspace_dir.join("toolConfig").join("codebook.toml");
+
+        let config = CodebookConfigFile::load_with_overrides(
+            Some(workspace_dir.as_path()),
+            None,
+            Some(override_path.clone()),
+        )?;
+
+        // The override path is honored even before the file exists.
+        assert_eq!(config.project_config_path(), Some(override_path.clone()));
+        assert!(!override_path.exists());
+        // Auto-discovery should NOT have loaded the root file.
+        assert!(!config.is_allowed_word("rootword"));
+
+        // Adding a word and saving should create both the directory and the file
+        // at the override location.
+        assert!(config.add_word("newword")?);
+        config.save()?;
+        assert!(override_path.exists());
+
+        let written = fs::read_to_string(&override_path)?;
+        assert!(written.contains("newword"));
         Ok(())
     }
 
@@ -1226,9 +1321,7 @@ mod tests {
         }
 
         // No overrides, should return None
-        assert!(config
-            .resolve_for_file(Path::new("src/main.rs"))
-            .is_none());
+        assert!(config.resolve_for_file(Path::new("src/main.rs")).is_none());
     }
 
     #[test]
@@ -1257,9 +1350,7 @@ mod tests {
         assert!(settings.is_allowed_word("markdown"));
 
         // .rs file should not match
-        assert!(config
-            .resolve_for_file(Path::new("src/main.rs"))
-            .is_none());
+        assert!(config.resolve_for_file(Path::new("src/main.rs")).is_none());
 
         Ok(())
     }
@@ -1302,8 +1393,8 @@ mod tests {
             if let Ok(global_settings) =
                 CodebookConfigFile::load_settings_from_file(&global_config_path)
             {
-                inner.global_config = WatchedFile::new(Some(global_config_path))
-                    .with_content_value(global_settings);
+                inner.global_config =
+                    WatchedFile::new(Some(global_config_path)).with_content_value(global_settings);
             }
             if let Ok(project_settings) =
                 CodebookConfigFile::load_settings_from_file(&project_config_path)
@@ -1366,8 +1457,8 @@ mod tests {
             if let Ok(global_settings) =
                 CodebookConfigFile::load_settings_from_file(&global_config_path)
             {
-                inner.global_config = WatchedFile::new(Some(global_config_path))
-                    .with_content_value(global_settings);
+                inner.global_config =
+                    WatchedFile::new(Some(global_config_path)).with_content_value(global_settings);
             }
             if let Ok(project_settings) =
                 CodebookConfigFile::load_settings_from_file(&project_config_path)
@@ -1443,9 +1534,7 @@ mod tests {
         let config = load_from_file(ConfigType::Project, &config_path)?;
 
         // No overrides initially
-        assert!(config
-            .resolve_for_file(Path::new("README.md"))
-            .is_none());
+        assert!(config.resolve_for_file(Path::new("README.md")).is_none());
 
         // Update config with overrides
         fs::write(

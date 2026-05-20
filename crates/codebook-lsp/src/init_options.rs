@@ -23,7 +23,7 @@ where
     }
 }
 
-fn deserialize_global_config_path<'de, D>(deserializer: D) -> Result<Option<PathBuf>, D::Error>
+fn deserialize_optional_path<'de, D>(deserializer: D) -> Result<Option<PathBuf>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -71,8 +71,10 @@ pub(crate) struct ClientInitializationOptions {
         deserialize_with = "deserialize_log_level"
     )]
     pub(crate) log_level: LevelFilter,
-    #[serde(default, deserialize_with = "deserialize_global_config_path")]
+    #[serde(default, deserialize_with = "deserialize_optional_path")]
     pub(crate) global_config_path: Option<PathBuf>,
+    #[serde(default, deserialize_with = "deserialize_optional_path")]
+    pub(crate) config_path: Option<PathBuf>,
     #[serde(default = "default_check_while_typing")]
     pub(crate) check_while_typing: bool,
     #[serde(
@@ -87,6 +89,7 @@ impl Default for ClientInitializationOptions {
         ClientInitializationOptions {
             log_level: default_log_level(),
             global_config_path: None,
+            config_path: None,
             check_while_typing: true,
             diagnostic_severity: default_diagnostic_severity(),
         }
@@ -140,5 +143,23 @@ mod tests {
         assert_eq!(options.log_level, LevelFilter::Debug);
         assert!(!options.check_while_typing);
         assert_eq!(options.diagnostic_severity, DiagnosticSeverity::WARNING);
+    }
+
+    #[test]
+    fn test_config_path() {
+        let json = r#"{"configPath": "toolConfig/codebook.toml"}"#;
+        let options: ClientInitializationOptions = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            options.config_path,
+            Some(PathBuf::from("toolConfig/codebook.toml"))
+        );
+        assert_eq!(options.global_config_path, None);
+    }
+
+    #[test]
+    fn test_config_path_empty_string_is_none() {
+        let json = r#"{"configPath": "  "}"#;
+        let options: ClientInitializationOptions = serde_json::from_str(json).unwrap();
+        assert_eq!(options.config_path, None);
     }
 }
