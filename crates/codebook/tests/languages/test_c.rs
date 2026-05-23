@@ -475,3 +475,17 @@ fn test_c_enum() {
     misspelled.sort_by(|loc1, loc2| loc1.word.cmp(&loc2.word));
     assert_eq!(misspelled, expected);
 }
+
+#[test]
+fn test_c_type_uses() {
+    super::utils::init_logging();
+    let sample_text = r#"
+        enum Colorr color;
+        union Dataa data;
+        struct Userr user;
+    "#;
+
+    let processor = super::utils::get_processor();
+    let misspelled = processor.spell_check(sample_text, Some(LanguageType::C), None);
+    assert_eq!(misspelled, []);
+}

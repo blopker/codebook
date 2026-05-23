@@ -7,9 +7,11 @@
 (type_definition
     declarator: (type_identifier) @identifier.type)
 (struct_specifier
-    name: (type_identifier) @identifier.type)
+    name: (type_identifier) @identifier.type
+    body: _)
 (union_specifier
-    name: (type_identifier) @identifier.type)
+    name: (type_identifier) @identifier.type
+    body: _)
 (field_declaration
     declarator: (field_identifier) @identifier.field)
 (pointer_declarator
@@ -17,7 +19,8 @@
 (array_declarator
     declarator: (field_identifier) @identifier.field)
 (enum_specifier
-    name: (type_identifier) @identifier.type)
+    name: (type_identifier) @identifier.type
+    body: _)
 (enumerator
     name: (identifier) @identifier.constant)
 (init_declarator
