@@ -2,9 +2,23 @@
 
 Important user-facing changes. See commit logs for more details.
 
-[Unreleased]
+[0.3.41]
 
-- Allow overriding the project `codebook.toml` path via LSP initialization option `configPath` (workspace-relative; auto-discovery is skipped when set) (#236)
+- Allow overriding the project `codebook.toml` path via LSP initialization option `configPath` (workspace-relative; auto-discovery is skipped when set) (#236, #271)
+- Output more diagnostic information from the `codebook lint` command
+- C: don't spell-check type usages (#279)
+- Add `git` and `sql` terms to the global word list (#267)
+- Add Go and Dart language-specific dictionaries
+- Add `fprintln` to the Go word list
+- Update dependencies
+
+[0.3.40]
+
+- Add scoped `[[overrides]]` config blocks to tailor settings to specific files by glob pattern, with replace (`dictionaries`, `words`, `flag_words`, `ignore_patterns`) and append (`extra_*`) fields (#209)
+- Python: ignore type usages via a `not-has-ancestor` query predicate (#275)
+- Use full Unicode case folding (via `unicase`) for custom words (#270, #274)
+- Split words on edge Unicode whitespace characters (#273)
+- Update dependencies
 
 [0.3.39]
 
@@ -15,6 +29,7 @@ Important user-facing changes. See commit logs for more details.
 - C: spell-check additional language constructs (#258)
 - C/C++: spell-check declarators without initializers (#256)
 - Ignore embedded scripts for unsupported languages in HTML/Markdown (skip fenced code blocks and `<script>` tags whose language has no Codebook grammar)
+- VS Code: use a single language server instance per window; multi-root workspaces run against the first folder (#260)
 - Update dependencies
 
 [0.3.38]
