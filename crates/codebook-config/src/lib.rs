@@ -224,8 +224,16 @@ impl CodebookConfigFile {
     fn find_project_config(start_dir: &Path) -> Result<Option<PathBuf>, io::Error> {
         let config_files = USER_CONFIG_FILES;
 
+        // Resolve to an absolute path before walking up. A relative start dir
+        // (e.g. the CLI's default ".") would otherwise dead-end immediately,
+        // since `Path::new(".").parent()` is `""` and `"".parent()` is `None`,
+        // so we would never ascend into real parent directories (#278). Use
+        // `absolute` rather than `canonicalize` to avoid resolving symlinks,
+        // keeping absolute inputs (e.g. an editor's workspace root) unchanged.
+        let start_dir = std::path::absolute(start_dir).unwrap_or_else(|_| start_dir.to_path_buf());
+
         // Start from the given directory and walk up to root
-        let mut current_dir = Some(start_dir.to_path_buf());
+        let mut current_dir = Some(start_dir);
 
         while let Some(dir) = current_dir {
             // Try each possible config filename in the current directory
