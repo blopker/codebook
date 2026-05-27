@@ -69,7 +69,7 @@ Codebook uses a hierarchical configuration system with global (user-level) and p
 
 ✅ **Good to go:** C, Go, Java, JavaScript, Lua, Markdown, Odin, Plain Text, Python, Ruby, Rust, TOML, TypeScript, Zig
 
-⚠️ **Supported, needs more testing** (help us improve!): C#, C++, CSS, Dart, Elixir, Erlang, Haskell, HTML, LaTeX, OCaml, PHP, Svelte, Swift, Typst, VHDL, YAML
+⚠️ **Supported, needs more testing** (help us improve!): Astro, Bash, C#, C++, CSS, Dart, Elixir, Erlang, Haskell, HTML, LaTeX, OCaml, PHP, Svelte, Swift, Typst, VHDL, Vue, YAML
 
 If Codebook is not marking issues you think it should, please file a GitHub issue!
 
@@ -110,6 +110,14 @@ You can also install the Codebook LSP using Cargo:
 
 ```sh
 cargo install codebook-lsp
+```
+
+### Homebrew
+
+You can install the Codebook LSP using Homebrew:
+
+```sh
+brew install codebook-lsp
 ```
 
 To install directly from the GitHub repository:
