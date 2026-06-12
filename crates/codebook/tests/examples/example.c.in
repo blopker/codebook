@@ -1,0 +1,44 @@
+int @@calculatr@@(int @@numbr@@1, int @@numbr@@2, char @@operashun@@) {
+    // This is an @@exampl@@ function that @@performz@@ @@calculashuns@@
+    int @@resalt@@ = 0;
+    int @@misspellled@@;
+    return resalt + misspellled;
+}
+
+#define @@MACROCONST@@ 3
+#define @@MACROFUNC@@(@@macroparam@@) macroparam + 1
+
+typedef int @@Mispelll@@;
+
+union @@myunion@@ { int int_val; };
+
+enum @@Colrs@@ { @@Grean@@ };
+
+struct User@@Accaunt@@ {
+    char* @@usrrnamee@@;
+    int @@ballancee@@;
+    float @@intrest@@_rate;
+};
+
+void foo() {
+    int @@arrayy@@[3];
+    int* @@pointerr@@;
+    int* @@pointerrarray@@[3];
+    enum Colrs @@colorr@@;
+    union myunion @@unionn@@;
+    struct UserAccaunt @@userr@@;
+}
+
+void bar() {
+    int @@arrayyy@@[3] = {};
+    int* @@pointerrr@@ = NULL;
+    int* @@pointerrarrayy@@[3] = {};
+    enum Colrs @@colorrr@@ = Grean;
+    union myunion @@unionnn@@ = {};
+    struct UserAccaunt @@userrr@@ = {};
+
+    const char* str1 = "@@aaaa@@ @@bbbb@@";
+    str1 = "@@cccc@@" "valid string" "@@dddd@@";
+    printf("I'm a multi line @@stringg@@\n"
+            "@@withh@@\n@@yyy@@");
+}

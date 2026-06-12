@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use codebook::Codebook;
+use codebook::{Codebook, parser::WordLocation, queries::LanguageType};
 use codebook_config::{CodebookConfig, CodebookConfigMemory};
 
 pub fn get_processor() -> Codebook {
@@ -40,4 +40,16 @@ pub fn get_processor_with_tags(include_tags: Vec<&str>, exclude_tags: Vec<&str>)
 
 pub fn init_logging() {
     let _ = env_logger::builder().is_test(true).try_init();
+}
+
+pub fn get_sorted_misspellings(
+    content: &str,
+    processor: Codebook,
+    language: LanguageType,
+) -> Vec<WordLocation> {
+    let mut misspellings = processor
+        .spell_check(content, Some(language), None)
+        .to_vec();
+    misspellings.sort_by(|w1, w2| w1.word.cmp(&w2.word));
+    misspellings
 }
