@@ -18,9 +18,11 @@
 (assignment_statement
   (expression) @identifier.variable ":=")
 (const_declaration
-  (expression)+ @identifier.constant)
+  (expression)+ @identifier.constant
+  "::")
 (const_type_declaration
-  (expression)+ @identifier.constant)
+  (expression)+ @identifier.constant
+  ":")
 
 ; Struct, enum, union, bit_fields names
 (struct_declaration
