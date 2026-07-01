@@ -30,7 +30,7 @@ pub trait CodebookConfig: Sync + Send + Debug {
     fn should_include_path(&self, path: &Path) -> bool;
     fn is_allowed_word(&self, word: &str) -> bool;
     fn should_flag_word(&self, word: &str) -> bool;
-    fn get_ignore_patterns(&self) -> Option<Vec<Regex>>;
+    fn get_ignore_patterns(&self) -> Vec<Regex>;
     fn get_min_word_length(&self) -> usize;
     fn should_check_tag(&self, tag: &str) -> bool;
     fn cache_dir(&self) -> &Path;
@@ -51,8 +51,8 @@ struct ConfigInner {
     global_config: WatchedFile<ConfigSettings>,
     /// Current snapshot
     snapshot: Arc<ConfigSettings>,
-    /// Compiled regex patterns cache
-    regex_cache: Option<Vec<Regex>>,
+    /// Ignore regexes compiled from the snapshot, rebuilt whenever it changes
+    ignore_regexes: Vec<Regex>,
 }
 
 #[derive(Debug)]
@@ -69,7 +69,7 @@ impl Default for CodebookConfigFile {
             project_config: WatchedFile::new(None),
             global_config: WatchedFile::new(None),
             snapshot: Arc::new(ConfigSettings::default()),
-            regex_cache: None,
+            ignore_regexes: Vec::new(),
         };
 
         Self {
@@ -193,9 +193,7 @@ impl CodebookConfigFile {
         }
 
         // Calculate initial effective settings
-        let effective =
-            Self::calculate_effective_settings(&inner.project_config, &inner.global_config);
-        inner.snapshot = Arc::new(effective);
+        Self::rebuild_snapshot(&mut inner);
 
         drop(inner);
         Ok(config)
@@ -343,10 +341,7 @@ impl CodebookConfigFile {
 
         // Recalculate effective settings if anything changed
         if changed {
-            let effective =
-                Self::calculate_effective_settings(&inner.project_config, &inner.global_config);
-            inner.snapshot = Arc::new(effective);
-            inner.regex_cache = None; // Invalidate regex cache
+            Self::rebuild_snapshot(&mut inner);
         }
 
         Ok(changed)
@@ -443,8 +438,8 @@ impl CodebookConfigFile {
     fn rebuild_snapshot(inner: &mut ConfigInner) {
         let effective =
             Self::calculate_effective_settings(&inner.project_config, &inner.global_config);
+        inner.ignore_regexes = helpers::build_ignore_regexes(&effective.ignore_patterns);
         inner.snapshot = Arc::new(effective);
-        inner.regex_cache = None;
     }
 
     fn update_project_settings<F>(&self, update: F) -> bool
@@ -538,15 +533,10 @@ impl CodebookConfig for CodebookConfigFile {
         snapshot.should_flag_word(word)
     }
 
-    /// Get the list of user-defined ignore patterns
-    fn get_ignore_patterns(&self) -> Option<Vec<Regex>> {
-        let mut inner = self.inner.write().unwrap();
-        if inner.regex_cache.is_none() {
-            let regex_set = helpers::build_ignore_regexes(&inner.snapshot.ignore_patterns);
-            inner.regex_cache = Some(regex_set);
-        }
-
-        inner.regex_cache.clone()
+    /// Get the list of user-defined ignore patterns, compiled when the
+    /// snapshot was last rebuilt. Regex clones are cheap (internally Arc'd).
+    fn get_ignore_patterns(&self) -> Vec<Regex> {
+        self.inner.read().unwrap().ignore_regexes.clone()
     }
 
     /// Get the minimum word length which should be checked
@@ -655,9 +645,8 @@ impl CodebookConfig for CodebookConfigMemory {
         snapshot.should_flag_word(word)
     }
 
-    fn get_ignore_patterns(&self) -> Option<Vec<Regex>> {
-        let snapshot = self.snapshot();
-        Some(helpers::build_ignore_regexes(&snapshot.ignore_patterns))
+    fn get_ignore_patterns(&self) -> Vec<Regex> {
+        helpers::build_ignore_regexes(&self.settings.read().unwrap().ignore_patterns)
     }
 
     fn get_min_word_length(&self) -> usize {
@@ -694,35 +683,14 @@ mod tests {
         let config = CodebookConfigFile::default();
         let mut inner = config.inner.write().unwrap();
 
-        match config_type {
-            ConfigType::Project => {
-                if let Ok(settings) = CodebookConfigFile::load_settings_from_file(&path) {
-                    let mut project_config = WatchedFile::new(Some(path.as_ref().to_path_buf()));
-                    project_config = project_config.with_content_value(settings);
-                    inner.project_config = project_config;
-
-                    // Recalculate effective settings
-                    let effective = CodebookConfigFile::calculate_effective_settings(
-                        &inner.project_config,
-                        &inner.global_config,
-                    );
-                    inner.snapshot = Arc::new(effective);
-                }
+        if let Ok(settings) = CodebookConfigFile::load_settings_from_file(&path) {
+            let mut watched = WatchedFile::new(Some(path.as_ref().to_path_buf()));
+            watched = watched.with_content_value(settings);
+            match config_type {
+                ConfigType::Project => inner.project_config = watched,
+                ConfigType::Global => inner.global_config = watched,
             }
-            ConfigType::Global => {
-                if let Ok(settings) = CodebookConfigFile::load_settings_from_file(&path) {
-                    let mut global_config = WatchedFile::new(Some(path.as_ref().to_path_buf()));
-                    global_config = global_config.with_content_value(settings);
-                    inner.global_config = global_config;
-
-                    // Recalculate effective settings
-                    let effective = CodebookConfigFile::calculate_effective_settings(
-                        &inner.project_config,
-                        &inner.global_config,
-                    );
-                    inner.snapshot = Arc::new(effective);
-                }
-            }
+            CodebookConfigFile::rebuild_snapshot(&mut inner);
         }
 
         drop(inner);
@@ -826,9 +794,7 @@ mod tests {
         let patterns = config.snapshot().ignore_patterns.clone();
         assert!(patterns.contains(&String::from("^[ATCG]+$")));
         assert!(patterns.contains(&String::from("\\d{3}-\\d{2}-\\d{4}")));
-        let reg = config.get_ignore_patterns();
-
-        let patterns = reg.as_ref().unwrap();
+        let patterns = config.get_ignore_patterns();
         assert!(patterns.len() == 2);
         Ok(())
     }
@@ -850,7 +816,7 @@ mod tests {
         )?;
 
         let config = load_from_file(ConfigType::Project, &config_path)?;
-        assert!(config.get_ignore_patterns().unwrap().len() == 1);
+        assert!(config.get_ignore_patterns().len() == 1);
 
         // Update config with new pattern
         let mut file = File::create(&config_path)?;
@@ -864,7 +830,7 @@ mod tests {
 
         // Reload and verify both patterns work
         config.reload()?;
-        assert!(config.get_ignore_patterns().unwrap().len() == 2);
+        assert!(config.get_ignore_patterns().len() == 2);
 
         // Update config to remove all patterns
         let mut file = File::create(&config_path)?;
@@ -877,7 +843,7 @@ mod tests {
 
         // Reload and verify no patterns match
         config.reload()?;
-        assert!(config.get_ignore_patterns().unwrap().is_empty());
+        assert!(config.get_ignore_patterns().is_empty());
 
         Ok(())
     }
