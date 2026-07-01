@@ -2,6 +2,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
+/// Snapshot of a file's change-detection metadata; None if the file is inaccessible.
+fn disk_meta(path: &Path) -> Option<(Option<SystemTime>, u64)> {
+    fs::metadata(path)
+        .ok()
+        .map(|m| (m.modified().ok(), m.len()))
+}
+
 /// Simple immutable file watcher that tracks changes and loads content on demand
 #[derive(Debug, Clone)]
 pub struct WatchedFile<T: Clone> {
@@ -28,24 +35,25 @@ impl<T: Clone> WatchedFile<T> {
     }
 
     /// Check if the file has changed since last check
+    #[cfg(test)]
     pub fn has_changed(&self) -> bool {
         let Some(path) = &self.path else {
             return false;
         };
+        self.meta_differs(&disk_meta(path))
+    }
 
-        match fs::metadata(path) {
-            Ok(metadata) => {
-                let modified = metadata.modified().ok();
-                let size = metadata.len();
-
+    /// Compare previously recorded metadata against a fresh disk snapshot.
+    fn meta_differs(&self, meta: &Option<(Option<SystemTime>, u64)>) -> bool {
+        match meta {
+            Some((modified, size)) => {
                 // If we have no previous state, consider it changed
                 if self.last_modified.is_none() && self.last_size.is_none() {
                     return true;
                 }
-
-                modified != self.last_modified || Some(size) != self.last_size
+                *modified != self.last_modified || Some(*size) != self.last_size
             }
-            Err(_) => {
+            None => {
                 // File doesn't exist or is inaccessible
                 // Consider it changed if we previously had content
                 self.last_modified.is_some() || self.last_size.is_some()
@@ -63,9 +71,12 @@ impl<T: Clone> WatchedFile<T> {
             .as_ref()
             .ok_or_else(|| "No path configured for watched file".to_string())?;
 
-        if self.content.is_none() || self.has_changed() {
+        // Stat before reading: if a write races the read, the stamp stays older
+        // than the file and the next check reloads, instead of missing the write.
+        let meta = disk_meta(path);
+        if self.content.is_none() || self.meta_differs(&meta) {
             let content = loader(path)?;
-            Ok(self.with_content(content))
+            Ok(self.with_content_meta(content, meta))
         } else {
             Ok(self)
         }
@@ -77,21 +88,32 @@ impl<T: Clone> WatchedFile<T> {
     where
         F: FnOnce(&Path) -> Result<T, String>,
     {
-        if !self.has_changed() {
-            return Ok((self, false));
-        }
-
         let path = self
             .path
             .as_ref()
             .ok_or_else(|| "No path configured for watched file".to_string())?;
 
-        // Try to load the file
+        // Stat before reading (see load() for why)
+        let meta = disk_meta(path);
+        if !self.meta_differs(&meta) {
+            return Ok((self, false));
+        }
+
         match loader(path) {
-            Ok(content) => Ok((self.with_content(content), true)),
-            Err(_) => {
-                // File might be deleted or unreadable, clear the content
+            Ok(content) => Ok((self.with_content_meta(content, meta), true)),
+            Err(_) if meta.is_none() => {
+                // File was deleted, clear the content
                 Ok((self.cleared(), true))
+            }
+            Err(e) => {
+                // File exists but is unreadable or invalid (e.g. mid-edit TOML).
+                // Keep the last good content; the stale stamp means we retry on
+                // the next reload.
+                log::warn!(
+                    "Keeping previous config for {}: {e}",
+                    path.display()
+                );
+                Ok((self, false))
             }
         }
     }
@@ -103,19 +125,29 @@ impl<T: Clone> WatchedFile<T> {
 
     /// Replace the content without reloading from file
     pub fn with_content_value(self, content: T) -> Self {
-        self.with_content(content)
+        let meta = self.path.as_deref().and_then(disk_meta);
+        self.with_content_meta(content, meta)
     }
 
-    /// Private: Create a new instance with updated content and file metadata
-    fn with_content(self, content: T) -> Self {
-        let (last_modified, last_size) = if let Some(path) = &self.path {
-            if let Ok(metadata) = fs::metadata(path) {
-                (metadata.modified().ok(), Some(metadata.len()))
-            } else {
-                (None, None)
-            }
-        } else {
-            (None, None)
+    /// Refresh the change-detection stamp from disk, keeping the current content.
+    /// Call after writing the file so the write isn't detected as an external change.
+    pub fn restamped(self) -> Self {
+        let (last_modified, last_size) = match self.path.as_deref().and_then(disk_meta) {
+            Some((modified, size)) => (modified, Some(size)),
+            None => (None, None),
+        };
+        Self {
+            last_modified,
+            last_size,
+            ..self
+        }
+    }
+
+    /// Private: Create a new instance with updated content and the given file metadata
+    fn with_content_meta(self, content: T, meta: Option<(Option<SystemTime>, u64)>) -> Self {
+        let (last_modified, last_size) = match meta {
+            Some((modified, size)) => (modified, Some(size)),
+            None => (None, None),
         };
 
         Self {

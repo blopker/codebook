@@ -121,9 +121,11 @@ impl CodebookConfigFile {
         let config = Self::default();
         let mut inner = config.inner.write().unwrap();
 
-        // First, try to load global config
+        // First, try to load global config. Expand tildes here so loading and
+        // saving agree on the real path; a `~` taken literally would make the
+        // existing config invisible and let a later save overwrite it.
         let global_config_path = match global_config_override {
-            Some(path) => Some(path.to_path_buf()),
+            Some(path) => Some(expand_tilde(&path).unwrap_or(path)),
             None => Self::find_global_config_path(),
         };
 
@@ -149,7 +151,7 @@ impl CodebookConfigFile {
 
         // Then resolve the project config path: use the override if provided,
         // otherwise search up from start_dir.
-        let project_path = match project_config_override {
+        let project_path = match project_config_override.map(|p| expand_tilde(&p).unwrap_or(p)) {
             Some(override_path) => {
                 if override_path.exists() {
                     Some(override_path)
@@ -203,7 +205,9 @@ impl CodebookConfigFile {
         // On Linux/macOS XDG_CONFIG_HOME, fallback to ~/.config
         if cfg!(unix) {
             // First try XDG_CONFIG_HOME environment variable (Linux/macOS)
-            if let Ok(xdg_config_home) = env::var("XDG_CONFIG_HOME") {
+            if let Ok(xdg_config_home) = env::var("XDG_CONFIG_HOME")
+                && !xdg_config_home.is_empty()
+            {
                 let path = PathBuf::from(xdg_config_home)
                     .join("codebook")
                     .join(GLOBAL_CONFIG_FILE);
@@ -350,67 +354,38 @@ impl CodebookConfigFile {
 
     /// Save the project configuration to its file
     pub fn save(&self) -> Result<(), io::Error> {
-        let inner = self.inner.read().unwrap();
-
-        let project_config_path = match inner.project_config.path() {
-            Some(path) => path.to_path_buf(),
-            None => return Ok(()),
-        };
-
-        let settings = match inner.project_config.content() {
-            Some(settings) => settings,
-            None => return Ok(()),
-        };
-
-        let content = toml::to_string_pretty(settings).map_err(io::Error::other)?;
-        info!(
-            "Saving project configuration to {}",
-            project_config_path.display()
-        );
-        if let Some(parent) = project_config_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        fs::write(&project_config_path, content)
+        let mut inner = self.inner.write().unwrap();
+        let watched = &inner.project_config;
+        Self::save_watched(watched, "project")?;
+        inner.project_config = inner.project_config.clone().restamped();
+        Ok(())
     }
 
     /// Save the global configuration to its file
     pub fn save_global(&self) -> Result<(), io::Error> {
-        let inner = self.inner.read().unwrap();
+        let mut inner = self.inner.write().unwrap();
+        let watched = &inner.global_config;
+        Self::save_watched(watched, "global")?;
+        inner.global_config = inner.global_config.clone().restamped();
+        Ok(())
+    }
 
-        let global_config_path = match inner.global_config.path() {
-            Some(path) => path.to_path_buf(),
-            None => return Ok(()),
+    /// Write a watched config's content to its file. The caller must restamp
+    /// the watched file afterwards so the write isn't seen as an external change.
+    fn save_watched(watched: &WatchedFile<ConfigSettings>, label: &str) -> Result<(), io::Error> {
+        let Some(path) = watched.path() else {
+            return Ok(());
         };
-
-        #[cfg(not(windows))]
-        let global_config_path = match expand_tilde(&global_config_path) {
-            Some(p) => p,
-            None => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    format!(
-                        "Failed to expand tilde in path: {}",
-                        global_config_path.display()
-                    ),
-                ));
-            }
-        };
-
-        let settings = match inner.global_config.content() {
-            Some(settings) => settings,
-            None => return Ok(()),
+        let Some(settings) = watched.content() else {
+            return Ok(());
         };
 
         let content = toml::to_string_pretty(settings).map_err(io::Error::other)?;
-        info!(
-            "Saving global configuration to {}",
-            global_config_path.display()
-        );
-        // Create parent directories if they don't exist
-        if let Some(parent) = global_config_path.parent() {
+        info!("Saving {label} configuration to {}", path.display());
+        if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        fs::write(&global_config_path, content)
+        fs::write(path, content)
     }
     /// Clean the cache directory
     pub fn clean_cache(&self) {
@@ -1588,6 +1563,81 @@ mod tests {
         assert!(resolved.is_some());
         assert!(resolved.unwrap().is_allowed_word("markdown"));
 
+        Ok(())
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn test_tilde_in_global_override_is_expanded_at_load() -> Result<(), io::Error> {
+        let temp_dir = TempDir::new().unwrap();
+
+        let config = CodebookConfigFile::load_with_overrides(
+            Some(temp_dir.path()),
+            Some(PathBuf::from("~/nonexistent-codebook-test/codebook.toml")),
+            None,
+        )?;
+
+        // The stored path must be the real home path, so load and save agree
+        let global_path = config.global_config_path().unwrap();
+        let home = dirs::home_dir().unwrap();
+        assert!(
+            global_path.starts_with(&home),
+            "expected {} to start with {}",
+            global_path.display(),
+            home.display()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_reload_keeps_config_on_parse_error() -> Result<(), io::Error> {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("codebook.toml");
+        fs::write(&config_path, r#"words = ["frobnicate"]"#)?;
+
+        // Point the global config into the temp dir so a real user config
+        // can't leak into the test.
+        let config = CodebookConfigFile::load_with_overrides(
+            Some(temp_dir.path()),
+            Some(temp_dir.path().join("global.toml")),
+            None,
+        )?;
+        assert!(config.is_allowed_word("frobnicate"));
+
+        // Simulate a mid-edit save of broken TOML
+        fs::write(&config_path, r#"words = [invalid !!! toml"#)?;
+        assert!(!config.reload()?, "parse error should not count as a change");
+        assert!(
+            config.is_allowed_word("frobnicate"),
+            "last good config should survive a parse error"
+        );
+
+        // Once the file is valid again, the reload picks it up
+        fs::write(&config_path, r#"words = ["frobnicate", "fixed"]"#)?;
+        assert!(config.reload()?);
+        assert!(config.is_allowed_word("fixed"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_save_does_not_trigger_spurious_reload() -> Result<(), io::Error> {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("codebook.toml");
+        fs::write(&config_path, r#"words = ["zebra"]"#)?;
+
+        let config = CodebookConfigFile::load_with_overrides(
+            Some(temp_dir.path()),
+            Some(temp_dir.path().join("global.toml")),
+            None,
+        )?;
+
+        config.add_word("frobnicate").unwrap();
+        config.save()?;
+
+        // Our own save must not read back as an external change
+        assert!(!config.reload()?);
+        assert!(config.is_allowed_word("frobnicate"));
+        assert!(config.is_allowed_word("zebra"));
         Ok(())
     }
 }
