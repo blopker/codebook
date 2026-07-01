@@ -20,13 +20,10 @@ path = "src/main.rs"
 
 [dependencies]
 env_logger.workspace = true
-fs2.workspace = true
 lazy_static.workspace = true
 log.workspace = true
 lru.workspace = true
 regex.workspace = true
-serde.workspace = true
-serde_json.workspace = true
 spellbook.workspace = true
 streaming-iterator.workspace = true
 tree-sitter-bash.workspace = true
