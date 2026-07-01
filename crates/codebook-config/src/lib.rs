@@ -110,6 +110,14 @@ impl CodebookConfigFile {
         global_config_override: Option<PathBuf>,
         project_config_override: Option<PathBuf>,
     ) -> Result<Self, io::Error> {
+        // Canonicalize so a relative start_dir (like the CLI's default ".") can
+        // walk up past the current directory: Path::new(".").parent() is ""
+        // and then None, so the search would never reach real parent folders.
+        let start_dir = start_dir
+            .canonicalize()
+            .unwrap_or_else(|_| start_dir.to_path_buf());
+        let start_dir = start_dir.as_path();
+
         let config = Self::default();
         let mut inner = config.inner.write().unwrap();
 
@@ -921,8 +929,33 @@ mod tests {
         let config = CodebookConfigFile::load_configs(&sub_sub_dir, None, None)?;
         assert!(config.snapshot().words.contains(&"testword".to_string()));
 
-        // Check that the config file path is stored
-        assert_eq!(config.project_config_path(), Some(config_path));
+        // Check that the config file path is stored (canonicalized, since
+        // load_configs resolves symlinks like macOS's /var -> /private/var)
+        assert_eq!(config.project_config_path(), Some(config_path.canonicalize()?));
+        Ok(())
+    }
+
+    #[test]
+    fn test_config_recursive_search_from_relative_dir() -> Result<(), io::Error> {
+        let temp_dir = TempDir::new().unwrap();
+        let sub_dir = temp_dir.path().join("sub");
+        fs::create_dir_all(&sub_dir)?;
+
+        let config_path = temp_dir.path().join("codebook.toml");
+        fs::write(&config_path, r#"words = ["parentword"]"#)?;
+
+        // Search up from "." like the CLI does when no --root is given.
+        let original_dir = env::current_dir()?;
+        env::set_current_dir(&sub_dir)?;
+        let result = CodebookConfigFile::load_configs(Path::new("."), None, None);
+        env::set_current_dir(original_dir)?;
+
+        let config = result?;
+        assert!(config.is_allowed_word("parentword"));
+        assert_eq!(
+            config.project_config_path(),
+            Some(temp_dir.path().canonicalize()?.join("codebook.toml"))
+        );
         Ok(())
     }
 
