@@ -5,7 +5,7 @@ mod lsp;
 mod lsp_logger;
 
 use clap::{Parser, Subcommand};
-use codebook_config::CodebookConfigFile;
+use codebook_config::{CodebookConfig, CodebookConfigFile};
 use log::{LevelFilter, debug, info};
 use lsp::Backend;
 use lsp_logger::LspLogger;
@@ -42,6 +42,15 @@ enum Commands {
         /// Show spelling suggestions for each misspelled word
         #[arg(short = 's', long)]
         suggest: bool,
+    },
+    /// Add words to the dictionary
+    Add {
+        /// Words to add to the allowlist
+        #[arg(required = true)]
+        words: Vec<String>,
+        /// Add to the global config instead of the project config
+        #[arg(short, long)]
+        global: bool,
     },
 }
 
@@ -87,8 +96,49 @@ async fn main() {
             };
             std::process::exit(code);
         }
+        Some(Commands::Add { words, global }) => {
+            if let Err(e) = add_words(root, words, *global) {
+                eprintln!("error: {e}");
+                std::process::exit(2);
+            }
+        }
         None => {}
     }
+}
+
+/// Adds words to the project (or global) config's allowlist and saves the file,
+/// creating it if it doesn't exist yet.
+fn add_words(root: &Path, words: &[String], global: bool) -> Result<(), std::io::Error> {
+    let config = CodebookConfigFile::load(Some(root))?;
+    let mut added = 0;
+    for word in words {
+        let inserted = if global {
+            config.add_word_global(word)?
+        } else {
+            config.add_word(word)?
+        };
+        if inserted {
+            added += 1;
+        } else {
+            println!("'{word}' is already in the dictionary");
+        }
+    }
+
+    if added == 0 {
+        return Ok(());
+    }
+    let path = if global {
+        config.save_global()?;
+        config.global_config_path()
+    } else {
+        config.save()?;
+        config.project_config_path()
+    };
+    match path {
+        Some(p) => println!("Added {added} word(s) to {}", p.display()),
+        None => println!("Added {added} word(s)"),
+    }
+    Ok(())
 }
 
 async fn serve_lsp(root: &Path) {
