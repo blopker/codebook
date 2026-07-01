@@ -3,14 +3,66 @@ use codebook_config::{CodebookConfig, CodebookConfigFile};
 use globset::Glob;
 use ignore::WalkBuilder;
 use std::collections::HashSet;
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use string_offsets::{AllConfig, StringOffsets};
 
 macro_rules! err {
     ($($arg:tt)*) => {
-        eprintln!("error: {}", format_args!($($arg)*))
+        eprintln!("{} {}", Paint::stderr().red("error:"), format_args!($($arg)*))
     };
+}
+
+/// Minimal ANSI styling without a dependency. Enabled per stream only when it
+/// is a terminal and the NO_COLOR convention (https://no-color.org) is unset.
+#[derive(Clone, Copy)]
+struct Paint(bool);
+
+impl Paint {
+    fn stdout() -> Self {
+        Self(color_allowed() && std::io::stdout().is_terminal())
+    }
+
+    fn stderr() -> Self {
+        Self(color_allowed() && std::io::stderr().is_terminal())
+    }
+
+    fn wrap(self, code: &str, text: &str) -> String {
+        if self.0 {
+            format!("\x1b[{code}m{text}\x1b[0m")
+        } else {
+            text.to_string()
+        }
+    }
+
+    fn bold(self, text: &str) -> String {
+        self.wrap("1", text)
+    }
+
+    fn dim(self, text: &str) -> String {
+        self.wrap("2", text)
+    }
+
+    fn red(self, text: &str) -> String {
+        self.wrap("31", text)
+    }
+
+    fn red_bold(self, text: &str) -> String {
+        self.wrap("1;31", text)
+    }
+
+    fn green(self, text: &str) -> String {
+        self.wrap("32", text)
+    }
+
+    fn cyan(self, text: &str) -> String {
+        self.wrap("36", text)
+    }
+}
+
+fn color_allowed() -> bool {
+    std::env::var_os("NO_COLOR").is_none_or(|v| v.is_empty())
 }
 
 /// Result of a lint run, mapped to exit codes by the caller.
@@ -82,8 +134,15 @@ pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> L
             continue;
         }
 
-        let (errors, file_failure) =
-            check_file(path, &relative, &codebook, &mut seen_words, unique, suggest);
+        let (errors, file_failure) = check_file(
+            path,
+            &relative,
+            &codebook,
+            &mut seen_words,
+            unique,
+            suggest,
+            Paint::stdout(),
+        );
         had_failure |= file_failure;
         if errors > 0 {
             total_errors += errors;
@@ -94,12 +153,17 @@ pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> L
     let total = resolved.len();
     let checked = total - ignored - excluded;
     let unique_label = if unique { "unique " } else { "" };
+    let paint = Paint::stderr();
     eprintln!(
         "Out of {total} total file(s), checked {checked}, ignored {ignored}, and excluded {excluded}."
     );
-    eprintln!(
-        "Found {total_errors} {unique_label}spelling error(s) in {files_with_errors} file(s)."
-    );
+    let summary =
+        format!("Found {total_errors} {unique_label}spelling error(s) in {files_with_errors} file(s).");
+    if total_errors > 0 {
+        eprintln!("{}", paint.red(&summary));
+    } else {
+        eprintln!("{}", paint.green(&summary));
+    }
 
     if had_failure {
         LintResult::Failure
@@ -122,6 +186,7 @@ fn check_file(
     seen_words: &mut HashSet<String>,
     unique: bool,
     suggest: bool,
+    paint: Paint,
 ) -> (usize, bool) {
     let text = match std::fs::read_to_string(path) {
         Ok(t) => t,
@@ -194,13 +259,15 @@ fn check_file(
 
     let pad_len = hits.iter().map(|(lc, _, _)| lc.len()).max().unwrap_or(0);
 
-    println!("{display}");
+    println!("{}", paint.bold(display));
     for (linecol, word, suggestions) in &hits {
         let pad = " ".repeat(pad_len - linecol.len());
+        let loc = paint.dim(&format!("{display}:{linecol}"));
+        let word = paint.red_bold(word);
         if let Some(s) = suggestions {
-            println!("  {display}:{linecol}{pad}  {word}  -> {}", s.join(", "));
+            println!("  {loc}{pad}  {word}  -> {}", paint.cyan(&s.join(", ")));
         } else {
-            println!("  {display}:{linecol}{pad}  {word}");
+            println!("  {loc}{pad}  {word}");
         }
     }
     println!();
@@ -218,7 +285,10 @@ fn print_config_source(config: &CodebookConfigFile) {
         (Some(p), _) => ("using config", p),
         (None, Some(g)) => ("using global config", g),
         (None, None) => {
-            eprintln!("No config found, using default config");
+            eprintln!(
+                "{}",
+                Paint::stderr().dim("No config found, using default config")
+            );
             return;
         }
     };
@@ -227,7 +297,7 @@ fn print_config_source(config: &CodebookConfigFile) {
         .unwrap_or(&path)
         .display()
         .to_string();
-    eprintln!("{label} {display}");
+    eprintln!("{}", Paint::stderr().dim(&format!("{label} {display}")));
 }
 
 /// Resolves a mix of file paths, directories, and glob patterns into a sorted,
@@ -354,14 +424,14 @@ mod tests {
         let mut seen = HashSet::new();
 
         // Test basic flagging and multi-occurrence counting
-        let (count, err) = check_file(&f, "test.txt", &cb, &mut seen, false, false);
+        let (count, err) = check_file(&f, "test.txt", &cb, &mut seen, false, false, Paint(false));
         assert_eq!(count, 2);
         assert!(!err);
 
         // Test unique mode
         let mut seen_unique = HashSet::new();
-        let (c1, _) = check_file(&f, "f1.txt", &cb, &mut seen_unique, true, false);
-        let (c2, _) = check_file(&f, "f2.txt", &cb, &mut seen_unique, true, false);
+        let (c1, _) = check_file(&f, "f1.txt", &cb, &mut seen_unique, true, false, Paint(false));
+        let (c2, _) = check_file(&f, "f2.txt", &cb, &mut seen_unique, true, false, Paint(false));
         assert_eq!(c1, 1, "Should flag word once");
         assert_eq!(c2, 0, "Should skip already-seen word in second file");
 
@@ -373,6 +443,7 @@ mod tests {
             &mut seen,
             false,
             false,
+            Paint(false),
         );
         assert!(err_io);
     }
