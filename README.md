@@ -248,6 +248,16 @@ codebook-lsp lint --unique src/
 
 The exit code is **0** if all files are clean, **1** if any spelling errors are found, and **2** if there were unreadable files, invalid UTF-8, etc.
 
+You can also add words to the dictionary from the command line, the same way the "Add to dictionary" editor action does:
+
+```sh
+# Add words to the project config (codebook.toml), creating it if needed
+codebook-lsp add combobulate frobnicate
+
+# Add words to the global config instead
+codebook-lsp add --global combobulate
+```
+
 ## Configuration
 
 Codebook supports both global and project-specific configuration. Configuration files use the TOML format, with project settings overriding global ones.

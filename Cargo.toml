@@ -4,7 +4,6 @@ members = [
   "crates/codebook-config",
   "crates/codebook-lsp",
   "crates/downloader",
-  "crates/dictionary-builder",
 ]
 resolver = "2"
 
@@ -27,8 +26,6 @@ chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5.26", features = ["derive"] }
 dirs = "6.0.0"
 env_logger = "0.11.6"
-fs2 = "0.4"
-git2 = "0.20.0"
 glob = "0.3"
 globset = "0.4"
 ignore = "0.4"
@@ -52,12 +49,9 @@ spellbook = "<0.5.0"
 streaming-iterator = "0.1.9"
 string-offsets = "0.2.0"
 tempfile = "3"
-thiserror = "2.0.12"
 tokio = { version = "1", features = ["full"] }
 toml = "<2"
 tower-lsp = "0.20.0"
-tracing = "0.1.37"
-tracing-subscriber = "0.3.17"
 tree-sitter = "<0.27.0"
 tree-sitter-bash = "<0.26.0"
 tree-sitter-c = "<0.25.0"
@@ -92,8 +86,6 @@ codebook-tree-sitter-typst = "<0.13.0"
 unicase = "2.9"
 unicode-script = "0.5.8"
 unicode-segmentation = "1.12.0"
-url = "2.4.0"
-walkdir = "2.3.3"
 
 pprof = { version = "0.15", features = ["flamegraph"] }
 

@@ -19,7 +19,6 @@ httpmock.workspace = true
 anyhow.workspace = true
 base16ct.workspace = true
 chrono.workspace = true
-env_logger.workspace = true
 log.workspace = true
 reqwest.workspace = true
 rustls.workspace = true

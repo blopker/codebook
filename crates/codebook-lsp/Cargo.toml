@@ -24,8 +24,6 @@ path = "src/lib.rs"
 
 [dependencies]
 clap.workspace = true
-env_logger.workspace = true
-fs2.workspace = true
 log.workspace = true
 lru.workspace = true
 globset.workspace = true
@@ -33,15 +31,11 @@ ignore.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 string-offsets.workspace = true
-streaming-iterator.workspace = true
 tokio = { workspace = true, features = ["sync", "rt"] }
 tower-lsp.workspace = true
 
 codebook = { workspace = true }
 codebook_config = { workspace = true }
-
-[build-dependencies]
-cc = "1.0"
 
 [dev-dependencies]
 tempfile.workspace = true

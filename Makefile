@@ -41,12 +41,6 @@ benchmark:
 	cd crates/codebook && cargo build --release
 	./target/release/codebook --benchmark
 
-build-dictionaries:
-	cargo run -p dictionary-builder -- build
-
-generate-manifest:
-	cargo run -p dictionary-builder -- generate-manifest
-
 publish_crates:
 	# 1. First, publish the codebook-config crate
 	-cargo publish -p codebook_config
