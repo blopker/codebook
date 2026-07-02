@@ -3,7 +3,6 @@ use codebook::{
     queries::LanguageType,
 };
 
-
 #[test]
 fn test_typst_locations() {
     let sample_text = r#"

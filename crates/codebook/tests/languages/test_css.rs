@@ -3,7 +3,6 @@ use codebook::{
     queries::LanguageType,
 };
 
-
 #[test]
 fn test_css_location() {
     super::utils::init_logging();

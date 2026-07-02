@@ -3,7 +3,6 @@ use codebook::{
     queries::LanguageType,
 };
 
-
 #[test]
 fn test_yaml_simple() {
     super::utils::init_logging();

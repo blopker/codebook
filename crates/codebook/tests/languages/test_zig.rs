@@ -1,6 +1,5 @@
 use codebook::queries::LanguageType;
 
-
 #[test]
 fn test_zig_simple() {
     super::utils::init_logging();

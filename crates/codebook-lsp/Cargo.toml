@@ -39,3 +39,5 @@ codebook_config = { workspace = true }
 
 [dev-dependencies]
 tempfile.workspace = true
+# Deny unexpected network access in test builds
+codebook_downloader = { workspace = true, features = ["deny-network"] }

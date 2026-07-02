@@ -3,7 +3,6 @@ use codebook::{
     queries::LanguageType,
 };
 
-
 fn example_file_path(file: &str) -> String {
     // get root of the project through CARGO_MANIFEST_DIR
     format!("tests/examples/{file}")

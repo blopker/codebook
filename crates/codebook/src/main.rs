@@ -27,6 +27,20 @@ fn main() {
         return;
     }
 
+    // --fetch-fixtures <dir>: download the dictionaries the test suite needs
+    // into a fixtures directory, so `cargo test` can run without network.
+    if args.contains(&"--fetch-fixtures".to_string()) {
+        let dir = args
+            .windows(2)
+            .find(|w| w[0] == "--fetch-fixtures")
+            .map(|w| w[1].clone());
+        match dir {
+            Some(dir) => fetch_fixtures(Path::new(&dir)),
+            None => eprintln!("Usage: codebook --fetch-fixtures <dir>"),
+        }
+        return;
+    }
+
     let config = Arc::new(codebook_config::CodebookConfigFile::load(None).unwrap());
     let processor = Codebook::new(config).unwrap();
 
@@ -58,6 +72,55 @@ fn main() {
     let results = processor.spell_check_file(path.to_str().unwrap());
     println!("Misspelled words: {results:?}");
     println!("Done");
+}
+
+/// Download every dictionary the test suite can load — the default set plus
+/// each supported language's word lists — and copy them into `dir` as
+/// `{id}.txt` or `{id}.aff`/`{id}.dic`, the layout DictionaryManager's local
+/// directory resolution expects.
+fn fetch_fixtures(dir: &Path) {
+    use codebook::dictionaries::repo::{DictionaryRepo, get_repo};
+    use codebook::queries::LANGUAGE_SETTINGS;
+    use codebook_downloader::Downloader;
+
+    std::fs::create_dir_all(dir).unwrap();
+    let mut ids: Vec<&str> = vec!["en_us"];
+    ids.extend(codebook::DEFAULT_DICTIONARIES.iter().copied());
+    for setting in LANGUAGE_SETTINGS {
+        ids.extend(setting.dictionary_ids.iter().copied());
+    }
+    ids.sort();
+    ids.dedup();
+
+    // Reuse the real cache so already-downloaded dictionaries aren't re-fetched
+    use codebook_config::CodebookConfig as _;
+    let cache_dir = codebook_config::CodebookConfigMemory::default()
+        .cache_dir()
+        .to_path_buf();
+    let downloader = Downloader::new(&cache_dir);
+    let mut fetch = |url: &str, target: &Path| match downloader.get(url) {
+        Ok(path) => {
+            std::fs::copy(&path, target).unwrap();
+            println!("Fetched {}", target.display());
+        }
+        Err(e) => eprintln!("Failed to fetch {url}: {e}"),
+    };
+
+    for id in ids {
+        match get_repo(id) {
+            Some(DictionaryRepo::Hunspell(r)) => {
+                fetch(&r.aff_url, &dir.join(format!("{id}.aff")));
+                fetch(&r.dict_url, &dir.join(format!("{id}.dic")));
+            }
+            Some(DictionaryRepo::Text(r)) => {
+                // Embedded dictionaries need no fixture
+                if let Some(url) = r.url {
+                    fetch(&url, &dir.join(format!("{id}.txt")));
+                }
+            }
+            None => eprintln!("No repo entry for dictionary '{id}', skipping"),
+        }
+    }
 }
 
 fn dump_ast(path: &str, lang_override: Option<&str>) {

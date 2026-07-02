@@ -5,7 +5,7 @@ use codebook_config::CodebookConfigMemory;
 
 pub fn get_processor() -> Codebook {
     let config = Arc::new(CodebookConfigMemory::default());
-    Codebook::new(config).unwrap()
+    super::utils::make_codebook(config)
 }
 
 #[test]

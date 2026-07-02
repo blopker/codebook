@@ -3,7 +3,6 @@ use codebook::{
     queries::LanguageType,
 };
 
-
 fn expect_spelling(text: &str, expected: &Vec<&str>) {
     let processor = super::utils::get_processor();
     let binding = processor

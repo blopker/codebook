@@ -3,7 +3,6 @@ use codebook::{
     queries::LanguageType,
 };
 
-
 #[test]
 fn test_toml_location() {
     let sample_toml = r#"

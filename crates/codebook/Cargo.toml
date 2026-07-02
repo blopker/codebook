@@ -69,3 +69,5 @@ pprof.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+# Deny unexpected network access in test builds (fixtures cover dictionaries)
+codebook_downloader = { workspace = true, features = ["deny-network"] }

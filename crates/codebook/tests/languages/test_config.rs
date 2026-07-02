@@ -13,7 +13,7 @@ pub fn get_processor(words: Option<&[&str]>) -> Codebook {
             let _ = config.add_word(w);
         }
     }
-    Codebook::new(config).unwrap()
+    super::utils::make_codebook(config)
 }
 
 #[test]

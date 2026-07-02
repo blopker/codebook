@@ -1,6 +1,5 @@
 use codebook::queries::LanguageType;
 
-
 #[test]
 fn test_text_with_urls_should_skip_misspelled_words_in_urls() {
     super::utils::init_logging();
@@ -203,7 +202,7 @@ fn test_user_defined_regex_patterns() {
         codebook_config::CodebookConfigFile::load(Some(temp_dir.path())).unwrap(),
     );
 
-    let processor = codebook::Codebook::new(config).unwrap();
+    let processor = super::utils::make_codebook(config);
 
     let sample_text = r#"
         This text has HTML and CSS frameworks.
@@ -272,7 +271,7 @@ fn test_pattern_matching_against_full_source() {
         codebook_config::CodebookConfigFile::load(Some(temp_dir.path())).unwrap(),
     );
 
-    let processor = codebook::Codebook::new(config).unwrap();
+    let processor = super::utils::make_codebook(config);
 
     // Lua code with vim.opt settings
     let sample_text = r#"

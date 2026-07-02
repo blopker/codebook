@@ -3,7 +3,6 @@ use codebook::{
     queries::LanguageType,
 };
 
-
 #[test]
 fn test_markdown_paragraph() {
     super::utils::init_logging();
