@@ -98,7 +98,7 @@ fn fetch_fixtures(dir: &Path) {
         .cache_dir()
         .to_path_buf();
     let downloader = Downloader::new(&cache_dir);
-    let mut fetch = |url: &str, target: &Path| match downloader.get(url) {
+    let fetch = |url: &str, target: &Path| match downloader.get(url) {
         Ok(path) => {
             std::fs::copy(&path, target).unwrap();
             println!("Fetched {}", target.display());

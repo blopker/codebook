@@ -237,9 +237,32 @@ impl Downloader {
         }
     }
 
-    fn persist_metadata(&self, metadata: &Metadata) -> Result<()> {
-        let file = File::create(&self.metadata_path)?;
-        serde_json::to_writer_pretty(file, metadata)?;
+    fn persist_metadata(&self, metadata: &mut Metadata) -> Result<()> {
+        self.persist_metadata_with_removals(metadata, &[])
+    }
+
+    /// Write metadata to disk atomically (temp file + rename). The cache dir
+    /// is shared by every codebook process on the machine and each rewrites
+    /// the whole file, so entries written by other processes since our last
+    /// read are merged in first — persisting must never erase them.
+    /// `removed_urls` are dropped after the merge so a deliberate removal
+    /// isn't resurrected from disk.
+    fn persist_metadata_with_removals(
+        &self,
+        metadata: &mut Metadata,
+        removed_urls: &[&str],
+    ) -> Result<()> {
+        let disk = Self::load_metadata(&self.metadata_path);
+        for (url, entry) in disk.files {
+            metadata.files.entry(url).or_insert(entry);
+        }
+        for url in removed_urls {
+            metadata.files.remove(*url);
+        }
+
+        let temp_file = NamedTempFile::new_in(&self.cache_dir)?;
+        serde_json::to_writer_pretty(&temp_file, metadata)?;
+        temp_file.persist(&self.metadata_path)?;
         Ok(())
     }
 
@@ -252,7 +275,7 @@ impl Downloader {
             .unwrap_or(false)
         {
             metadata.files.remove(url);
-            if let Err(err) = self.persist_metadata(&metadata) {
+            if let Err(err) = self.persist_metadata_with_removals(&mut metadata, &[url]) {
                 log::error!(
                     "Failed to persist metadata after removing stale entry for {url}: {err}"
                 );
@@ -333,14 +356,16 @@ impl Downloader {
         let last_modified = parse_last_modified(response.last_modified.as_deref());
         let temp_file = self.download_to_temp(response.body)?;
         let new_hash = compute_file_hash(temp_file.path())?;
+        // The entry can disappear concurrently (another thread purging a
+        // stale path); a missing entry just means "changed".
         let old_hash = {
             let metadata = self
                 .metadata()
                 .read()
                 .map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
-            metadata.files.get(url).unwrap().content_hash.clone()
+            metadata.files.get(url).map(|e| e.content_hash.clone())
         };
-        if new_hash == old_hash {
+        if old_hash.as_deref() == Some(new_hash.as_str()) {
             self.update_check_time(url)
         } else {
             self.replace_file(url, temp_file, last_modified, new_hash)
@@ -419,7 +444,7 @@ impl Downloader {
         {
             let mut metadata = self.metadata().write().unwrap();
             metadata.files.insert(url.to_string(), entry);
-            self.persist_metadata(&metadata)?;
+            self.persist_metadata(&mut metadata)?;
         }
         Ok(path)
     }
@@ -434,22 +459,28 @@ impl Downloader {
         let new_path: PathBuf;
         {
             let mut metadata = self.metadata().write().unwrap();
-            let entry = metadata.files.get_mut(url).unwrap();
-            let old_path = entry.path.clone();
+            // Upsert: the entry can disappear concurrently (stale-path purge)
+            let old_path = metadata.files.get(url).map(|e| e.path.clone());
 
             new_path = self.cache_dir.join(hash_url(url));
             temp_file.persist(&new_path)?;
 
             // Remove old file if it's different
-            if old_path != new_path && old_path.exists() {
+            if let Some(old_path) = old_path
+                && old_path != new_path
+                && old_path.exists()
+            {
                 fs::remove_file(old_path)?;
             }
 
-            entry.path = new_path.clone();
-            entry.last_checked = Utc::now();
-            entry.last_modified = last_modified;
-            entry.content_hash = content_hash;
-            self.persist_metadata(&metadata)?;
+            let entry = FileEntry {
+                path: new_path.clone(),
+                last_checked: Utc::now(),
+                last_modified,
+                content_hash,
+            };
+            metadata.files.insert(url.to_string(), entry);
+            self.persist_metadata(&mut metadata)?;
         }
 
         Ok(new_path)
@@ -459,10 +490,13 @@ impl Downloader {
         let path: PathBuf;
         {
             let mut metadata = self.metadata().write().unwrap();
-            let entry = metadata.files.get_mut(url).unwrap();
+            let entry = metadata
+                .files
+                .get_mut(url)
+                .ok_or_else(|| anyhow::anyhow!("No cache entry for {url}"))?;
             entry.last_checked = Utc::now();
             path = entry.path.clone();
-            self.persist_metadata(&metadata)?;
+            self.persist_metadata(&mut metadata)?;
         }
         Ok(path)
     }
@@ -754,6 +788,30 @@ mod tests {
         let metadata = downloader.metadata().read().unwrap();
         let entry = metadata.files.get(URL).unwrap();
         assert!(entry.last_checked > Utc::now() - Duration::seconds(1));
+    }
+
+    #[test]
+    fn test_concurrent_processes_dont_clobber_metadata() {
+        let temp_dir = tempdir().unwrap();
+        let url_a = "https://example.com/a.txt";
+        let url_b = "https://example.com/b.txt";
+
+        // Two downloaders sharing the cache dir, simulating two processes.
+        // B loads (empty) metadata before A writes, so B's in-memory view is
+        // stale when it persists.
+        let transport_a = FakeTransport::new(vec![ok(200, "a", None)]);
+        let downloader_a = Downloader::with_transport(temp_dir.path(), transport_a);
+        let transport_b = FakeTransport::new(vec![ok(200, "b", None)]);
+        let downloader_b = Downloader::with_transport(temp_dir.path(), transport_b);
+        let _ = downloader_b.metadata();
+
+        downloader_a.get(url_a).unwrap();
+        downloader_b.get(url_b).unwrap();
+
+        // B's persist must not have erased A's entry from disk
+        let disk = Downloader::load_metadata(&temp_dir.path().join(METADATA_FILE));
+        assert!(disk.files.contains_key(url_a), "A's entry was clobbered");
+        assert!(disk.files.contains_key(url_b));
     }
 
     #[test]
