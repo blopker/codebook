@@ -406,7 +406,6 @@ dependencies = [
  "globset",
  "ignore",
  "log",
- "lru",
  "serde",
  "serde_json",
  "string-offsets",
