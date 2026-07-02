@@ -33,7 +33,11 @@ pub fn split_into<'a>(s: &'a str, result: &mut Vec<SplitRef<'a>>) {
     let mut char_iter = s.char_indices().peekable();
 
     while let Some((byte_pos, c)) = char_iter.next() {
-        assert!(
+        // Callers must pre-split on whitespace. debug_assert (not assert):
+        // enforced in tests and fast-release builds, but a violation in a
+        // user's release build must degrade to a bad diagnostic, not abort
+        // the whole LSP (this exact class of bug has crashed it before).
+        debug_assert!(
             !c.is_whitespace(),
             "There should be no white space in the input: '{s}'"
         );

@@ -480,11 +480,13 @@ fn has_unsupported_script(word: &str) -> bool {
 }
 
 /// Get a UTF-8 word from a string given the start and end bytes in utf16.
+/// The offsets come from client-supplied LSP ranges, so they can be
+/// inverted or out of bounds; saturate instead of panicking on underflow.
 pub fn get_word_from_string(start_utf16: usize, end_utf16: usize, text: &str) -> String {
     let utf16_slice: Vec<u16> = text
         .encode_utf16()
         .skip(start_utf16)
-        .take(end_utf16 - start_utf16)
+        .take(end_utf16.saturating_sub(start_utf16))
         .collect();
     String::from_utf16_lossy(&utf16_slice)
 }
