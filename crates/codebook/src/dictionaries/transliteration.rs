@@ -123,9 +123,7 @@ impl Dictionary for TransliteratingDictionary {
         if self.inner.check(word) {
             return true;
         }
-        (self.variants_fn)(word)
-            .iter()
-            .any(|v| self.inner.check(v))
+        (self.variants_fn)(word).iter().any(|v| self.inner.check(v))
     }
 
     fn suggest(&self, word: &str) -> Vec<String> {
@@ -195,14 +193,20 @@ mod tests {
 
     #[test]
     fn preserves_case_on_replacement() {
-        assert_eq!(german_umlaut_variants("Buecher"), vec!["Bücher".to_string()]);
+        assert_eq!(
+            german_umlaut_variants("Buecher"),
+            vec!["Bücher".to_string()]
+        );
         assert_eq!(german_umlaut_variants("UEbel"), vec!["Übel".to_string()]);
         assert_eq!(german_umlaut_variants("Ueber"), vec!["Über".to_string()]);
     }
 
     #[test]
     fn ss_only_lowercase() {
-        assert_eq!(german_umlaut_variants("Strasse"), vec!["Straße".to_string()]);
+        assert_eq!(
+            german_umlaut_variants("Strasse"),
+            vec!["Straße".to_string()]
+        );
         // Uppercase SS stays as SS — Hunspell case folding handles uppercase variants.
         assert!(german_umlaut_variants("STRASSE").is_empty());
     }
@@ -211,10 +215,8 @@ mod tests {
     fn multiple_bigrams_enumerate_all_subsets() {
         // "aeoe" has 2 transliterable pairs → 3 variants.
         let v: HashSet<String> = german_umlaut_variants("aeoe").into_iter().collect();
-        let expected: HashSet<String> = ["äoe", "aeö", "äö"]
-            .into_iter()
-            .map(String::from)
-            .collect();
+        let expected: HashSet<String> =
+            ["äoe", "aeö", "äö"].into_iter().map(String::from).collect();
         assert_eq!(v, expected);
     }
 
@@ -304,9 +306,7 @@ mod tests {
 
     #[test]
     fn suggest_passes_through_inner_suggestions() {
-        let stub = Arc::new(
-            StubDict::new(["hello"]).with_suggestion("helo", &["hello", "halo"]),
-        );
+        let stub = Arc::new(StubDict::new(["hello"]).with_suggestion("helo", &["hello", "halo"]));
         let wrapped = TransliteratingDictionary::new(stub, german_umlaut_variants);
         let result = wrapped.suggest("helo");
         assert_eq!(result, vec!["hello".to_string(), "halo".to_string()]);

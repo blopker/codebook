@@ -208,7 +208,10 @@ mod dictionary_tests {
         assert!(dict.check("straße"));
         assert!(dict.check("STRAßE"));
         // Stored entry keeps its original casing rather than being lowercased.
-        assert!(dict.word_set().contains(&UniCase::new("Straße".to_string())));
+        assert!(
+            dict.word_set()
+                .contains(&UniCase::new("Straße".to_string()))
+        );
     }
 
     #[test]
