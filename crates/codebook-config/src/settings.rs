@@ -275,32 +275,32 @@ impl ConfigSettings {
 
     /// Apply a single override block to this settings (mutates in place).
     /// Replace fields are applied first, then append fields.
-    pub fn apply_override(&mut self, ovr: &OverrideBlock) {
+    pub fn apply_override(&mut self, over: &OverrideBlock) {
         // Replace fields: fully replace the list
-        if let Some(ref v) = ovr.dictionaries {
+        if let Some(ref v) = over.dictionaries {
             self.dictionaries = v.clone();
         }
-        if let Some(ref v) = ovr.words {
+        if let Some(ref v) = over.words {
             self.words = v.clone();
         }
-        if let Some(ref v) = ovr.flag_words {
+        if let Some(ref v) = over.flag_words {
             self.flag_words = v.clone();
         }
-        if let Some(ref v) = ovr.ignore_patterns {
+        if let Some(ref v) = over.ignore_patterns {
             self.ignore_patterns = v.clone();
         }
 
         // Append fields: extend the current list
-        if let Some(ref v) = ovr.extra_dictionaries {
+        if let Some(ref v) = over.extra_dictionaries {
             self.dictionaries.extend(v.clone());
         }
-        if let Some(ref v) = ovr.extra_words {
+        if let Some(ref v) = over.extra_words {
             self.words.extend(v.clone());
         }
-        if let Some(ref v) = ovr.extra_flag_words {
+        if let Some(ref v) = over.extra_flag_words {
             self.flag_words.extend(v.clone());
         }
-        if let Some(ref v) = ovr.extra_ignore_patterns {
+        if let Some(ref v) = over.extra_ignore_patterns {
             self.ignore_patterns.extend(v.clone());
         }
     }
@@ -922,13 +922,13 @@ mod tests {
             ..Default::default()
         };
 
-        let ovr = OverrideBlock {
+        let over = OverrideBlock {
             paths: vec!["**/*.md".to_string()],
             words: Some(vec!["gamma".to_string()]),
             ..OverrideBlock::default_for_test()
         };
 
-        settings.apply_override(&ovr);
+        settings.apply_override(&over);
         assert_eq!(settings.words, vec!["gamma"]);
     }
 
@@ -975,13 +975,13 @@ mod tests {
             ..Default::default()
         };
 
-        let ovr = OverrideBlock {
+        let over = OverrideBlock {
             paths: vec!["**/*.md".to_string()],
             extra_flag_words: Some(vec!["hack".to_string()]),
             ..OverrideBlock::default_for_test()
         };
 
-        settings.apply_override(&ovr);
+        settings.apply_override(&over);
         // words and dictionaries unchanged
         assert_eq!(settings.words, vec!["alpha"]);
         assert_eq!(settings.dictionaries, vec!["en_us"]);
