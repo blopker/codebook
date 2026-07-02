@@ -12,8 +12,10 @@ readme = "../../README.md"
 keywords = ["download", "dictionary", "spell-checker"]
 categories = ["development-tools", "text-processing"]
 
-[dev-dependencies]
-httpmock.workspace = true
+[features]
+# Panic on any non-loopback network request (pytest-socket style). Workspace
+# crates enable this from their dev-dependencies so test builds deny network.
+deny-network = []
 
 [dependencies]
 anyhow.workspace = true
