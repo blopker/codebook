@@ -1,6 +1,5 @@
 use codebook::queries::LanguageType;
 
-
 #[test]
 fn test_lua_spell_check() {
     super::utils::init_logging();

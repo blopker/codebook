@@ -3,7 +3,6 @@ use codebook::{
     queries::LanguageType,
 };
 
-
 /// Strategy:
 /// Use distinct misspellings to test location sensitive checking.
 /// This simpler to write than asserting exact locations.

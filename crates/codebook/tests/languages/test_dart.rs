@@ -106,13 +106,7 @@ class Foo {
     println!("Misspelled words: {misspelled:?}");
 
     let expected = vec![
-        "Deleeted",
-        "Greting",
-        "Helllo",
-        "accaunt",
-        "greting",
-        "numbr",
-        "usrname",
+        "Deleeted", "Greting", "Helllo", "accaunt", "greting", "numbr", "usrname",
     ];
     let not_expected = vec![
         "bob",    // string content, valid word
@@ -147,10 +141,22 @@ class UserAccaunt {
     println!("Misspelled words: {misspelled:?}");
 
     // Class fields should be flagged at definitions
-    assert!(misspelled.contains(&"usrname"), "class field 'usrname' should be flagged");
-    assert!(misspelled.contains(&"accaunts"), "class field '_accaunts' should be flagged");
-    assert!(misspelled.contains(&"balanse"), "class field '_balanse' should be flagged");
-    assert!(misspelled.contains(&"Accaunt"), "class name 'UserAccaunt' should be flagged at definition");
+    assert!(
+        misspelled.contains(&"usrname"),
+        "class field 'usrname' should be flagged"
+    );
+    assert!(
+        misspelled.contains(&"accaunts"),
+        "class field '_accaunts' should be flagged"
+    );
+    assert!(
+        misspelled.contains(&"balanse"),
+        "class field '_balanse' should be flagged"
+    );
+    assert!(
+        misspelled.contains(&"Accaunt"),
+        "class name 'UserAccaunt' should be flagged at definition"
+    );
 
     // Type references should NOT be flagged
     let type_ref_words = vec!["String", "Map", "int"];
@@ -183,9 +189,18 @@ class Foo {
     println!("Misspelled words: {misspelled:?}");
 
     // Arrow body string content should be checked
-    assert!(misspelled.contains(&"Accaunt"), "string in arrow body should be checked");
-    assert!(misspelled.contains(&"balanse"), "field definition should be flagged");
-    assert!(misspelled.contains(&"usrname"), "field definition should be flagged");
+    assert!(
+        misspelled.contains(&"Accaunt"),
+        "string in arrow body should be checked"
+    );
+    assert!(
+        misspelled.contains(&"balanse"),
+        "field definition should be flagged"
+    );
+    assert!(
+        misspelled.contains(&"usrname"),
+        "field definition should be flagged"
+    );
 }
 
 #[test]
@@ -216,15 +231,36 @@ class Foo with Loggabel {
     println!("Misspelled words: {misspelled:?}");
 
     // Definitions should be flagged
-    assert!(misspelled.contains(&"Callbak"), "typedef name should be flagged");
-    assert!(misspelled.contains(&"Loggabel"), "mixin name should be flagged");
-    assert!(misspelled.contains(&"dataa"), "field name should be flagged");
-    assert!(misspelled.contains(&"callbak"), "field name should be flagged");
-    assert!(misspelled.contains(&"Stuf"), "method name should be flagged");
+    assert!(
+        misspelled.contains(&"Callbak"),
+        "typedef name should be flagged"
+    );
+    assert!(
+        misspelled.contains(&"Loggabel"),
+        "mixin name should be flagged"
+    );
+    assert!(
+        misspelled.contains(&"dataa"),
+        "field name should be flagged"
+    );
+    assert!(
+        misspelled.contains(&"callbak"),
+        "field name should be flagged"
+    );
+    assert!(
+        misspelled.contains(&"Stuf"),
+        "method name should be flagged"
+    );
 
     // Type references should NOT be flagged
     let not_expected = vec![
-        "Map", "String", "List", "int", "Future", "Loggabel", "MyCallbak",
+        "Map",
+        "String",
+        "List",
+        "int",
+        "Future",
+        "Loggabel",
+        "MyCallbak",
     ];
     for word in &not_expected {
         // Skip words that are also flagged as definitions

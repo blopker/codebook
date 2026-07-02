@@ -64,7 +64,9 @@ pub fn check_words(
             results.push(WordLocation::new(word.to_string(), positions));
             continue;
         }
-        if word.len() < min_word_length {
+        // Compare characters, not bytes: multi-byte scripts (Cyrillic, Greek,
+        // accented Latin) would otherwise pass the length filter early.
+        if word.chars().count() < min_word_length {
             continue;
         }
         if is_allowed(word) {
@@ -124,6 +126,19 @@ mod tests {
         let candidates = make_candidates(&[("ab", 0, 2)]);
         let results = check_words(&candidates, &[dict], config.as_ref(), None);
         assert!(results.is_empty(), "Short words should be skipped");
+    }
+
+    #[test]
+    fn test_check_words_min_length_counts_chars_not_bytes() {
+        let dict = Arc::new(TextDictionary::new(""));
+        let config = Arc::new(codebook_config::CodebookConfigMemory::default());
+        // "ий" is 2 chars but 4 bytes; must be skipped like a 2-char ASCII word
+        let candidates = make_candidates(&[("ий", 0, 4)]);
+        let results = check_words(&candidates, &[dict], config.as_ref(), None);
+        assert!(
+            results.is_empty(),
+            "Multi-byte short words should be skipped"
+        );
     }
 
     #[test]

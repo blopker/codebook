@@ -20,7 +20,6 @@ path = "src/main.rs"
 
 [dependencies]
 env_logger.workspace = true
-lazy_static.workspace = true
 log.workspace = true
 lru.workspace = true
 regex.workspace = true
@@ -70,3 +69,5 @@ pprof.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+# Deny unexpected network access in test builds (fixtures cover dictionaries)
+codebook_downloader = { workspace = true, features = ["deny-network"] }

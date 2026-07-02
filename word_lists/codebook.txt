@@ -10,6 +10,7 @@ checksums
 codebook
 cors
 crc
+crypto
 csrf
 darwin
 ddns

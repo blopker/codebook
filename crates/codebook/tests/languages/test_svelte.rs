@@ -1,6 +1,5 @@
 use codebook::queries::LanguageType;
 
-
 #[test]
 fn test_svelte_simple() {
     super::utils::init_logging();

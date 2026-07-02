@@ -41,6 +41,10 @@ benchmark:
 	cd crates/codebook && cargo build --release
 	./target/release/codebook --benchmark
 
+# Refresh the dictionary fixtures the test suite uses (tests run offline)
+fetch_fixtures:
+	cargo run -p codebook -- --fetch-fixtures crates/codebook/tests/fixtures/dictionaries
+
 publish_crates:
 	# 1. First, publish the codebook-config crate
 	-cargo publish -p codebook_config

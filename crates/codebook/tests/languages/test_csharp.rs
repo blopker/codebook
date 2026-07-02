@@ -1,6 +1,5 @@
 use codebook::queries::LanguageType;
 
-
 #[test]
 fn test_csharp_simple() {
     super::utils::init_logging();

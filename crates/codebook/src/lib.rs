@@ -24,11 +24,23 @@ pub struct Codebook {
 }
 
 // Custom 'codebook' dictionary could be removed later for a more general solution.
-static DEFAULT_DICTIONARIES: &[&str; 3] = &["codebook", "software_terms", "computing_acronyms"];
+pub static DEFAULT_DICTIONARIES: &[&str; 3] = &["codebook", "software_terms", "computing_acronyms"];
 
 impl Codebook {
     pub fn new(config: Arc<dyn CodebookConfig>) -> Result<Self, Box<dyn std::error::Error>> {
-        let manager = DictionaryManager::new(&config.cache_dir().to_path_buf());
+        Self::with_dictionary_dir(config, None)
+    }
+
+    /// Like `new`, but dictionaries are resolved from `dictionary_dir`
+    /// (`{id}.txt` word lists or `{id}.aff` + `{id}.dic` Hunspell pairs)
+    /// before falling back to downloading. Tests use this with checked-in
+    /// fixtures so they never touch the network.
+    pub fn with_dictionary_dir(
+        config: Arc<dyn CodebookConfig>,
+        dictionary_dir: Option<std::path::PathBuf>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let manager =
+            DictionaryManager::with_local_dir(&config.cache_dir().to_path_buf(), dictionary_dir);
         Ok(Self { config, manager })
     }
 
@@ -135,31 +147,27 @@ impl Codebook {
         self.spell_check(&file_text, Some(lang_type), Some(path))
     }
 
+    /// Get suggestions for a misspelled word. Returns None when the word is
+    /// correctly spelled — same rule as check_words: any dictionary knowing
+    /// the word makes it correct.
     pub fn get_suggestions(&self, word: &str) -> Option<Vec<String>> {
         let max_results = 5;
         let dictionaries = self.get_dictionaries_for_languages(&HashSet::new(), None);
-        let mut is_misspelled = false;
-        let suggestions: Vec<Vec<String>> = dictionaries
-            .iter()
-            .filter_map(|dict| {
-                if !dict.check(word) {
-                    is_misspelled = true;
-                    Some(dict.suggest(word))
-                } else {
-                    None
-                }
-            })
-            .collect();
-        if !is_misspelled {
+        if dictionaries.is_empty() || dictionaries.iter().any(|dict| dict.check(word)) {
             return None;
         }
+        let suggestions: Vec<Vec<String>> =
+            dictionaries.iter().map(|dict| dict.suggest(word)).collect();
         Some(collect_round_robin(&suggestions, max_results))
     }
 }
 
-fn collect_round_robin<T: Clone + PartialEq + Ord>(sources: &[Vec<T>], max_count: usize) -> Vec<T> {
+/// Interleave suggestion lists, preserving each source's ranking: every
+/// source's best suggestion comes before any source's second-best.
+fn collect_round_robin<T: Clone + PartialEq>(sources: &[Vec<T>], max_count: usize) -> Vec<T> {
     let mut result = Vec::with_capacity(max_count);
-    for i in 0..max_count {
+    let longest = sources.iter().map(Vec::len).max().unwrap_or(0);
+    for i in 0..longest {
         for source in sources {
             if let Some(item) = source.get(i)
                 && !result.contains(item)
@@ -171,7 +179,6 @@ fn collect_round_robin<T: Clone + PartialEq + Ord>(sources: &[Vec<T>], max_count
             }
         }
     }
-    result.sort();
     result
 }
 
@@ -265,6 +272,7 @@ mod tests {
     fn test_collect_round_robin_max_count_higher_than_available() {
         let sources = vec![vec!["apple", "banana"], vec!["cherry", "date"]];
         let result = collect_round_robin(&sources, 10);
-        assert_eq!(result, vec!["apple", "banana", "cherry", "date"]);
+        // Round-robin order is preserved even when under the cap
+        assert_eq!(result, vec!["apple", "cherry", "banana", "date"]);
     }
 }

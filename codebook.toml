@@ -1,32 +1,25 @@
 dictionaries = ["en_us"]
 words = [
-    "aff",
-    "allowlist",
-    "cspell",
-    "declarator",
-    "dic",
-    "eget",
-    "flamegraph",
-    "lookups",
-    "musl",
-    "neovim",
-    "pacman",
-    "pyright",
-    "scm",
-    "spellbook",
-    "unicase",
-    "vscode",
-    "wooorm",
-    "wrooom",
-    "xdg",
+  "aff",
+  "allowlist",
+  "cspell",
+  "declarator",
+  "dic",
+  "eget",
+  "flamegraph",
+  "lookups",
+  "musl",
+  "neovim",
+  "pacman",
+  "pyright",
+  "scm",
+  "spellbook",
+  "unicase",
+  "vscode",
+  "wooorm",
+  "wrooom",
+  "xdg",
 ]
-flag_words = [
-    "todo",
-    "fixme",
-]
-ignore_paths = [
-    "**/*.json",
-    ".git/**/*",
-    "target/**/*",
-]
+flag_words = ["todo", "fixme"]
+ignore_paths = ["**/*.json", ".git/**/*", "target/**/*"]
 ignore_patterns = ['\b[ATCG]+\b']
