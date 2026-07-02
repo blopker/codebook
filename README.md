@@ -138,6 +138,8 @@ Codebook is the most popular spell checker for Zed! To install, go to the Extens
 
 **Note**: The version that Zed displays in the extension menus is for the [Zed Extension](https://github.com/blopker/codebook-zed), and not the LSP version (this repo). The extension will automatically update the LSP. If that updater is broken for some reason, try uninstalling the extension and reinstalling.
 
+**Remote development (SSH/WSL2)**: When Zed opens a remote project, the extension runs on the remote host and downloads the LSP there. Restricted or flaky network access on the remote (a common WSL2 issue) can break that download. The extension always prefers a `codebook-lsp` binary found on the `$PATH`, so installing it on the remote host (see [Installation](#installation)) sidesteps the downloader entirely.
+
 If quickfix code actions are not showing up for specific languages, ensure your `settings.json` file includes the special `"..."`, or `"codebook"`, value in any `language_servers` values defined:
 
 ```json
