@@ -421,7 +421,15 @@ mod tests {
         let f = dir.path().join("test.txt");
         fs::write(&f, "actualbad\n🦀 actualbad").unwrap();
 
-        let cb = Codebook::new(Arc::new(CodebookConfigMemory::default())).unwrap();
+        // Load dictionaries from the codebook crate's checked-in fixtures;
+        // test builds deny network access (deny-network feature).
+        let fixtures = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../codebook/tests/fixtures/dictionaries");
+        let cb = Codebook::with_dictionary_dir(
+            Arc::new(CodebookConfigMemory::default()),
+            Some(fixtures),
+        )
+        .unwrap();
         let mut seen = HashSet::new();
 
         // Test basic flagging and multi-occurrence counting
