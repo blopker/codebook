@@ -59,8 +59,8 @@ impl Codebook {
         let mut all_patterns = get_default_skip_patterns().clone();
         if let Some(ref settings) = resolved {
             all_patterns.extend(build_ignore_regexes(&settings.ignore_patterns));
-        } else if let Some(user_patterns) = self.config.get_ignore_patterns() {
-            all_patterns.extend(user_patterns);
+        } else {
+            all_patterns.extend(self.config.get_ignore_patterns());
         }
 
         // Extract all words, recursively following injections

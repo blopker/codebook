@@ -4,88 +4,104 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 /// A single `[[overrides]]` block in the config file.
-#[derive(Debug, Serialize, Clone, PartialEq)]
+///
+/// Word-related fields deserialize through `lowercase_*` so lookups are
+/// case-insensitive; paths and regex patterns keep their original casing.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct OverrideBlock {
-    /// Required: glob patterns matched against file path relative to project root
+    /// Required: glob patterns matched against file path relative to project root.
+    /// Defaulted rather than required so a block missing `paths` is filtered out
+    /// with a warning instead of failing the whole config parse.
+    #[serde(default)]
     pub paths: Vec<String>,
 
     // --- Replace fields (replace the base list entirely) ---
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "lowercase_opt_vec",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub dictionaries: Option<Vec<String>>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "lowercase_opt_vec",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub words: Option<Vec<String>>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "lowercase_opt_vec",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub flag_words: Option<Vec<String>>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ignore_patterns: Option<Vec<String>>,
 
     // --- Append fields (append to the resolved list) ---
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "lowercase_opt_vec",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub extra_dictionaries: Option<Vec<String>>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "lowercase_opt_vec",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub extra_words: Option<Vec<String>>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "lowercase_opt_vec",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub extra_flag_words: Option<Vec<String>>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub extra_ignore_patterns: Option<Vec<String>>,
 }
 
-impl<'de> Deserialize<'de> for OverrideBlock {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        fn to_lowercase_vec(v: Vec<String>) -> Vec<String> {
-            v.into_iter().map(|s| s.to_ascii_lowercase()).collect()
-        }
+fn lowercase_vec<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v = Vec::<String>::deserialize(deserializer)?;
+    Ok(v.into_iter().map(|s| s.to_ascii_lowercase()).collect())
+}
 
-        fn to_lowercase_opt(v: Option<Vec<String>>) -> Option<Vec<String>> {
-            v.map(to_lowercase_vec)
-        }
+fn lowercase_opt_vec<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v = Option::<Vec<String>>::deserialize(deserializer)?;
+    Ok(v.map(|v| v.into_iter().map(|s| s.to_ascii_lowercase()).collect()))
+}
 
-        #[derive(Deserialize)]
-        struct Helper {
-            #[serde(default)]
-            paths: Vec<String>,
-            #[serde(default)]
-            dictionaries: Option<Vec<String>>,
-            #[serde(default)]
-            words: Option<Vec<String>>,
-            #[serde(default)]
-            flag_words: Option<Vec<String>>,
-            #[serde(default)]
-            ignore_patterns: Option<Vec<String>>,
-            #[serde(default)]
-            extra_dictionaries: Option<Vec<String>>,
-            #[serde(default)]
-            extra_words: Option<Vec<String>>,
-            #[serde(default)]
-            extra_flag_words: Option<Vec<String>>,
-            #[serde(default)]
-            extra_ignore_patterns: Option<Vec<String>>,
-        }
-
-        let helper = Helper::deserialize(deserializer)?;
-        Ok(OverrideBlock {
-            paths: helper.paths,
-            // Lowercase word-related fields
-            dictionaries: to_lowercase_opt(helper.dictionaries),
-            words: to_lowercase_opt(helper.words),
-            flag_words: to_lowercase_opt(helper.flag_words),
-            extra_dictionaries: to_lowercase_opt(helper.extra_dictionaries),
-            extra_words: to_lowercase_opt(helper.extra_words),
-            extra_flag_words: to_lowercase_opt(helper.extra_flag_words),
-            // Don't lowercase patterns or paths
-            ignore_patterns: helper.ignore_patterns,
-            extra_ignore_patterns: helper.extra_ignore_patterns,
+/// Deserialize override blocks, dropping invalid and no-op ones with a warning.
+fn valid_overrides<'de, D>(deserializer: D) -> Result<Vec<OverrideBlock>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let blocks = Vec::<OverrideBlock>::deserialize(deserializer)?;
+    Ok(blocks
+        .into_iter()
+        .filter(|o| {
+            if !o.is_valid() {
+                warn!("Skipping invalid override block (empty or invalid paths)");
+                return false;
+            }
+            if !o.has_effect() {
+                warn!("Skipping no-op override block (no settings specified)");
+                return false;
+            }
+            true
         })
-    }
+        .collect())
 }
 
 impl OverrideBlock {
@@ -120,10 +136,17 @@ impl OverrideBlock {
     }
 }
 
-#[derive(Debug, Serialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ConfigSettings {
-    /// List of dictionaries to use for spell checking
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    /// List of dictionaries to use for spell checking.
+    /// Dictionary IDs are language codes (e.g. "en_US") — normalized to
+    /// lowercase so lookups are case-insensitive. Word lists keep their
+    /// original casing and are compared via unicase::eq.
+    #[serde(
+        default,
+        deserialize_with = "lowercase_vec",
+        skip_serializing_if = "Vec::is_empty"
+    )]
     pub dictionaries: Vec<String>,
 
     /// Custom allowlist of words
@@ -153,12 +176,11 @@ pub struct ConfigSettings {
     )]
     pub use_global: bool,
 
-    /// Minimum word length to check (words shorter than this are ignored)
-    #[serde(
-        default = "default_min_word_length",
-        skip_serializing_if = "is_default_min_word_length"
-    )]
-    pub min_word_length: usize,
+    /// Minimum word length to check (words shorter than this are ignored).
+    /// None means "not set" so merging can tell an explicit value — even one
+    /// equal to the default — apart from an omitted one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_word_length: Option<usize>,
 
     /// Tag prefixes to include (if non-empty, only matching tags are checked)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -169,7 +191,11 @@ pub struct ConfigSettings {
     pub exclude_tags: Vec<String>,
 
     /// Scoped configuration overrides
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        default,
+        deserialize_with = "valid_overrides",
+        skip_serializing_if = "Vec::is_empty"
+    )]
     pub overrides: Vec<OverrideBlock>,
 }
 
@@ -185,10 +211,6 @@ fn default_min_word_length() -> usize {
     3
 }
 
-fn is_default_min_word_length(value: &usize) -> bool {
-    *value == default_min_word_length()
-}
-
 impl Default for ConfigSettings {
     fn default() -> Self {
         Self {
@@ -199,84 +221,11 @@ impl Default for ConfigSettings {
             ignore_paths: Vec::new(),
             ignore_patterns: Vec::new(),
             use_global: true,
-            min_word_length: default_min_word_length(),
+            min_word_length: None,
             include_tags: Vec::new(),
             exclude_tags: Vec::new(),
             overrides: Vec::new(),
         }
-    }
-}
-
-impl<'de> Deserialize<'de> for ConfigSettings {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        struct Helper {
-            #[serde(default)]
-            dictionaries: Vec<String>,
-            #[serde(default)]
-            words: Vec<String>,
-            #[serde(default)]
-            flag_words: Vec<String>,
-            #[serde(default)]
-            include_paths: Vec<String>,
-            #[serde(default)]
-            ignore_paths: Vec<String>,
-            #[serde(default)]
-            ignore_patterns: Vec<String>,
-            #[serde(default = "default_use_global")]
-            use_global: bool,
-            #[serde(default = "default_min_word_length")]
-            min_word_length: usize,
-            #[serde(default)]
-            include_tags: Vec<String>,
-            #[serde(default)]
-            exclude_tags: Vec<String>,
-            #[serde(default)]
-            overrides: Vec<OverrideBlock>,
-        }
-
-        // Dictionary IDs are language codes (e.g. "en_US") — normalize to lowercase
-        // so lookups are case-insensitive. Word lists keep their original casing and
-        // are compared via unicase::eq.
-        let helper = Helper::deserialize(deserializer)?;
-
-        // Filter out invalid override blocks
-        let overrides: Vec<OverrideBlock> = helper
-            .overrides
-            .into_iter()
-            .filter(|o| {
-                if !o.is_valid() {
-                    warn!("Skipping invalid override block (empty or invalid paths)");
-                    return false;
-                }
-                if !o.has_effect() {
-                    warn!("Skipping no-op override block (no settings specified)");
-                    return false;
-                }
-                true
-            })
-            .collect();
-
-        Ok(ConfigSettings {
-            dictionaries: helper
-                .dictionaries
-                .into_iter()
-                .map(|s| s.to_ascii_lowercase())
-                .collect(),
-            words: helper.words,
-            flag_words: helper.flag_words,
-            include_paths: helper.include_paths,
-            ignore_paths: helper.ignore_paths,
-            ignore_patterns: helper.ignore_patterns,
-            use_global: helper.use_global,
-            min_word_length: helper.min_word_length,
-            include_tags: helper.include_tags,
-            exclude_tags: helper.exclude_tags,
-            overrides,
-        })
     }
 }
 
@@ -300,8 +249,8 @@ impl ConfigSettings {
         // The use_global setting from the other config is ignored during merging
         // as this is a per-config setting
 
-        // Override min_word_length if the other config has a non-default value
-        if other.min_word_length != default_min_word_length() {
+        // Override min_word_length if the other config sets one explicitly
+        if other.min_word_length.is_some() {
             self.min_word_length = other.min_word_length;
         }
 
@@ -311,10 +260,11 @@ impl ConfigSettings {
 
     /// Sort and deduplicate all collections in the config (but not overrides).
     pub fn sort_and_dedup(&mut self) {
-        // Sort and deduplicate each Vec
+        // Sort and deduplicate each Vec. Word lists dedup case-insensitively
+        // to match how lookups compare them (unicase::eq).
         sort_and_dedup(&mut self.dictionaries);
-        sort_and_dedup(&mut self.words);
-        sort_and_dedup(&mut self.flag_words);
+        sort_and_dedup_unicase(&mut self.words);
+        sort_and_dedup_unicase(&mut self.flag_words);
         sort_and_dedup(&mut self.include_paths);
         sort_and_dedup(&mut self.ignore_paths);
         sort_and_dedup(&mut self.ignore_patterns);
@@ -325,32 +275,32 @@ impl ConfigSettings {
 
     /// Apply a single override block to this settings (mutates in place).
     /// Replace fields are applied first, then append fields.
-    pub fn apply_override(&mut self, ovr: &OverrideBlock) {
+    pub fn apply_override(&mut self, over: &OverrideBlock) {
         // Replace fields: fully replace the list
-        if let Some(ref v) = ovr.dictionaries {
+        if let Some(ref v) = over.dictionaries {
             self.dictionaries = v.clone();
         }
-        if let Some(ref v) = ovr.words {
+        if let Some(ref v) = over.words {
             self.words = v.clone();
         }
-        if let Some(ref v) = ovr.flag_words {
+        if let Some(ref v) = over.flag_words {
             self.flag_words = v.clone();
         }
-        if let Some(ref v) = ovr.ignore_patterns {
+        if let Some(ref v) = over.ignore_patterns {
             self.ignore_patterns = v.clone();
         }
 
         // Append fields: extend the current list
-        if let Some(ref v) = ovr.extra_dictionaries {
+        if let Some(ref v) = over.extra_dictionaries {
             self.dictionaries.extend(v.clone());
         }
-        if let Some(ref v) = ovr.extra_words {
+        if let Some(ref v) = over.extra_words {
             self.words.extend(v.clone());
         }
-        if let Some(ref v) = ovr.extra_flag_words {
+        if let Some(ref v) = over.extra_flag_words {
             self.flag_words.extend(v.clone());
         }
-        if let Some(ref v) = ovr.extra_ignore_patterns {
+        if let Some(ref v) = over.extra_ignore_patterns {
             self.ignore_patterns.extend(v.clone());
         }
     }
@@ -465,12 +415,14 @@ impl ConfigSettings {
 
     /// Check if a word should be flagged.
     pub fn should_flag_word(&self, word: &str) -> bool {
-        self.flag_words.iter().any(|w| unicase::eq(w.as_str(), word))
+        self.flag_words
+            .iter()
+            .any(|w| unicase::eq(w.as_str(), word))
     }
 
     /// Retrieve the configured minimum word length.
     pub fn min_word_length(&self) -> usize {
-        self.min_word_length
+        self.min_word_length.unwrap_or_else(default_min_word_length)
     }
 }
 
@@ -488,6 +440,17 @@ fn sort_and_dedup(vec: &mut Vec<String>) {
     vec.dedup();
 }
 
+/// Sort and deduplicate a word list, treating entries that differ only in case
+/// as duplicates (the first occurrence in sort order wins).
+fn sort_and_dedup_unicase(vec: &mut Vec<String>) {
+    vec.sort_by(|a, b| {
+        unicase::UniCase::new(a.as_str())
+            .cmp(&unicase::UniCase::new(b.as_str()))
+            .then_with(|| a.cmp(b))
+    });
+    vec.dedup_by(|a, b| unicase::eq(a.as_str(), b.as_str()));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -502,7 +465,8 @@ mod tests {
         assert_eq!(config.ignore_paths, Vec::<String>::new());
         assert_eq!(config.ignore_patterns, Vec::<String>::new());
         assert!(config.use_global);
-        assert_eq!(config.min_word_length, 3);
+        assert_eq!(config.min_word_length, None);
+        assert_eq!(config.min_word_length(), 3);
         assert!(config.overrides.is_empty());
     }
 
@@ -541,14 +505,16 @@ mod tests {
         min_word_length = 2
         "#;
         let config: ConfigSettings = toml::from_str(toml_str).unwrap();
-        assert_eq!(config.min_word_length, 2);
+        assert_eq!(config.min_word_length, Some(2));
+        assert_eq!(config.min_word_length(), 2);
 
         // Test with default value (when not specified)
         let toml_str = r#"
         dictionaries = ["en_us"]
         "#;
         let config: ConfigSettings = toml::from_str(toml_str).unwrap();
-        assert_eq!(config.min_word_length, 3);
+        assert_eq!(config.min_word_length, None);
+        assert_eq!(config.min_word_length(), 3);
     }
 
     #[test]
@@ -591,7 +557,7 @@ mod tests {
             ignore_paths: vec!["**/*.md".to_string()],
             ignore_patterns: vec!["^```.*$".to_string()],
             use_global: true,
-            min_word_length: 3,
+            min_word_length: Some(3),
             ..Default::default()
         };
 
@@ -603,7 +569,7 @@ mod tests {
             ignore_paths: vec!["target/".to_string()],
             ignore_patterns: vec!["^//.*$".to_string()],
             use_global: false,
-            min_word_length: 2,
+            min_word_length: Some(2),
             ..Default::default()
         };
 
@@ -623,28 +589,46 @@ mod tests {
 
         // use_global from the base should be preserved
         assert!(base.use_global);
-        // min_word_length from other should override base (since it's non-default)
-        assert_eq!(base.min_word_length, 2);
+        // min_word_length from other should override base (since it's explicitly set)
+        assert_eq!(base.min_word_length, Some(2));
     }
 
     #[test]
     fn test_merge_min_word_length_default() {
         let mut base = ConfigSettings {
             dictionaries: vec!["en_us".to_string()],
-            min_word_length: 5,
+            min_word_length: Some(5),
             ..Default::default()
         };
 
         let other = ConfigSettings {
             dictionaries: vec!["en_gb".to_string()],
-            min_word_length: 3, // default value
+            min_word_length: None, // not set
             ..Default::default()
         };
 
         base.merge(other);
 
-        // min_word_length from base should be preserved when other has default
-        assert_eq!(base.min_word_length, 5);
+        // min_word_length from base should be preserved when other doesn't set it
+        assert_eq!(base.min_word_length, Some(5));
+    }
+
+    #[test]
+    fn test_merge_min_word_length_explicit_default_wins() {
+        let mut base = ConfigSettings {
+            min_word_length: Some(5),
+            ..Default::default()
+        };
+
+        let other = ConfigSettings {
+            // Explicitly set to the default value — should still override
+            min_word_length: Some(3),
+            ..Default::default()
+        };
+
+        base.merge(other);
+
+        assert_eq!(base.min_word_length, Some(3));
     }
 
     #[test]
@@ -673,7 +657,7 @@ mod tests {
                 "^//.*$".to_string(),
             ],
             use_global: true,
-            min_word_length: 3,
+            min_word_length: Some(3),
             ..Default::default()
         };
 
@@ -938,13 +922,13 @@ mod tests {
             ..Default::default()
         };
 
-        let ovr = OverrideBlock {
+        let over = OverrideBlock {
             paths: vec!["**/*.md".to_string()],
             words: Some(vec!["gamma".to_string()]),
             ..OverrideBlock::default_for_test()
         };
 
-        settings.apply_override(&ovr);
+        settings.apply_override(&over);
         assert_eq!(settings.words, vec!["gamma"]);
     }
 
@@ -991,13 +975,13 @@ mod tests {
             ..Default::default()
         };
 
-        let ovr = OverrideBlock {
+        let over = OverrideBlock {
             paths: vec!["**/*.md".to_string()],
             extra_flag_words: Some(vec!["hack".to_string()]),
             ..OverrideBlock::default_for_test()
         };
 
-        settings.apply_override(&ovr);
+        settings.apply_override(&over);
         // words and dictionaries unchanged
         assert_eq!(settings.words, vec!["alpha"]);
         assert_eq!(settings.dictionaries, vec!["en_us"]);
@@ -1140,7 +1124,7 @@ mod tests {
             dictionaries: vec!["en_us".to_string()],
             words: vec!["codebook".to_string()],
             flag_words: vec!["todo".to_string()],
-            min_word_length: 4,
+            min_word_length: Some(4),
             ..Default::default()
         };
 
