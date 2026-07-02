@@ -872,7 +872,10 @@ mod tests {
 
         // Check that the config file path is stored (canonicalized, since
         // load_configs resolves symlinks like macOS's /var -> /private/var)
-        assert_eq!(config.project_config_path(), Some(config_path.canonicalize()?));
+        assert_eq!(
+            config.project_config_path(),
+            Some(config_path.canonicalize()?)
+        );
         Ok(())
     }
 
@@ -1572,7 +1575,10 @@ mod tests {
 
         // Simulate a mid-edit save of broken TOML
         fs::write(&config_path, r#"words = [invalid !!! toml"#)?;
-        assert!(!config.reload()?, "parse error should not count as a change");
+        assert!(
+            !config.reload()?,
+            "parse error should not count as a change"
+        );
         assert!(
             config.is_allowed_word("frobnicate"),
             "last good config should survive a parse error"

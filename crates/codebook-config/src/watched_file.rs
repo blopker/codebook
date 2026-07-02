@@ -109,10 +109,7 @@ impl<T: Clone> WatchedFile<T> {
                 // File exists but is unreadable or invalid (e.g. mid-edit TOML).
                 // Keep the last good content; the stale stamp means we retry on
                 // the next reload.
-                log::warn!(
-                    "Keeping previous config for {}: {e}",
-                    path.display()
-                );
+                log::warn!("Keeping previous config for {}: {e}", path.display());
                 Ok((self, false))
             }
         }
