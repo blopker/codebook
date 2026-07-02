@@ -157,8 +157,9 @@ pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> L
     eprintln!(
         "Out of {total} total file(s), checked {checked}, ignored {ignored}, and excluded {excluded}."
     );
-    let summary =
-        format!("Found {total_errors} {unique_label}spelling error(s) in {files_with_errors} file(s).");
+    let summary = format!(
+        "Found {total_errors} {unique_label}spelling error(s) in {files_with_errors} file(s)."
+    );
     if total_errors > 0 {
         eprintln!("{}", paint.red(&summary));
     } else {
@@ -430,8 +431,24 @@ mod tests {
 
         // Test unique mode
         let mut seen_unique = HashSet::new();
-        let (c1, _) = check_file(&f, "f1.txt", &cb, &mut seen_unique, true, false, Paint(false));
-        let (c2, _) = check_file(&f, "f2.txt", &cb, &mut seen_unique, true, false, Paint(false));
+        let (c1, _) = check_file(
+            &f,
+            "f1.txt",
+            &cb,
+            &mut seen_unique,
+            true,
+            false,
+            Paint(false),
+        );
+        let (c2, _) = check_file(
+            &f,
+            "f2.txt",
+            &cb,
+            &mut seen_unique,
+            true,
+            false,
+            Paint(false),
+        );
         assert_eq!(c1, 1, "Should flag word once");
         assert_eq!(c2, 0, "Should skip already-seen word in second file");
 

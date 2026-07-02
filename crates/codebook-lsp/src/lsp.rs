@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr as _;
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
+use std::time::{Duration, Instant};
 
 use codebook::parser::get_word_from_string;
 use codebook::queries::LanguageType;
@@ -25,6 +26,12 @@ use crate::init_options::ClientInitializationOptions;
 use crate::lsp_logger;
 
 const SOURCE_NAME: &str = "Codebook";
+
+/// How often to poll the config files for external changes. spell_check runs
+/// on every keystroke with checkWhileTyping, so polling is debounced rather
+/// than done per call; changes made via code actions bypass this by calling
+/// recheck_all directly.
+const CONFIG_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
 /// Computes the relative path of a file from a workspace directory.
 /// Returns the relative path if the file is within the workspace, otherwise returns the absolute path.
@@ -63,6 +70,8 @@ pub struct Backend {
     config: OnceLock<Arc<CodebookConfigFile>>,
     document_cache: TextDocumentCache,
     initialize_options: RwLock<Arc<ClientInitializationOptions>>,
+    /// When the config files were last polled for changes (None = never)
+    last_config_poll: Mutex<Option<Instant>>,
 }
 
 enum CodebookCommand {
@@ -376,6 +385,7 @@ impl Backend {
             config: OnceLock::new(),
             document_cache: TextDocumentCache::default(),
             initialize_options: RwLock::new(Arc::new(ClientInitializationOptions::default())),
+            last_config_poll: Mutex::new(None),
         }
     }
 
@@ -556,15 +566,28 @@ impl Backend {
         }
     }
 
-    async fn spell_check(&self, uri: &Url) {
-        let config = self.config_handle();
-        let did_reload = match config.reload() {
+    /// Poll the config files for external changes, at most once per
+    /// CONFIG_POLL_INTERVAL. Returns true when the config actually changed.
+    fn reload_config_debounced(&self) -> bool {
+        {
+            let mut last_poll = self.last_config_poll.lock().unwrap();
+            if last_poll.is_some_and(|at| at.elapsed() < CONFIG_POLL_INTERVAL) {
+                return false;
+            }
+            *last_poll = Some(Instant::now());
+        }
+
+        match self.config_handle().reload() {
             Ok(did_reload) => did_reload,
             Err(e) => {
                 error!("Failed to reload config: {e}");
                 false
             }
-        };
+        }
+    }
+
+    async fn spell_check(&self, uri: &Url) {
+        let did_reload = self.reload_config_debounced();
 
         if did_reload {
             debug!("Config reloaded, rechecking all files.");
