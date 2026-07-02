@@ -200,7 +200,8 @@ impl LanguageServer for Backend {
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
         debug!("Saved document: {}", params.text_document.uri);
         if let Some(text) = params.text {
-            self.document_cache.update(&params.text_document.uri, &text);
+            self.document_cache
+                .update(&params.text_document.uri, &text, None);
         }
         self.spell_check(&params.text_document.uri).await;
     }
@@ -211,8 +212,11 @@ impl LanguageServer for Backend {
             params.text_document.uri, params.text_document.version
         );
         let uri = params.text_document.uri;
-        if let Some(change) = params.content_changes.first() {
-            self.document_cache.update(&uri, &change.text);
+        // With FULL sync each change is the whole document, so if a client
+        // batches several the last one is current.
+        if let Some(change) = params.content_changes.last() {
+            self.document_cache
+                .update(&uri, &change.text, Some(params.text_document.version));
             if self.should_spellcheck_while_typing() {
                 self.spell_check(&uri).await;
             }
@@ -434,30 +438,6 @@ impl Backend {
         self.initialize_options.read().unwrap().check_while_typing
     }
 
-    fn make_diagnostic(&self, word: &str, start_pos: &Pos, end_pos: &Pos) -> Diagnostic {
-        let message = format!("Possible spelling issue '{word}'.");
-        Diagnostic {
-            range: Range {
-                start: Position {
-                    line: start_pos.line as u32,
-                    character: start_pos.col as u32,
-                },
-                end: Position {
-                    line: end_pos.line as u32,
-                    character: end_pos.col as u32,
-                },
-            },
-            severity: Some(self.initialize_options.read().unwrap().diagnostic_severity),
-            code: None,
-            code_description: None,
-            source: Some(SOURCE_NAME.to_string()),
-            message,
-            related_information: None,
-            tags: None,
-            data: None,
-        }
-    }
-
     fn add_words(&self, config: &CodebookConfigFile, words: impl Iterator<Item = String>) -> bool {
         let mut should_save = false;
         for word in words {
@@ -608,56 +588,97 @@ impl Backend {
         let file_path = doc.uri.to_file_path().unwrap_or_default();
         debug!("Spell-checking file: {file_path:?}");
 
-        // Compute relative path for ignore pattern matching
-        let relative_path = compute_relative_path(
-            &self.workspace_dir,
-            self.workspace_dir_canonical.as_deref(),
-            &file_path,
-        );
-
-        // Convert utf8 byte offsets to utf16
-        let offsets = StringOffsets::<AllConfig>::new(&doc.text);
-
-        // Perform spell-check.
         let lang = doc.language_id.as_deref();
         let lang_type = lang.and_then(|lang| LanguageType::from_str(lang).ok());
         debug!("Document identified as type {lang_type:?} from {lang:?}");
+
+        let severity = self.initialize_options.read().unwrap().diagnostic_severity;
+        let workspace_dir = self.workspace_dir.clone();
+        let workspace_dir_canonical = self.workspace_dir_canonical.clone();
         let cb = self.codebook_handle();
-        let spell_results = task::spawn_blocking(move || {
-            cb.spell_check(&doc.text, lang_type, Some(&relative_path))
+        let checked_version = doc.version;
+        let doc_uri = doc.uri.clone();
+
+        // Everything document-sized — canonicalization, the UTF-8→UTF-16
+        // offset table, the check itself, diagnostic conversion — runs on
+        // the blocking pool so large documents don't stall the event loop.
+        let diagnostics = task::spawn_blocking(move || {
+            let relative_path = compute_relative_path(
+                &workspace_dir,
+                workspace_dir_canonical.as_deref(),
+                &file_path,
+            );
+            let offsets = StringOffsets::<AllConfig>::new(&doc.text);
+            let spell_results = cb.spell_check(&doc.text, lang_type, Some(&relative_path));
+            spell_results
+                .into_iter()
+                .flat_map(|res| {
+                    // For each misspelling, create a diagnostic for each location.
+                    res.locations
+                        .iter()
+                        .map(|loc| {
+                            let start_pos = offsets.utf8_to_utf16_pos(loc.start_byte);
+                            let end_pos = offsets.utf8_to_utf16_pos(loc.end_byte);
+                            make_diagnostic(&res.word, &start_pos, &end_pos, severity)
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<Diagnostic>>()
         })
         .await;
 
-        let spell_results = match spell_results {
-            Ok(results) => results,
+        let diagnostics = match diagnostics {
+            Ok(diagnostics) => diagnostics,
             Err(err) => {
-                error!("Spell-checking failed for file '{file_path:?}' \n Error: {err}");
+                error!("Spell-checking failed for '{uri}': {err}");
                 return;
             }
         };
 
-        // Convert the results to LSP diagnostics.
-        let diagnostics: Vec<Diagnostic> = spell_results
-            .into_iter()
-            .flat_map(|res| {
-                // For each misspelling, create a diagnostic for each location.
-                let mut new_locations = vec![];
-                for loc in &res.locations {
-                    let start_pos = offsets.utf8_to_utf16_pos(loc.start_byte);
-                    let end_pos = offsets.utf8_to_utf16_pos(loc.end_byte);
-                    let diagnostic = self.make_diagnostic(&res.word, &start_pos, &end_pos);
-                    new_locations.push(diagnostic);
-                }
-                new_locations
-            })
-            .collect();
-
-        // debug!("Diagnostics: {:?}", diagnostics);
-        // Send the diagnostics to the client.
+        // Handlers run concurrently, so a check of older text can finish
+        // after a newer one. Publish only if the document is still at the
+        // version we checked (and still open), and stamp the version so the
+        // client can discard anything stale that slips through.
+        match self.document_cache.get(uri.as_ref()) {
+            Some(current) if current.version == checked_version => {}
+            _ => {
+                debug!("Skipping stale diagnostics for {uri}");
+                return;
+            }
+        }
         self.client
-            .publish_diagnostics(doc.uri, diagnostics, None)
+            .publish_diagnostics(doc_uri, diagnostics, checked_version)
             .await;
-        // debug!("Published diagnostics for: {:?}", file_path);
+    }
+}
+
+/// Build an LSP diagnostic for one misspelled-word location.
+fn make_diagnostic(
+    word: &str,
+    start_pos: &Pos,
+    end_pos: &Pos,
+    severity: DiagnosticSeverity,
+) -> Diagnostic {
+    let message = format!("Possible spelling issue '{word}'.");
+    Diagnostic {
+        range: Range {
+            start: Position {
+                line: start_pos.line as u32,
+                character: start_pos.col as u32,
+            },
+            end: Position {
+                line: end_pos.line as u32,
+                character: end_pos.col as u32,
+            },
+        },
+        severity: Some(severity),
+        code: None,
+        code_description: None,
+        source: Some(SOURCE_NAME.to_string()),
+        message,
+        related_information: None,
+        tags: None,
+        data: None,
     }
 }
 

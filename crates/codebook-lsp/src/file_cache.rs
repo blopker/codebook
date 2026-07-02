@@ -64,7 +64,10 @@ impl TextDocumentCache {
             .put(document.uri.to_string(), document);
     }
 
-    pub fn update(&self, uri: &Url, text: &str) {
+    /// Update a document's text. `version` replaces the stored version when
+    /// Some (didChange); None keeps the existing one (didSave, which carries
+    /// no version).
+    pub fn update(&self, uri: &Url, text: &str, version: Option<i32>) {
         let key = uri.to_string();
         let mut cache = self.documents.write().unwrap();
         let item = cache.get(&key);
@@ -72,14 +75,14 @@ impl TextDocumentCache {
             Some(item) => {
                 let new_item = TextDocumentCacheItem::new(
                     uri,
-                    item.version,
+                    version.or(item.version),
                     item.language_id.as_deref(),
                     Some(text),
                 );
                 cache.put(key, new_item);
             }
             None => {
-                let item = TextDocumentCacheItem::new(uri, None, None, Some(text));
+                let item = TextDocumentCacheItem::new(uri, version, None, Some(text));
                 cache.put(key, item);
             }
         }
