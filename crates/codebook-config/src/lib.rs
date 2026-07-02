@@ -133,15 +133,16 @@ impl CodebookConfigFile {
             let global_config = WatchedFile::new(Some(global_path.clone()));
 
             if global_path.exists() {
+                // Strict at startup: an existing-but-invalid config is an
+                // error the user should hear about, not a silent fallback to
+                // defaults. Mid-session reload stays lenient (keeps the last
+                // good config) since there's state to fall back to there.
                 inner.global_config = global_config
                     .load(|path| {
                         Self::load_settings_from_file(path)
                             .map_err(|e| format!("Failed to load global config: {}", e))
                     })
-                    .unwrap_or_else(|e| {
-                        debug!("{}", e);
-                        WatchedFile::new(Some(global_path.clone()))
-                    });
+                    .map_err(|e| io::Error::new(ErrorKind::InvalidData, e))?;
                 debug!("Loaded global config from {}", global_path.display());
             } else {
                 info!("No global config found, using default");
@@ -177,10 +178,7 @@ impl CodebookConfigFile {
                         Self::load_settings_from_file(path)
                             .map_err(|e| format!("Failed to load project config: {}", e))
                     })
-                    .unwrap_or_else(|e| {
-                        debug!("{}", e);
-                        WatchedFile::new(Some(project_path.clone()))
-                    });
+                    .map_err(|e| io::Error::new(ErrorKind::InvalidData, e))?;
                 debug!("Loaded project config from {}", project_path.display());
             } else {
                 inner.project_config = project_config;
@@ -1556,6 +1554,25 @@ mod tests {
             home.display()
         );
         Ok(())
+    }
+
+    #[test]
+    fn test_load_fails_on_invalid_config() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("codebook.toml");
+        fs::write(&config_path, r#"words = [invalid !!! toml"#).unwrap();
+
+        // Strict at startup: an existing-but-broken config is an error, not
+        // a silent fallback to defaults (contrast with reload, which keeps
+        // the last good config).
+        let result = CodebookConfigFile::load_with_overrides(
+            Some(temp_dir.path()),
+            Some(temp_dir.path().join("global.toml")),
+            None,
+        );
+        let err = result.expect_err("invalid config should fail to load");
+        assert_eq!(err.kind(), ErrorKind::InvalidData);
+        assert!(err.to_string().contains("codebook.toml"));
     }
 
     #[test]

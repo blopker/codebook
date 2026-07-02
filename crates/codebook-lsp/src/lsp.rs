@@ -404,13 +404,17 @@ impl Backend {
                     .map(|p| self.resolve_workspace_path(&p));
                 drop(options);
 
+                // Strict at startup by design: an invalid config crashes the
+                // server with the parse error on stderr rather than silently
+                // running with defaults. Mid-session edits are lenient (the
+                // last good config is kept).
                 Arc::new(
                     CodebookConfigFile::load_with_overrides(
                         Some(self.workspace_dir.as_path()),
                         global_config_path,
                         project_config_path,
                     )
-                    .expect("Unable to make config: {e}"),
+                    .unwrap_or_else(|e| panic!("Unable to load configuration: {e}")),
                 )
             })
             .clone()
@@ -429,7 +433,10 @@ impl Backend {
     fn codebook_handle(&self) -> Arc<Codebook> {
         self.codebook
             .get_or_init(|| {
-                Arc::new(Codebook::new(self.config_handle()).expect("Unable to make codebook: {e}"))
+                Arc::new(
+                    Codebook::new(self.config_handle())
+                        .unwrap_or_else(|e| panic!("Unable to initialize codebook: {e}")),
+                )
             })
             .clone()
     }
