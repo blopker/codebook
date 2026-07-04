@@ -74,28 +74,36 @@ pub fn build_ignore_regexes(patterns: &[String]) -> Vec<Regex> {
 
 pub(crate) fn expand_tilde<P: AsRef<Path>>(path_user_input: P) -> Option<PathBuf> {
     let p = path_user_input.as_ref();
-    if !p.starts_with("~") {
-        return Some(p.to_path_buf());
-    }
-    if p == Path::new("~") {
+    let path = p.to_string_lossy();
+
+    if path == "~" {
         return dirs::home_dir();
     }
-    dirs::home_dir().map(|mut h| {
-        if h == Path::new("/") {
-            // Corner case: `h` root directory;
-            // don't prepend extra `/`, just drop the tilde.
-            p.strip_prefix("~").unwrap().to_path_buf()
-        } else {
-            h.push(p.strip_prefix("~/").unwrap());
-            h
-        }
-    })
+
+    let rest = path.strip_prefix("~/");
+    #[cfg(windows)]
+    let rest = rest.or_else(|| path.strip_prefix("~\\"));
+
+    if let Some(rest) = rest {
+        return dirs::home_dir().map(|mut home| {
+            if home == Path::new("/") {
+                PathBuf::from(rest)
+            } else {
+                home.push(rest);
+                home
+            }
+        });
+    }
+
+    Some(p.to_path_buf())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(not(windows))]
     use std::ffi::OsString;
+    #[cfg(not(windows))]
     use std::sync::{Mutex, MutexGuard};
 
     #[cfg(not(windows))]
@@ -168,6 +176,28 @@ mod tests {
 
         restore_xdg(previous);
         drop(guard);
+    }
+
+    #[test]
+    fn expand_tilde_resolves_home_directory() {
+        let home = dirs::home_dir().expect("home directory must be available for the test");
+
+        assert_eq!(expand_tilde("~"), Some(home));
+    }
+
+    #[test]
+    fn expand_tilde_resolves_unix_style_home_path() {
+        let mut expected = dirs::home_dir().expect("home directory must be available for the test");
+        expected.push("dotfiles/codebook.toml");
+
+        assert_eq!(expand_tilde("~/dotfiles/codebook.toml"), Some(expected));
+    }
+
+    #[test]
+    fn expand_tilde_leaves_other_paths_unchanged() {
+        let path = PathBuf::from("~user/codebook.toml");
+
+        assert_eq!(expand_tilde(&path), Some(path));
     }
 
     #[test]

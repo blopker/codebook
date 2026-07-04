@@ -54,7 +54,9 @@ fn compute_relative_path(
 
     match file_path.canonicalize() {
         Ok(canon_file_path) => match canon_file_path.strip_prefix(&workspace_canonical) {
-            Ok(relative) => relative.to_string_lossy().to_string(),
+            Ok(relative) => relative
+                .to_string_lossy()
+                .replace(std::path::MAIN_SEPARATOR, "/"),
             Err(_) => file_path.to_string_lossy().to_string(),
         },
         Err(_) => file_path.to_string_lossy().to_string(),
