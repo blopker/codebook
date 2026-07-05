@@ -2,6 +2,10 @@
 
 Important user-facing changes. See commit logs for more details.
 
+[Unreleased]
+
+- Add Just (justfile) support: comments, recipe/parameter/variable names, and strings are checked; recipe bodies are checked with the bash grammar, and shebang recipes (e.g. `#!/usr/bin/env python3`) with the shebang's language (#288)
+
 [0.3.41]
 
 - Allow overriding the project `codebook.toml` path via LSP initialization option `configPath` (workspace-relative; auto-discovery is skipped when set) (#236, #271)

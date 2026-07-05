@@ -13,6 +13,7 @@ mod test_go;
 mod test_haskell;
 mod test_java;
 mod test_javascript;
+mod test_just;
 mod test_latex;
 mod test_lua;
 mod test_markdown;

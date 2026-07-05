@@ -210,6 +210,9 @@ jsonl
 jsonld
 jsp
 jsx
+just
+justfile
+justfiles
 jxr
 key
 keystore
