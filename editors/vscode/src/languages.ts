@@ -12,6 +12,7 @@ export const SUPPORTED_LANGUAGES = [
   "java",
   "javascript",
   "javascriptreact",
+  "just",
   "latex",
   "lua",
   "markdown",

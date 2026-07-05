@@ -17,6 +17,7 @@ pub enum LanguageType {
     Haskell,
     Java,
     Javascript,
+    Just,
     Latex,
     Lua,
     Markdown,
@@ -111,7 +112,8 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::Python,
-        ids: &["python"],
+        // "python3" so shebang lines like `#!/usr/bin/env python3` resolve
+        ids: &["python", "python3"],
         dictionary_ids: &["python"],
         query: include_str!("queries/python.scm"),
         extensions: &["py"],
@@ -125,10 +127,21 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::Javascript,
-        ids: &["javascript", "javascriptreact", "jsx"],
+        // "node" so shebang lines like `#!/usr/bin/env node` resolve
+        ids: &["javascript", "javascriptreact", "jsx", "node"],
         dictionary_ids: &["javascript", "javascriptreact"],
         query: include_str!("queries/javascript.scm"),
         extensions: &["js", "jsx"],
+    },
+    LanguageSetting {
+        type_: LanguageType::Just,
+        ids: &["just", "justfile"],
+        dictionary_ids: &[],
+        query: include_str!("queries/just.scm"),
+        // "justfile" and "Justfile" cover the extensionless file names;
+        // get_language_name_from_filename falls back to the whole base name
+        // when a file has no extension.
+        extensions: &["just", "justfile", "Justfile"],
     },
     LanguageSetting {
         type_: LanguageType::Latex,
@@ -327,6 +340,7 @@ impl LanguageSetting {
             LanguageType::Haskell => Some(tree_sitter_haskell::LANGUAGE.into()),
             LanguageType::Java => Some(tree_sitter_java::LANGUAGE.into()),
             LanguageType::Javascript => Some(tree_sitter_javascript::LANGUAGE.into()),
+            LanguageType::Just => Some(tree_sitter_just::LANGUAGE.into()),
             LanguageType::Latex => Some(codebook_tree_sitter_latex::LANGUAGE.into()),
             LanguageType::Lua => Some(tree_sitter_lua::LANGUAGE.into()),
             LanguageType::Markdown => Some(tree_sitter_md::LANGUAGE.into()),
@@ -357,7 +371,10 @@ pub fn get_language_setting(language_type: LanguageType) -> Option<&'static Lang
 }
 
 pub fn get_language_name_from_filename(filename: &str) -> LanguageType {
-    let extension = filename.split('.').next_back().unwrap();
+    // Strip any directory components so extensionless file names like
+    // "justfile" still match when a full path is passed in.
+    let basename = filename.rsplit(['/', '\\']).next().unwrap_or(filename);
+    let extension = basename.split('.').next_back().unwrap();
     for setting in LANGUAGE_SETTINGS {
         for ext in setting.extensions {
             if ext == &extension {
