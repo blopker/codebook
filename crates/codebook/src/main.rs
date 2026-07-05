@@ -17,9 +17,20 @@ fn main() {
             .windows(2)
             .find(|w| w[0] == "--lang")
             .map(|w| w[1].as_str());
-        let file_arg = args.iter().find(|a| {
-            *a != "--ast" && *a != "--lang" && !a.starts_with("--") && !a.contains("codebook")
-        });
+        // Skip argv[0] and flag values: the file is the first positional arg.
+        let mut file_arg = None;
+        let mut iter = args.iter().skip(1);
+        while let Some(arg) = iter.next() {
+            if arg == "--lang" {
+                iter.next();
+                continue;
+            }
+            if arg.starts_with("--") {
+                continue;
+            }
+            file_arg = Some(arg);
+            break;
+        }
         match file_arg {
             Some(path) => dump_ast(path, lang_override),
             None => eprintln!("Usage: codebook --ast <file> [--lang <language>]"),
