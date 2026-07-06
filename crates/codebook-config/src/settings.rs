@@ -1324,9 +1324,12 @@ mod tests {
     fn test_serialization_with_overrides() {
         let config = ConfigSettings {
             words: vec!["base".to_string()],
+            ignore_patterns: vec![pat(r"^```.*$")],
             overrides: vec![OverrideBlock {
                 paths: vec![glob("**/*.md")],
                 extra_words: Some(vec!["markdown".to_string()]),
+                ignore_patterns: Some(vec![pat(r"\bhttps?://\S+")]),
+                extra_ignore_patterns: Some(vec![pat(r"^\s*//.*")]),
                 ..OverrideBlock::default_for_test()
             }],
             ..Default::default()
@@ -1338,6 +1341,17 @@ mod tests {
         // ConfigSettings has no PartialEq (Regex doesn't compare); a stable
         // re-serialization proves the round-trip lost nothing.
         assert_eq!(serialized, toml::to_string_pretty(&deserialized).unwrap());
+
+        let ovr = &deserialized.overrides[0];
+        assert_eq!(pattern_strings(&deserialized.ignore_patterns), [r"^```.*$"]);
+        assert_eq!(
+            pattern_strings(ovr.ignore_patterns.as_deref().unwrap()),
+            [r"\bhttps?://\S+"]
+        );
+        assert_eq!(
+            pattern_strings(ovr.extra_ignore_patterns.as_deref().unwrap()),
+            [r"^\s*//.*"]
+        );
     }
 
     #[test]
