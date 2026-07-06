@@ -322,6 +322,7 @@ flag_words = []
 # Glob patterns for paths to include when spell checking (allowlist).
 # Only files matching one of these patterns will be spell-checked.
 # Empty means include everything.
+# Patterns always use `/` as the separator, on all platforms.
 # Example: ["src/**/*.rs", "lib/**/*.rs"]
 include_paths = []
 
@@ -481,7 +482,7 @@ dictionaries = ["de"]
 | `extra_flag_words`      | Appends to the resolved `flag_words` list. |
 | `extra_ignore_patterns` | Appends to the resolved `ignore_patterns` list. |
 
-Glob syntax matches `ignore_paths`: `*` (no separator), `**` (any directories), `?` (any single char), and `{a,b}` alternation.
+Glob syntax matches `ignore_paths`: `*` (no separator), `**` (any directories), `?` (any single char), and `{a,b}` alternation. Patterns always use `/` as the path separator, like `.gitignore`. On Windows, file paths are normalized to forward slashes before matching, and backslash-style patterns (e.g. `src\\*.rs`) are not supported.
 
 **Resolution order:** all matching overrides are applied in declaration order, so later blocks win on the same field. Global overrides are applied before project overrides, so project settings always have the final say. If both a replace field (e.g., `words`) and its append sibling (`extra_words`) appear in the same block, replace runs first and then append is layered on top.
 
@@ -494,7 +495,7 @@ Glob syntax matches `ignore_paths`: `*` (no separator), `**` (any directories), 
 Editors can pass `initializationOptions` when starting the Codebook LSP for LSP-specific options. Refer to your editor's documentation for how to apply these options. All values are optional, omit them for the default behavior:
 
 - `logLevel` (`"trace" | "debug" | "info" | "warn" | "error"`, default `"info"`): sets the verbosity of logs.
-- `globalConfigPath` (string): overrides the auto-detected global `codebook.toml` path, useful if you sync configs from another location. On macOS and Linux, the `~/` prefix for the current user's home directory is supported.
+- `globalConfigPath` (string): overrides the auto-detected global `codebook.toml` path, useful if you sync configs from another location. The `~/` prefix resolves to the current user's home directory on all platforms (`~\` also works on Windows), so the same setting can be shared across Windows, macOS, and Linux dotfiles.
 - `configPath` (string): overrides the project `codebook.toml` location. Relative paths are resolved against the workspace root, absolute paths are used as-is. When set, auto-discovery is skipped; the file is created at this path the first time Codebook needs to write (e.g., adding a word).
 - `checkWhileTyping` (bool, default `true`): when `false`, spelling diagnostics are only published on save instead of each keystroke. This is useful for example if performance is a problem, or the real-time diagnostics are annoying (sorry!).
 - `diagnosticSeverity` (`"error" | "warning" | "information" | "hint"`, default `"information"`): sets the severity of spell check diagnostics.
