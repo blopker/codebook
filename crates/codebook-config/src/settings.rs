@@ -115,7 +115,7 @@ impl OverrideBlock {
 
     /// Check if this override applies to the given relative file path.
     pub fn matches_path(&self, relative_path: &Path) -> bool {
-        let path_str = relative_path.to_string_lossy();
+        let path_str = normalize_separators(&relative_path.to_string_lossy());
         self.paths.iter().any(|pattern| {
             Pattern::new(pattern)
                 .map(|p| p.matches(&path_str))
@@ -362,7 +362,7 @@ impl ConfigSettings {
 
     /// Insert a path into the ignore list, returning true when it was newly added.
     pub fn insert_ignore(&mut self, file: &str) -> bool {
-        let file = file.to_string();
+        let file = normalize_separators(file);
         if self.ignore_paths.contains(&file) {
             return false;
         }
@@ -374,7 +374,7 @@ impl ConfigSettings {
 
     /// Insert a path into the include list, returning true when it was newly added.
     pub fn insert_include(&mut self, file: &str) -> bool {
-        let file = file.to_string();
+        let file = normalize_separators(file);
         if self.include_paths.contains(&file) {
             return false;
         }
@@ -398,13 +398,13 @@ impl ConfigSettings {
         if self.include_paths.is_empty() {
             return true;
         }
-        let path_str = path.to_string_lossy();
+        let path_str = normalize_separators(&path.to_string_lossy());
         match_pattern(&self.include_paths, &path_str)
     }
 
     /// Determine whether a path should be ignored based on the configured glob patterns.
     pub fn should_ignore_path(&self, path: &Path) -> bool {
-        let path_str = path.to_string_lossy();
+        let path_str = normalize_separators(&path.to_string_lossy());
         match_pattern(&self.ignore_paths, &path_str)
     }
 
@@ -432,6 +432,21 @@ fn match_pattern(patterns: &[String], path_str: &str) -> bool {
             .map(|p| p.matches(path_str))
             .unwrap_or(false)
     })
+}
+
+/// Config globs always use `/` as the separator, like `.gitignore`, so on
+/// Windows native `\` separators are normalized to `/`, both for paths being
+/// matched and for paths stored as glob entries. Stored entries especially
+/// must use `/` to stay portable: in a pattern `\` is a literal character on
+/// Unix, so an entry written with backslashes on Windows would silently stop
+/// matching when the config is shared to WSL/macOS/Linux.
+/// On Unix `\` is an ordinary filename character and paths are left alone.
+fn normalize_separators(path_str: &str) -> String {
+    if cfg!(windows) {
+        path_str.replace('\\', "/")
+    } else {
+        path_str.to_string()
+    }
 }
 
 /// Helper function to sort and deduplicate a Vec of strings
@@ -913,6 +928,53 @@ mod tests {
         assert!(ovr.matches_path(Path::new("src/guide.md")));
         assert!(ovr.matches_path(Path::new("docs/api/index.html")));
         assert!(!ovr.matches_path(Path::new("src/main.rs")));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_override_matches_backslash_path_on_windows() {
+        let ovr = OverrideBlock {
+            paths: vec!["docs/**/*".to_string()],
+            extra_words: Some(vec!["test".to_string()]),
+            ..OverrideBlock::default_for_test()
+        };
+
+        assert!(ovr.matches_path(Path::new(r"docs\api\guide.md")));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_ignore_and_include_match_backslash_paths_on_windows() {
+        let settings = ConfigSettings {
+            include_paths: vec!["src/**/*.rs".to_string()],
+            ignore_paths: vec!["target/**/*".to_string()],
+            ..Default::default()
+        };
+
+        assert!(settings.should_include_path(Path::new(r"src\main.rs")));
+        assert!(settings.should_ignore_path(Path::new(r"target\debug\build")));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_insert_ignore_normalizes_separators_on_windows() {
+        let mut settings = ConfigSettings::default();
+
+        // Stored entries become glob patterns and must use `/` so they stay
+        // portable when the config is shared with Unix platforms.
+        assert!(settings.insert_ignore(r"src\notes.md"));
+        assert_eq!(settings.ignore_paths, vec!["src/notes.md"]);
+        assert!(settings.should_ignore_path(Path::new(r"src\notes.md")));
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn test_backslash_is_not_a_separator_on_unix() {
+        let mut settings = ConfigSettings::default();
+
+        // On Unix `\` is an ordinary filename character and is preserved.
+        assert!(settings.insert_ignore(r"weird\name.md"));
+        assert_eq!(settings.ignore_paths, vec![r"weird\name.md"]);
     }
 
     #[test]

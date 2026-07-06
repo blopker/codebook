@@ -72,30 +72,37 @@ pub fn build_ignore_regexes(patterns: &[String]) -> Vec<Regex> {
         .collect()
 }
 
+/// Expand `~` and `~/` prefixes to the current user's home directory on all
+/// platforms (`~\` is also accepted on Windows, where it is a separator).
+/// Other paths, including `~user/...`, are returned unchanged.
 pub(crate) fn expand_tilde<P: AsRef<Path>>(path_user_input: P) -> Option<PathBuf> {
     let p = path_user_input.as_ref();
-    if !p.starts_with("~") {
-        return Some(p.to_path_buf());
-    }
-    if p == Path::new("~") {
+    let path = p.to_string_lossy();
+
+    if path == "~" {
         return dirs::home_dir();
     }
-    dirs::home_dir().map(|mut h| {
-        if h == Path::new("/") {
-            // Corner case: `h` root directory;
-            // don't prepend extra `/`, just drop the tilde.
-            p.strip_prefix("~").unwrap().to_path_buf()
-        } else {
-            h.push(p.strip_prefix("~/").unwrap());
-            h
+
+    let rest = path.strip_prefix("~/");
+    #[cfg(windows)]
+    let rest = rest.or_else(|| path.strip_prefix("~\\"));
+
+    match rest {
+        // Trim any extra leading separators (e.g. `~//x`): join with an
+        // absolute remainder would replace the home directory entirely.
+        Some(rest) => {
+            dirs::home_dir().map(|home| home.join(rest.trim_start_matches(std::path::is_separator)))
         }
-    })
+        None => Some(p.to_path_buf()),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(not(windows))]
     use std::ffi::OsString;
+    #[cfg(not(windows))]
     use std::sync::{Mutex, MutexGuard};
 
     #[cfg(not(windows))]
@@ -168,6 +175,57 @@ mod tests {
 
         restore_xdg(previous);
         drop(guard);
+    }
+
+    #[test]
+    fn expand_tilde_resolves_home_directory() {
+        let home = dirs::home_dir().expect("home directory must be available for the test");
+
+        assert_eq!(expand_tilde("~"), Some(home));
+    }
+
+    #[test]
+    fn expand_tilde_resolves_unix_style_home_path() {
+        let home = dirs::home_dir().expect("home directory must be available for the test");
+
+        assert_eq!(
+            expand_tilde("~/dotfiles/codebook.toml"),
+            Some(home.join("dotfiles/codebook.toml"))
+        );
+    }
+
+    #[test]
+    fn expand_tilde_stays_within_home_on_extra_separators() {
+        let home = dirs::home_dir().expect("home directory must be available for the test");
+
+        assert_eq!(expand_tilde("~//etc/passwd"), Some(home.join("etc/passwd")));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn expand_tilde_resolves_windows_style_home_path() {
+        let home = dirs::home_dir().expect("home directory must be available for the test");
+
+        assert_eq!(
+            expand_tilde(r"~\dotfiles\codebook.toml"),
+            Some(home.join(r"dotfiles\codebook.toml"))
+        );
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn expand_tilde_leaves_windows_style_path_unchanged_on_unix() {
+        // On Unix `\` is an ordinary filename character, not a separator.
+        let path = PathBuf::from(r"~\dotfiles\codebook.toml");
+
+        assert_eq!(expand_tilde(&path), Some(path));
+    }
+
+    #[test]
+    fn expand_tilde_leaves_other_paths_unchanged() {
+        let path = PathBuf::from("~user/codebook.toml");
+
+        assert_eq!(expand_tilde(&path), Some(path));
     }
 
     #[test]
