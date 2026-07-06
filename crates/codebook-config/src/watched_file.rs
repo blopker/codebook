@@ -16,6 +16,11 @@ pub struct WatchedFile<T: Clone> {
     content: Option<T>,
     last_modified: Option<SystemTime>,
     last_size: Option<u64>,
+    /// Disk meta of the last load attempt that failed. Reload retries a
+    /// failing file on every poll (the stamp stays stale on purpose); this
+    /// gates the warn log to once per broken state of the file, so it fires
+    /// again only when the file actually changes.
+    last_failed_meta: Option<(Option<SystemTime>, u64)>,
 }
 
 impl<T: Clone> WatchedFile<T> {
@@ -26,6 +31,7 @@ impl<T: Clone> WatchedFile<T> {
             content: None,
             last_modified: None,
             last_size: None,
+            last_failed_meta: None,
         }
     }
 
@@ -61,56 +67,69 @@ impl<T: Clone> WatchedFile<T> {
         }
     }
 
-    /// Load the file content, returning a new instance with updated content
-    pub fn load<F>(self, loader: F) -> Result<Self, String>
+    /// Load the file content, returning a new instance with updated content.
+    /// A watched file without a path has nothing to load and is returned
+    /// unchanged.
+    pub fn load<F, E>(self, loader: F) -> Result<Self, E>
     where
-        F: FnOnce(&Path) -> Result<T, String>,
+        F: FnOnce(&Path) -> Result<T, E>,
     {
-        let path = self
-            .path
-            .as_ref()
-            .ok_or_else(|| "No path configured for watched file".to_string())?;
+        let Some(path) = self.path.clone() else {
+            return Ok(self);
+        };
 
         // Stat before reading: if a write races the read, the stamp stays older
         // than the file and the next check reloads, instead of missing the write.
-        let meta = disk_meta(path);
+        let meta = disk_meta(&path);
         if self.content.is_none() || self.meta_differs(&meta) {
-            let content = loader(path)?;
+            let content = loader(&path)?;
             Ok(self.with_content_meta(content, meta))
         } else {
             Ok(self)
         }
     }
 
-    /// Load the file content if it has changed
-    /// Returns (new_instance, was_changed)
-    pub fn reload_if_changed<F>(self, loader: F) -> Result<(Self, bool), String>
+    /// Load the file content if it has changed.
+    /// Returns (new_instance, was_changed). Loader failures never propagate:
+    /// if the file was deleted the content is cleared; if it exists but is
+    /// unreadable or invalid the last good content is kept.
+    pub fn reload_if_changed<F, E>(self, loader: F) -> (Self, bool)
     where
-        F: FnOnce(&Path) -> Result<T, String>,
+        F: FnOnce(&Path) -> Result<T, E>,
+        E: std::fmt::Display,
     {
-        let path = self
-            .path
-            .as_ref()
-            .ok_or_else(|| "No path configured for watched file".to_string())?;
+        let Some(path) = self.path.clone() else {
+            // A watched file without a path never changes.
+            return (self, false);
+        };
 
         // Stat before reading (see load() for why)
-        let meta = disk_meta(path);
+        let meta = disk_meta(&path);
         if !self.meta_differs(&meta) {
-            return Ok((self, false));
+            return (self, false);
         }
 
-        match loader(path) {
-            Ok(content) => Ok((self.with_content_meta(content, meta), true)),
+        match loader(&path) {
+            Ok(content) => (self.with_content_meta(content, meta), true),
             Err(_) if meta.is_none() => {
                 // File was deleted, clear the content
-                Ok((self.cleared(), true))
+                (self.cleared(), true)
             }
             Err(e) => {
                 // File exists but is unreadable or invalid (e.g. mid-edit TOML).
                 // Keep the last good content; the stale stamp means we retry on
-                // the next reload.
-                log::warn!("Keeping previous config for {}: {e}", path.display());
-                Ok((self, false))
+                // the next reload. Warn only when the failing file changed, so
+                // a config left broken on disk logs once, not on every poll.
+                if self.last_failed_meta != meta {
+                    log::warn!("Keeping previous config for {}: {e}", path.display());
+                }
+                (
+                    Self {
+                        last_failed_meta: meta,
+                        ..self
+                    },
+                    false,
+                )
             }
         }
     }
@@ -152,6 +171,7 @@ impl<T: Clone> WatchedFile<T> {
             content: Some(content),
             last_modified,
             last_size,
+            last_failed_meta: None,
         }
     }
 
@@ -162,6 +182,7 @@ impl<T: Clone> WatchedFile<T> {
             content: None,
             last_modified: None,
             last_size: None,
+            last_failed_meta: None,
         }
     }
 }
@@ -233,9 +254,8 @@ mod tests {
         assert!(watched.has_changed());
 
         // Reload should clear the content
-        let (watched, changed) = watched
-            .reload_if_changed(|path| fs::read_to_string(path).map_err(|e| e.to_string()))
-            .unwrap();
+        let (watched, changed) =
+            watched.reload_if_changed(|path| fs::read_to_string(path).map_err(|e| e.to_string()));
         assert!(changed);
 
         // Content should now be None

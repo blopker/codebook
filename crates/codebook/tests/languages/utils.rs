@@ -13,31 +13,25 @@ use codebook_config::{CodebookConfig, CodebookConfigMemory};
 pub fn make_codebook(config: Arc<dyn CodebookConfig>) -> Codebook {
     init_logging();
     let fixtures = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/dictionaries");
-    Codebook::with_dictionary_dir(config, Some(fixtures)).unwrap()
+    Codebook::with_dictionary_dir(config, Some(fixtures))
 }
 
 pub fn get_processor() -> Codebook {
     let config = Arc::new(CodebookConfigMemory::default());
-    config
-        .add_ignore("**/ignore.txt")
-        .expect("Should ignore file");
+    config.add_ignore("**/ignore.txt");
     make_codebook(config)
 }
 
 pub fn get_processor_with_include(include: &str) -> Codebook {
     let config = Arc::new(CodebookConfigMemory::default());
-    config
-        .add_include(include)
-        .expect("Should add include path");
+    config.add_include(include);
     make_codebook(config)
 }
 
 pub fn get_processor_with_include_and_ignore(include: &str, ignore: &str) -> Codebook {
     let config = Arc::new(CodebookConfigMemory::default());
-    config
-        .add_include(include)
-        .expect("Should add include path");
-    config.add_ignore(ignore).expect("Should add ignore path");
+    config.add_include(include);
+    config.add_ignore(ignore);
     make_codebook(config)
 }
 

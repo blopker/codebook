@@ -47,6 +47,7 @@ spellbook = "<0.5.0"
 streaming-iterator = "0.1.9"
 string-offsets = "0.2.0"
 tempfile = "3"
+thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 toml = "<2"
 tower-lsp = "0.20.0"

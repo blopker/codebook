@@ -27,7 +27,7 @@ pub struct Codebook {
 pub static DEFAULT_DICTIONARIES: &[&str; 3] = &["codebook", "software_terms", "computing_acronyms"];
 
 impl Codebook {
-    pub fn new(config: Arc<dyn CodebookConfig>) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(config: Arc<dyn CodebookConfig>) -> Self {
         Self::with_dictionary_dir(config, None)
     }
 
@@ -38,10 +38,10 @@ impl Codebook {
     pub fn with_dictionary_dir(
         config: Arc<dyn CodebookConfig>,
         dictionary_dir: Option<std::path::PathBuf>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    ) -> Self {
         let manager =
             DictionaryManager::with_local_dir(&config.cache_dir().to_path_buf(), dictionary_dir);
-        Ok(Self { config, manager })
+        Self { config, manager }
     }
 
     /// Get WordLocations for a block of text.
@@ -141,10 +141,12 @@ impl Codebook {
         dictionaries
     }
 
-    pub fn spell_check_file(&self, path: &str) -> Vec<WordLocation> {
+    /// Spell check a file on disk, detecting the language from its path.
+    /// Errors if the file can't be read (including non-UTF-8 content).
+    pub fn spell_check_file(&self, path: &str) -> Result<Vec<WordLocation>, std::io::Error> {
         let lang_type = queries::get_language_name_from_filename(path);
-        let file_text = std::fs::read_to_string(path).unwrap();
-        self.spell_check(&file_text, Some(lang_type), Some(path))
+        let file_text = std::fs::read_to_string(path)?;
+        Ok(self.spell_check(&file_text, Some(lang_type), Some(path)))
     }
 
     /// Get suggestions for a misspelled word. Returns None when the word is

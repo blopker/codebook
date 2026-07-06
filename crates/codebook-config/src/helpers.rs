@@ -1,7 +1,9 @@
 use log::error;
 use regex::{Regex, RegexBuilder};
+use std::collections::HashSet;
 use std::env;
 use std::path::{Path, PathBuf};
+use std::sync::{LazyLock, Mutex};
 
 pub(crate) fn default_cache_dir() -> PathBuf {
     #[cfg(windows)]
@@ -55,6 +57,12 @@ pub(crate) fn unix_cache_dir() -> PathBuf {
     env::temp_dir().join("codebook").join("cache")
 }
 
+/// Invalid patterns already reported. This function runs on every spell check
+/// when a file matches a config override — every keystroke in the LSP — so a
+/// bad pattern is logged once per process, not once per check.
+static REPORTED_INVALID_PATTERNS: LazyLock<Mutex<HashSet<String>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
+
 /// Compile user-provided ignore regex patterns, dropping invalid entries.
 /// Patterns are compiled with multiline mode so `^` and `$` match line boundaries.
 pub fn build_ignore_regexes(patterns: &[String]) -> Vec<Regex> {
@@ -64,7 +72,13 @@ pub fn build_ignore_regexes(patterns: &[String]) -> Vec<Regex> {
             |pattern| match RegexBuilder::new(pattern).multi_line(true).build() {
                 Ok(regex) => Some(regex),
                 Err(e) => {
-                    error!("Ignoring invalid regex pattern '{pattern}': {e}");
+                    if REPORTED_INVALID_PATTERNS
+                        .lock()
+                        .unwrap()
+                        .insert(pattern.clone())
+                    {
+                        error!("Ignoring invalid regex pattern '{pattern}': {e}");
+                    }
                     None
                 }
             },

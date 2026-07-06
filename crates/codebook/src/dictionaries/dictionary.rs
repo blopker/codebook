@@ -13,6 +13,22 @@ pub trait Dictionary: Send + Sync {
     fn suggest(&self, word: &str) -> Vec<String>;
 }
 
+/// Failure to load a Hunspell dictionary from its `.aff`/`.dic` file pair.
+#[derive(Debug, thiserror::Error)]
+pub enum HunspellError {
+    #[error("failed to read dictionary file {path}: {source}")]
+    Read {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+    #[error("failed to parse dictionary [aff: {aff}, dic: {dic}]: {message}")]
+    Parse {
+        aff: String,
+        dic: String,
+        message: String,
+    },
+}
+
 enum WordCase {
     AllCaps,
     AllLower,
@@ -28,11 +44,19 @@ pub struct HunspellDictionary {
 }
 
 impl HunspellDictionary {
-    pub fn new(aff_path: &str, dic_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let aff = std::fs::read_to_string(aff_path)?;
-        let dic = std::fs::read_to_string(dic_path)?;
-        let dict = spellbook::Dictionary::new(&aff, &dic).map_err(|e| {
-            format!("Dictionary [aff: {aff_path}, dic: {dic_path}] parse error: {e}")
+    pub fn new(aff_path: &str, dic_path: &str) -> Result<Self, HunspellError> {
+        let read = |path: &str| {
+            std::fs::read_to_string(path).map_err(|source| HunspellError::Read {
+                path: path.into(),
+                source,
+            })
+        };
+        let aff = read(aff_path)?;
+        let dic = read(dic_path)?;
+        let dict = spellbook::Dictionary::new(&aff, &dic).map_err(|e| HunspellError::Parse {
+            aff: aff_path.to_string(),
+            dic: dic_path.to_string(),
+            message: e.to_string(),
         })?;
 
         Ok(HunspellDictionary {

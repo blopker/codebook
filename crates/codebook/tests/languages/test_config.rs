@@ -5,7 +5,7 @@ use std::sync::Arc;
 fn get_processor_with_words(words: &[&str]) -> Codebook {
     let config = Arc::new(CodebookConfigMemory::default());
     for w in words {
-        let _ = config.add_word(w);
+        config.add_word(w);
     }
     super::utils::make_codebook(config)
 }

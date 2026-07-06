@@ -102,13 +102,7 @@ pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> L
     print_config_source(&config);
     eprintln!();
 
-    let codebook = match Codebook::new(config.clone()) {
-        Ok(c) => c,
-        Err(e) => {
-            err!("failed to initialize: {e}");
-            return LintResult::Failure;
-        }
-    };
+    let codebook = Codebook::new(config.clone());
 
     // Canonicalize the root once here rather than once per file.
     let root_canonical = root.canonicalize().ok();
@@ -428,8 +422,7 @@ mod tests {
         let cb = Codebook::with_dictionary_dir(
             Arc::new(CodebookConfigMemory::default()),
             Some(fixtures),
-        )
-        .unwrap();
+        );
         let mut seen = HashSet::new();
 
         // Test basic flagging and multi-occurrence counting

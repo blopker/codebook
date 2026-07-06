@@ -190,7 +190,9 @@ fn test_example_files() {
     ];
     let processor = super::utils::get_processor();
     for (file, expected) in files {
-        let results = processor.spell_check_file(&example_file_path(file));
+        let results = processor
+            .spell_check_file(&example_file_path(file))
+            .unwrap();
         let mut misspelled: Vec<&str> = results.iter().map(|r| r.word.as_str()).collect();
         misspelled.sort_unstable();
         assert_eq!(&misspelled, expected, "flagged words in {file}");
