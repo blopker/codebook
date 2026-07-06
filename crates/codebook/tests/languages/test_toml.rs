@@ -1,7 +1,6 @@
-use codebook::{
-    parser::{TextRange, WordLocation},
-    queries::LanguageType,
-};
+use codebook::queries::LanguageType;
+
+use super::utils::assert_spelling;
 
 #[test]
 fn test_toml_location() {
@@ -11,22 +10,6 @@ fn test_toml_location() {
         toml = "0.5.8"
         testz = "0.1.0"
 "#;
-    let expected = vec![WordLocation::new(
-        "testx".to_string(),
-        vec![TextRange {
-            start_byte: 17,
-            end_byte: 22,
-        }],
-    )];
-    let not_expected = ["testz"];
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_toml, Some(LanguageType::TOML), None)
-        .to_vec();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
-    assert!(misspelled[0].locations.len() == 1);
-    for result in misspelled {
-        assert!(!not_expected.contains(&result.word.as_str()));
-    }
+    // Dependency keys ("testz") are not spell-checked; string values are.
+    assert_spelling(LanguageType::TOML, sample_toml, &["testx"], &["testz"]);
 }

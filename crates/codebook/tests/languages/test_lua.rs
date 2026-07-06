@@ -1,10 +1,9 @@
 use codebook::queries::LanguageType;
 
+use super::utils::{assert_spelling, assert_spelling_at};
+
 #[test]
 fn test_lua_spell_check() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
-
     let lua_code = r#"
 -- This is a commet with a misspelling
 local function helo_world()
@@ -27,54 +26,42 @@ local data = {
     is_activ = true
 }
 "#;
-
-    let results = processor.spell_check(lua_code, Some(LanguageType::Lua), None);
-
-    // Collect all misspelled words
-    let misspelled: Vec<String> = results.iter().map(|r| r.word.clone()).collect();
-    println!("Misspelled words in Lua code: {:?}", misspelled);
-
-    // Check that common misspellings are detected
-    assert!(misspelled.contains(&"commet".to_string()));
-    assert!(misspelled.contains(&"helo".to_string()));
-    assert!(misspelled.contains(&"Helo".to_string()));
-    assert!(misspelled.contains(&"Wrold".to_string()));
-    assert!(misspelled.contains(&"misspeling".to_string()));
-    assert!(misspelled.contains(&"calculat".to_string()));
-    assert!(misspelled.contains(&"Tabel".to_string()));
-    assert!(misspelled.contains(&"valu".to_string()));
-    assert!(misspelled.contains(&"activ".to_string()));
+    assert_spelling(
+        LanguageType::Lua,
+        lua_code,
+        &[
+            "commet",
+            "helo",
+            "Helo",
+            "Wrold",
+            "misspeling",
+            "calculat",
+            "Tabel",
+            "valu",
+            "activ",
+        ],
+        &[],
+    );
 }
 
 #[test]
 fn test_lua_word_locations() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
-
     let lua_code = r#"-- Simple commet
 local function test_func()
     local mesage = "Hello"
     return mesage
 end"#;
-
-    let results = processor.spell_check(lua_code, Some(LanguageType::Lua), None);
-
-    // Find the "commet" misspelling
-    let commet = results.iter().find(|r| r.word == "commet");
-    assert!(commet.is_some());
-
-    // Find the "mesage" misspelling (should appear twice)
-    let mesage = results.iter().find(|r| r.word == "mesage");
-    assert!(mesage.is_some());
-    let mesage = mesage.unwrap();
-    assert_eq!(mesage.locations.len(), 1); // Should be found in declaration, but not usage
+    // "mesage" appears twice but is flagged at the declaration only, not at
+    // the usage in the return statement.
+    assert_spelling_at(
+        LanguageType::Lua,
+        lua_code,
+        &[("commet", &[0]), ("mesage", &[0])],
+    );
 }
 
 #[test]
 fn test_lua_comments() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
-
     let lua_code = r#"
 -- This is a coment with misspeling
 --[[
@@ -83,20 +70,20 @@ fn test_lua_comments() {
 ]]
 local x = 1 -- inline coment
 "#;
-
-    let results = processor.spell_check(lua_code, Some(LanguageType::Lua), None);
-    let misspelled: Vec<String> = results.iter().map(|r| r.word.clone()).collect();
-
-    assert!(misspelled.contains(&"coment".to_string()));
-    assert!(misspelled.contains(&"misspeling".to_string()));
-    assert!(misspelled.contains(&"misstakes".to_string()));
+    // All three comment styles (line, multi-line block, inline) are checked.
+    assert_spelling_at(
+        LanguageType::Lua,
+        lua_code,
+        &[
+            ("coment", &[0, 1, 2]),
+            ("misspeling", &[0]),
+            ("misstakes", &[0]),
+        ],
+    );
 }
 
 #[test]
 fn test_lua_strings() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
-
     let lua_code = r#"
 local single = 'This is a strng with misspeling'
 local double = "Another strng with erors"
@@ -105,21 +92,22 @@ local multi = [[
     with misstakes
 ]]
 "#;
-
-    let results = processor.spell_check(lua_code, Some(LanguageType::Lua), None);
-    let misspelled: Vec<String> = results.iter().map(|r| r.word.clone()).collect();
-
-    assert!(misspelled.contains(&"strng".to_string()));
-    assert!(misspelled.contains(&"misspeling".to_string()));
-    assert!(misspelled.contains(&"erors".to_string()));
-    assert!(misspelled.contains(&"misstakes".to_string()));
+    // All three string styles (single-quoted, double-quoted, long bracket)
+    // are checked.
+    assert_spelling_at(
+        LanguageType::Lua,
+        lua_code,
+        &[
+            ("strng", &[0, 1, 2]),
+            ("misspeling", &[0]),
+            ("erors", &[0]),
+            ("misstakes", &[0]),
+        ],
+    );
 }
 
 #[test]
 fn test_lua_identifiers() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
-
     let lua_code = r#"
 local functoin = function() end
 local tabel = {}
@@ -135,26 +123,26 @@ function MyModul:methud()
     self.proprty = 1
 end
 "#;
-
-    let results = processor.spell_check(lua_code, Some(LanguageType::Lua), None);
-    let misspelled: Vec<String> = results.iter().map(|r| r.word.clone()).collect();
-
-    // Check identifier misspellings
-    assert!(misspelled.contains(&"functoin".to_string()));
-    assert!(misspelled.contains(&"tabel".to_string()));
-    assert!(misspelled.contains(&"numbr".to_string()));
-    assert!(misspelled.contains(&"calculatr".to_string()));
-    assert!(misspelled.contains(&"reslt".to_string()));
-    assert!(misspelled.contains(&"Modul".to_string()));
-    assert!(misspelled.contains(&"methud".to_string()));
-    assert!(misspelled.contains(&"proprty".to_string()));
+    // "reslt" and "Modul" are flagged at their declarations only, not at the
+    // return usage / method definition receiver.
+    assert_spelling_at(
+        LanguageType::Lua,
+        lua_code,
+        &[
+            ("functoin", &[0]),
+            ("tabel", &[0]),
+            ("numbr", &[0]),
+            ("calculatr", &[0]),
+            ("reslt", &[0]),
+            ("Modul", &[0]),
+            ("methud", &[0]),
+            ("proprty", &[0]),
+        ],
+    );
 }
 
 #[test]
 fn test_lua_tables() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
-
     let lua_code = r#"
 local config = {
     enabld = true,
@@ -166,69 +154,52 @@ local config = {
     }
 }
 "#;
-
-    let results = processor.spell_check(lua_code, Some(LanguageType::Lua), None);
-    let misspelled: Vec<String> = results.iter().map(|r| r.word.clone()).collect();
-
-    // Check table field misspellings
-    assert!(misspelled.contains(&"enabld".to_string()));
-    assert!(misspelled.contains(&"valu".to_string()));
-    assert!(misspelled.contains(&"mesage".to_string()));
-    assert!(misspelled.contains(&"optins".to_string()));
-    assert!(misspelled.contains(&"debugg".to_string()));
-    assert!(misspelled.contains(&"verbos".to_string()));
+    assert_spelling(
+        LanguageType::Lua,
+        lua_code,
+        &["enabld", "valu", "mesage", "optins", "debugg", "verbos"],
+        &[],
+    );
 }
 
 #[test]
 fn test_lua_camel_case() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
-
     let lua_code = r#"
 local myVaribleNam = 1
 local HeloPeopl = function() end
 local getUserInformaton = function() end
 "#;
-
-    let results = processor.spell_check(lua_code, Some(LanguageType::Lua), None);
-    let misspelled: Vec<String> = results.iter().map(|r| r.word.clone()).collect();
-
-    // Check camelCase splitting and spell checking
-    assert!(
-        misspelled.contains(&"Varibl".to_string()) || misspelled.contains(&"Varible".to_string())
+    // camelCase identifiers are split and each part checked; "Nam" is not
+    // flagged because it's a dictionary word.
+    assert_spelling(
+        LanguageType::Lua,
+        lua_code,
+        &["Varible", "Helo", "Peopl", "Informaton"],
+        &["Nam"],
     );
-    assert!(misspelled.contains(&"Helo".to_string()));
-    assert!(misspelled.contains(&"Peopl".to_string()));
-    assert!(misspelled.contains(&"Informaton".to_string()));
 }
 
 #[test]
 fn test_lua_snake_case() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
-
     let lua_code = r#"
 local my_varible_nam = 1
 local get_user_informaton = function() end
 local calculat_reslt = function() end
 "#;
-
-    let results = processor.spell_check(lua_code, Some(LanguageType::Lua), None);
-    let misspelled: Vec<String> = results.iter().map(|r| r.word.clone()).collect();
-
-    // Check snake_case splitting and spell checking
-    assert!(misspelled.contains(&"varible".to_string()));
-    assert!(misspelled.contains(&"informaton".to_string()));
-    assert!(misspelled.contains(&"calculat".to_string()));
-    assert!(misspelled.contains(&"reslt".to_string()));
+    // snake_case identifiers are split and each part checked; "nam" is not
+    // flagged because it's a dictionary word.
+    assert_spelling(
+        LanguageType::Lua,
+        lua_code,
+        &["varible", "informaton", "calculat", "reslt"],
+        &["nam"],
+    );
 }
 
 #[test]
 fn test_lua_no_false_positives() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
-
-    // Code with correct spelling - should not produce any results
+    // Code with correct spelling - should not produce any results.
+    // Standard Lua functions and keywords should not be flagged.
     let lua_code = r#"
 -- This is a correct comment
 local function calculate_result()
@@ -242,19 +213,14 @@ local config = {
     debug = false
 }
 
--- Standard Lua functions and keywords should not be flagged
 print("test")
 require("module")
 local coroutine = coroutine.create(function() end)
 "#;
-
-    let results = processor.spell_check(lua_code, Some(LanguageType::Lua), None);
-
-    // Should have no misspellings in correctly spelled code
-    assert_eq!(
-        results.len(),
-        0,
-        "Found unexpected misspellings: {:?}",
-        results.iter().map(|r| &r.word).collect::<Vec<_>>()
+    assert_spelling(
+        LanguageType::Lua,
+        lua_code,
+        &[],
+        &["coroutine", "require", "print"],
     );
 }

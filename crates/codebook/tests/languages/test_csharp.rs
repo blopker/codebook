@@ -1,8 +1,9 @@
 use codebook::queries::LanguageType;
 
+use super::utils::{assert_spelling, assert_spelling_at};
+
 #[test]
 fn test_csharp_simple() {
-    super::utils::init_logging();
     let sample_text = r#"
 class Demo {
     const int tesst = 5;
@@ -12,21 +13,16 @@ class Demo {
     }
 }
 "#;
-
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::CSharp), None)
-        .to_vec();
-
-    println!("Misspelled words: {:#?}", misspelled);
-
-    assert!(misspelled.iter().any(|w| w.word == "tesst"));
-    assert!(misspelled.iter().any(|w| w.word == "valuue"));
+    assert_spelling(
+        LanguageType::CSharp,
+        sample_text,
+        &["tesst", "valuue"],
+        &["Demo", "Run"],
+    );
 }
 
 #[test]
 fn test_csharp_strings_and_comments() {
-    super::utils::init_logging();
     let sample_text = r#"
 // Comment with speling error.
 
@@ -43,32 +39,31 @@ class DemoStrings {
 
         var multi = @"ernor
            spelingg
-        "); 
+        ");
         System.Console.WriteLine(multi);
     }
 }
 "#;
-
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::CSharp), None)
-        .to_vec();
-
-    println!("Misspelled words: {:#?}", misspelled);
-
-    assert!(misspelled.iter().any(|w| w.word == "speling"));
-    assert!(misspelled.iter().any(|w| w.word == "seconnd"));
-    assert!(misspelled.iter().any(|w| w.word == "Wolrd"));
-    assert!(misspelled.iter().any(|w| w.word == "coment"));
-    assert!(misspelled.iter().any(|w| w.word == "eror"));
-    assert!(misspelled.iter().any(|w| w.word == "Helo"));
-    assert!(misspelled.iter().any(|w| w.word == "ernor"));
-    assert!(misspelled.iter().any(|w| w.word == "spelingg"));
+    assert_spelling_at(
+        LanguageType::CSharp,
+        sample_text,
+        &[
+            // Occurrence 1 is the substring inside `spelingg`, which is
+            // flagged as its own whole word instead.
+            ("speling", &[0]),
+            ("seconnd", &[0]),
+            ("Wolrd", &[0]),
+            ("coment", &[0]),
+            ("eror", &[0]),
+            ("Helo", &[0]),
+            ("ernor", &[0]),
+            ("spelingg", &[0]),
+        ],
+    );
 }
 
 #[test]
 fn test_csharp_functions() {
-    super::utils::init_logging();
     let sample_text = r#"
 class MathUtil {
     static int AddNumberrs(int firstt, int seconnd) {
@@ -77,16 +72,17 @@ class MathUtil {
     }
 }
 "#;
-
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::CSharp), None)
-        .to_vec();
-
-    println!("Misspelled words: {:#?}", misspelled);
-
-    assert!(misspelled.iter().any(|w| w.word == "Numberrs"));
-    assert!(misspelled.iter().any(|w| w.word == "firstt"));
-    assert!(misspelled.iter().any(|w| w.word == "seconnd"));
-    assert!(misspelled.iter().any(|w| w.word == "resullt"));
+    assert_spelling_at(
+        LanguageType::CSharp,
+        sample_text,
+        &[
+            // Flagged at the `Numberrs` sub-token range inside `AddNumberrs`.
+            ("Numberrs", &[0]),
+            // Parameters and locals are flagged at their declaration, not at
+            // the expression or return usages.
+            ("firstt", &[0]),
+            ("seconnd", &[0]),
+            ("resullt", &[0]),
+        ],
+    );
 }

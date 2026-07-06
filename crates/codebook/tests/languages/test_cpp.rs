@@ -1,12 +1,9 @@
-use codebook::{
-    parser::{TextRange, WordLocation},
-    queries::LanguageType,
-};
+use codebook::queries::LanguageType;
+
+use super::utils::{assert_spelling, assert_spelling_at};
 
 #[test]
 fn test_cpp_simple() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
     let sample_text = r#"
         int calculatr(int numbr1, int numbr2, char operashun) {
             // This is an exampl function that performz calculashuns
@@ -16,53 +13,36 @@ fn test_cpp_simple() {
             return resalt + misspellled;
         }
     "#;
-    let expected = vec![
-        "calculashuns",
-        "calculatr",
-        "exampl",
-        "misspellled",
-        "numbr",
-        "operashun",
-        "performz",
-        "resalt",
-    ];
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::Cpp), None)
-        .to_vec();
-    let mut misspelled = binding
-        .iter()
-        .map(|r| r.word.as_str())
-        .collect::<Vec<&str>>();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
+    assert_spelling_at(
+        LanguageType::Cpp,
+        sample_text,
+        &[
+            ("calculatr", &[0]),
+            // Both parameter declarations are flagged at the `numbr`
+            // sub-token range.
+            ("numbr", &[0, 1]),
+            ("operashun", &[0]),
+            ("exampl", &[0]),
+            ("performz", &[0]),
+            ("calculashuns", &[0]),
+            // Variables are flagged at their declaration, not at the
+            // assignment or return usages.
+            ("resalt", &[0]),
+            ("misspellled", &[0]),
+        ],
+    );
 }
 
 #[test]
 fn test_cpp_comment_location() {
-    super::utils::init_logging();
     let sample_cpp = r#"
         // Structur definition with misspellings
     "#;
-    let expected = vec![WordLocation::new(
-        "Structur".to_string(),
-        vec![TextRange {
-            start_byte: 12,
-            end_byte: 20,
-        }],
-    )];
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_cpp, Some(LanguageType::Cpp), None)
-        .to_vec();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
-    assert!(misspelled[0].locations.len() == 1);
+    assert_spelling(LanguageType::Cpp, sample_cpp, &["Structur"], &[]);
 }
 
 #[test]
 fn test_cpp_class() {
-    super::utils::init_logging();
     let sample_cpp = r#"
         class UserAccaunt {
             std::string usrrnamee;
@@ -70,108 +50,54 @@ fn test_cpp_class() {
             float intrest_rate;
         };
     "#;
-    let expected = [
-        WordLocation::new(
-            "Accaunt".to_string(),
-            vec![TextRange {
-                start_byte: 19,
-                end_byte: 26,
-            }],
-        ),
-        WordLocation::new(
-            "usrrnamee".to_string(),
-            vec![TextRange {
-                start_byte: 53,
-                end_byte: 62,
-            }],
-        ),
-        WordLocation::new(
-            "ballancee".to_string(),
-            vec![TextRange {
-                start_byte: 80,
-                end_byte: 89,
-            }],
-        ),
-        WordLocation::new(
-            "intrest".to_string(),
-            vec![TextRange {
-                start_byte: 109,
-                end_byte: 116,
-            }],
-        ),
-    ];
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_cpp, Some(LanguageType::Cpp), None)
-        .to_vec();
-    println!("Misspelled words: {misspelled:?}");
-    for expect in expected.iter() {
-        println!("Expecting {}", expect.word);
-        let result = misspelled.iter().find(|r| r.word == expect.word).unwrap();
-        assert_eq!(result.word, expect.word);
-        assert_eq!(result.locations, expect.locations);
-    }
+    assert_spelling(
+        LanguageType::Cpp,
+        sample_cpp,
+        // `Accaunt` and `intrest` are flagged at sub-token ranges inside
+        // `UserAccaunt` and `intrest_rate`.
+        &["Accaunt", "usrrnamee", "ballancee", "intrest"],
+        &["User", "rate"],
+    );
 }
 
 #[test]
 fn test_cpp_multiline_string_concat() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
     let sample_text = r#"
         const char* message =
             "This is a verry long string\n"
             "that continuez on multiple linez\n"
             "with lots of speling misstakes\n";
     "#;
-    let expected = vec!["continuez", "linez", "misstakes", "speling", "verry"];
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::Cpp), None)
-        .to_vec();
-    let mut misspelled = binding
-        .iter()
-        .map(|r| r.word.as_str())
-        .collect::<Vec<&str>>();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
+    assert_spelling(
+        LanguageType::Cpp,
+        sample_text,
+        &["continuez", "linez", "misstakes", "speling", "verry"],
+        &["message"],
+    );
 }
 
 #[test]
 fn test_cpp_vector_string_literals() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
     let sample_text = r#"
         std::vector<std::string> mesages = { "Helo", "Wrold", "Cpp" };
     "#;
-    let expected = vec!["Helo", "Wrold", "mesages"];
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::Cpp), None)
-        .to_vec();
-    let mut misspelled = binding
-        .iter()
-        .map(|r| r.word.as_str())
-        .collect::<Vec<&str>>();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
+    assert_spelling(
+        LanguageType::Cpp,
+        sample_text,
+        &["Helo", "Wrold", "mesages"],
+        &["Cpp"],
+    );
 }
 
 #[test]
 fn test_cpp_stream_string_literal() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
     let sample_text = r#"
         std::cout << "Currect anser!\n youu best";
     "#;
-    let expected = vec!["Currect", "anser", "youu"];
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::Cpp), None)
-        .to_vec();
-    let mut misspelled = binding
-        .iter()
-        .map(|r| r.word.as_str())
-        .collect::<Vec<&str>>();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
+    assert_spelling(
+        LanguageType::Cpp,
+        sample_text,
+        &["Currect", "anser", "youu"],
+        &["best"],
+    );
 }

@@ -1,11 +1,15 @@
-use codebook::{
-    parser::{TextRange, WordLocation},
-    queries::LanguageType,
-};
+use codebook::queries::LanguageType;
 
+use super::utils::{assert_spelling, assert_spelling_at};
+
+/// Anchor test for the tree-sitter (code) path: strict positional checking
+/// via occurrence indices. The emoji in the comment and string sit BEFORE
+/// most misspellings so multi-byte offset drift shifts the reported ranges
+/// and fails the comparison. Occurrence indices count case-sensitive
+/// substring matches: e.g. `Userr` occurs inside `GetUserr` because
+/// camelCase splitting flags it at that sub-token range.
 #[test]
 fn test_go_location() {
-    super::utils::init_logging();
     let sample_text = r#"
     package pacagename
     import myfmt "fmt"
@@ -20,8 +24,8 @@ fn test_go_location() {
         return Userr{Namee: prefixx + "Alice"}
     }
     func main() {
-        // I'm bad at speling alice
-        myfmt.Println("Hello, Wolrd!")
+        // I'm bad at speling 😀 alice
+        myfmt.Println("Hello, 🌍 Wolrd!")
         var alicz = "Alicz"
         myfmt.Println("Hellol, " + alicz)
         var rsvp = "RSVP"
@@ -40,223 +44,44 @@ fn test_go_location() {
         }
         myfmt.Println(itemns)
     }"#;
-    let expected = vec![
-        WordLocation::new(
-            "pacagename".to_string(),
-            vec![TextRange {
-                start_byte: 13,
-                end_byte: 23,
-            }],
-        ),
-        WordLocation::new(
-            "alicz".to_string(),
-            vec![TextRange {
-                start_byte: 427,
-                end_byte: 432,
-            }],
-        ),
-        WordLocation::new(
-            "myfmt".to_string(),
-            vec![TextRange {
-                start_byte: 35,
-                end_byte: 40,
-            }],
-        ),
-        WordLocation::new(
-            "Userr".to_string(),
-            vec![
-                TextRange {
-                    start_byte: 56,
-                    end_byte: 61,
-                },
-                TextRange {
-                    start_byte: 158,
-                    end_byte: 163,
-                },
-                TextRange {
-                    start_byte: 175,
-                    end_byte: 180,
-                },
-                TextRange {
-                    start_byte: 229,
-                    end_byte: 234,
-                },
-                TextRange {
-                    start_byte: 239,
-                    end_byte: 244,
-                },
-                TextRange {
-                    start_byte: 261,
-                    end_byte: 266,
-                },
-                TextRange {
-                    start_byte: 284,
-                    end_byte: 289,
-                },
-            ],
-        ),
-        WordLocation::new(
-            "prefixx".to_string(),
-            vec![TextRange {
-                start_byte: 245,
-                end_byte: 252,
-            }],
-        ),
-        WordLocation::new(
-            "Namee".to_string(),
-            vec![
-                TextRange {
-                    start_byte: 79,
-                    end_byte: 84,
-                },
-                TextRange {
-                    start_byte: 200,
-                    end_byte: 205,
-                },
-            ],
-        ),
-        WordLocation::new(
-            "Servicce".to_string(),
-            vec![TextRange {
-                start_byte: 126,
-                end_byte: 134,
-            }],
-        ),
-        WordLocation::new(
-            "namme".to_string(),
-            vec![TextRange {
-                start_byte: 99,
-                end_byte: 104,
-            }],
-        ),
-        WordLocation::new(
-            "outerr".to_string(),
-            vec![
-                TextRange {
-                    start_byte: 634,
-                    end_byte: 640,
-                },
-                TextRange {
-                    start_byte: 738,
-                    end_byte: 744,
-                },
-            ],
-        ),
-        WordLocation::new(
-            "itemns".to_string(),
-            vec![TextRange {
-                start_byte: 777,
-                end_byte: 783,
-            }],
-        ),
-        WordLocation::new(
-            "indexx".to_string(),
-            vec![TextRange {
-                start_byte: 838,
-                end_byte: 844,
-            }],
-        ),
-        WordLocation::new(
-            "cokbookkk".to_string(),
-            vec![TextRange {
-                start_byte: 559,
-                end_byte: 568,
-            }],
-        ),
-        WordLocation::new(
-            "valie".to_string(),
-            vec![TextRange {
-                start_byte: 578,
-                end_byte: 583,
-            }],
-        ),
-        WordLocation::new(
-            "Wolrd".to_string(),
-            vec![TextRange {
-                start_byte: 406,
-                end_byte: 411,
-            }],
-        ),
-        WordLocation::new(
-            "Alicz".to_string(),
-            vec![TextRange {
-                start_byte: 436,
-                end_byte: 441,
-            }],
-        ),
-        WordLocation::new(
-            "speling".to_string(),
-            vec![TextRange {
-                start_byte: 362,
-                end_byte: 369,
-            }],
-        ),
-        WordLocation::new(
-            "Hellol".to_string(),
-            vec![TextRange {
-                start_byte: 466,
-                end_byte: 472,
-            }],
-        ),
-        WordLocation::new(
-            "imdex".to_string(),
-            vec![TextRange {
-                start_byte: 654,
-                end_byte: 659,
-            }],
-        ),
-        WordLocation::new(
-            "firstt".to_string(),
-            vec![TextRange {
-                start_byte: 797,
-                end_byte: 803,
-            }],
-        ),
-        WordLocation::new(
-            "seconnd".to_string(),
-            vec![TextRange {
-                start_byte: 807,
-                end_byte: 814,
-            }],
-        ),
-        WordLocation::new(
-            "tihrd".to_string(),
-            vec![TextRange {
-                start_byte: 818,
-                end_byte: 823,
-            }],
-        ),
-        WordLocation::new(
-            "valuue".to_string(),
-            vec![TextRange {
-                start_byte: 846,
-                end_byte: 852,
-            }],
-        ),
-    ];
-    let not_expected = ["fmt"];
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Go), None)
-        .to_vec();
-    println!("Misspelled words: {misspelled:?}");
-    for e in &expected {
-        println!("Expecting: {e:?}");
-        let miss = misspelled.iter().find(|r| r.word == e.word).unwrap();
-        // assert_eq!(miss.locations, e.locations);
-        assert!(miss.locations.len() == e.locations.len());
-        for location in &miss.locations {
-            assert!(e.locations.contains(location));
-        }
-    }
-    for result in misspelled {
-        assert!(!not_expected.contains(&result.word.as_str()));
-    }
+    assert_spelling_at(
+        LanguageType::Go,
+        sample_text,
+        &[
+            ("pacagename", &[0]),
+            // Identifiers are flagged at their definition, not at usages.
+            ("myfmt", &[0]),
+            // All 7 occurrences: type name, inside both GetUserr methods
+            // (camelCase split), receiver, return types, and struct literal.
+            ("Userr", &[0, 1, 2, 3, 4, 5, 6]),
+            ("prefixx", &[0]),
+            // Struct field definition and inside MaxNameeSize (camelCase
+            // split); the `Userr{Namee:` usage is not flagged.
+            ("Namee", &[0, 1]),
+            ("Servicce", &[0]),
+            ("namme", &[0]),
+            // Labels are flagged at definition and at `break`.
+            ("outerr", &[0, 1]),
+            ("itemns", &[0]),
+            ("indexx", &[0]),
+            ("cokbookkk", &[0]),
+            ("valie", &[0]),
+            ("Wolrd", &[0]),
+            ("Alicz", &[0]),
+            ("alicz", &[0]),
+            ("speling", &[0]),
+            ("Hellol", &[0]),
+            ("imdex", &[0]),
+            ("firstt", &[0]),
+            ("seconnd", &[0]),
+            ("tihrd", &[0]),
+            ("valuue", &[0]),
+        ],
+    );
 }
 
 #[test]
 fn test_go_imports_not_checked() {
-    super::utils::init_logging();
     let sample_text = r#"
     package main
 
@@ -270,17 +95,12 @@ fn test_go_imports_not_checked() {
     func main() {
         fmt.Println("hello")
     }"#;
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Go), None)
-        .to_vec();
-    let words: Vec<&str> = misspelled.iter().map(|w| w.word.as_str()).collect();
-    println!("Misspelled words: {words:?}");
-    // Import path contents should not be spell-checked
-    assert!(!words.contains(&"someuserr"));
-    assert!(!words.contains(&"mypackagee"));
-    assert!(!words.contains(&"anotherr"));
-    assert!(!words.contains(&"fmtpkg"));
-    // Import aliases are still checked
-    assert!(words.contains(&"myfmt"));
+    assert_spelling(
+        LanguageType::Go,
+        sample_text,
+        // Import aliases are still checked.
+        &["myfmt"],
+        // Import path contents are not spell-checked.
+        &["someuserr", "mypackagee", "anotherr", "fmtpkg"],
+    );
 }

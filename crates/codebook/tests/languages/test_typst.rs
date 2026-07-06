@@ -1,7 +1,6 @@
-use codebook::{
-    parser::{TextRange, WordLocation},
-    queries::LanguageType,
-};
+use codebook::queries::LanguageType;
+
+use super::utils::{assert_spelling, assert_spelling_at};
 
 #[test]
 fn test_typst_locations() {
@@ -41,69 +40,23 @@ established in @glacier-meltt.
 
 #biblography("works.bib")
     "#;
-
-    let expected = vec![
-        WordLocation::new(
-            "climat".to_string(),
-            vec![TextRange {
-                start_byte: 7,
-                end_byte: 13,
-            }],
-        ),
-        WordLocation::new(
-            "gology".to_string(),
-            vec![TextRange {
-                start_byte: 71,
-                end_byte: 77,
-            }],
-        ),
-        WordLocation::new(
-            "fluiid".to_string(),
-            vec![TextRange {
-                start_byte: 162,
-                end_byte: 168,
-            }],
-        ),
-        WordLocation::new(
-            "glacierr".to_string(),
-            vec![TextRange {
-                start_byte: 296,
-                end_byte: 304,
-            }],
-        ),
-        WordLocation::new(
-            "glacierss".to_string(),
-            vec![TextRange {
-                start_byte: 422,
-                end_byte: 431,
-            }],
-        ),
-        WordLocation::new(
-            "offse".to_string(),
-            vec![TextRange {
-                start_byte: 520,
-                end_byte: 525,
-            }],
-        ),
-    ];
-    let not_expected = vec!["biblography", "figurr", "imaget", "meltt"];
-
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Typst), None)
-        .to_vec();
-    println!("Misspelled words: {misspelled:?}");
-    for e in &expected {
-        println!("Expecting: {e:?}");
-        let miss = misspelled
-            .iter()
-            .find(|r| r.word == e.word)
-            .unwrap_or_else(|| panic!("Word '{}' not found in misspelled list", e.word));
-        assert_eq!(miss.locations, e.locations);
-    }
-    for word in not_expected {
-        assert!(!misspelled.iter().any(|r| r.word == word));
-    }
+    // Exact set equality: function names (figurr, imaget, biblography) and
+    // reference usages (@glacier-meltt) can't appear in the flagged set.
+    // "climat" also occurs inside "climate system" (occurrence 1);
+    // "glacierss" is flagged at its label definition `<glacierss>`
+    // (occurrence 1), not at the `@glacierss` usage.
+    assert_spelling_at(
+        LanguageType::Typst,
+        sample_text,
+        &[
+            ("climat", &[0]),
+            ("gology", &[0]),
+            ("fluiid", &[0]),
+            ("glacierr", &[0]),
+            ("glacierss", &[1]),
+            ("offse", &[0]),
+        ],
+    );
 }
 
 #[test]
@@ -115,8 +68,14 @@ fn test_typst_imports() {
 #import "label.typ": xlabl, ylabl, labl as lq-labbel
 #import "@prevew/lable:1.1.1" as e
     "#;
-    let expected = vec!["confernce", "labbel"];
-    test_helper(sample_text, expected);
+    // Imported names and import paths aren't checked; the aliases the user
+    // picks (confernce, lq-labbel) are.
+    assert_spelling(
+        LanguageType::Typst,
+        sample_text,
+        &["confernce", "labbel"],
+        &["confrnce", "xlabl", "ylabl", "prevew", "lable"],
+    );
 }
 
 #[test]
@@ -165,11 +124,27 @@ fn test_typst_functions() {
     ((lft, rght)) => lft + rght
 )
     "#;
-    let expected = vec![
-        "TRAKS", "Tywriter", "Wrning", "alrt", "bdy", "docment", "fil", "headng", "itly", "lft",
-        "rght", "tmplate",
-    ];
-    test_helper(sample_text, expected);
+    // Identifiers are flagged at their definitions (parameters, closure
+    // bindings), not at usages. "fil" occurrence 0 is the `fil: red`
+    // parameter; its other matches are usages or substrings of "fill".
+    assert_spelling_at(
+        LanguageType::Typst,
+        sample_text,
+        &[
+            ("TRAKS", &[0]),
+            ("Tywriter", &[0]),
+            ("Wrning", &[0]),
+            ("alrt", &[0]),
+            ("bdy", &[0]),
+            ("docment", &[0]),
+            ("fil", &[0]),
+            ("headng", &[0]),
+            ("itly", &[0]),
+            ("lft", &[0]),
+            ("rght", &[0]),
+            ("tmplate", &[0]),
+        ],
+    );
 }
 
 #[test]
@@ -182,8 +157,14 @@ $ cal(A) :=
 #let x = 5
 $ #x < 17 $
     "#;
-    let expected = vec!["natral", "radiu"];
-    test_helper(sample_text, expected);
+    // Only quoted strings inside math are checked; math identifiers
+    // (pi, dot, cal, RR) are not.
+    assert_spelling(
+        LanguageType::Typst,
+        sample_text,
+        &["natral", "radiu"],
+        &["pi", "dot", "cal", "RR"],
+    );
 }
 
 #[test]
@@ -220,28 +201,36 @@ Homer wrote #homerr.
     #author wrote #title.
 ]
     "#;
-    let expected = vec![
-        "Homr",
-        "Itt",
-        "Persuason",
-        "Shkespeare",
-        "aple",
-        "aples",
-        "asten",
-        "authr",
-        "boks",
-        "docmentation",
-        "frst",
-        "homerr",
-        "lst",
-        "namee",
-        "orng",
-        "ornges",
-        "othr",
-        "ttle",
-        "variabls",
-    ];
-    test_helper(sample_text, expected);
+    // Identifiers are flagged at their definitions, not at usages: "Homr"
+    // is flagged at the dictionary key, not at the destructuring pattern
+    // that refers back to it. "aple" occurrence 1 is the standalone
+    // parameter; occurrences 0 and 2 are substrings of "aples", which is
+    // flagged as its own word.
+    assert_spelling_at(
+        LanguageType::Typst,
+        sample_text,
+        &[
+            ("Homr", &[0]),
+            ("Itt", &[0]),
+            ("Persuason", &[0]),
+            ("Shkespeare", &[0]),
+            ("aple", &[1]),
+            ("aples", &[0]),
+            ("asten", &[0]),
+            ("authr", &[0]),
+            ("boks", &[0]),
+            ("docmentation", &[0]),
+            ("frst", &[0]),
+            ("homerr", &[0]),
+            ("lst", &[0]),
+            ("namee", &[0]),
+            ("orng", &[0]),
+            ("ornges", &[0]),
+            ("othr", &[0]),
+            ("ttle", &[0]),
+            ("variabls", &[0]),
+        ],
+    );
 }
 
 #[test]
@@ -253,21 +242,10 @@ fn test_typst_comments() {
    - 1000 partcipants.
    - 2x2 data design. */
     "#;
-    let expected = vec!["partcipants", "supprts", "wrte"];
-    test_helper(sample_text, expected);
-}
-
-fn test_helper(sample_text: &str, expected: Vec<&str>) {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::Typst), None)
-        .to_vec();
-    let mut misspelled = binding
-        .iter()
-        .map(|r| r.word.as_str())
-        .collect::<Vec<&str>>();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
+    assert_spelling(
+        LanguageType::Typst,
+        sample_text,
+        &["partcipants", "supprts", "wrte"],
+        &[],
+    );
 }
