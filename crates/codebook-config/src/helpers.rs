@@ -1,9 +1,5 @@
-use log::error;
-use regex::{Regex, RegexBuilder};
-use std::collections::HashSet;
 use std::env;
 use std::path::{Path, PathBuf};
-use std::sync::{LazyLock, Mutex};
 
 pub(crate) fn default_cache_dir() -> PathBuf {
     #[cfg(windows)]
@@ -55,35 +51,6 @@ pub(crate) fn unix_cache_dir() -> PathBuf {
     }
 
     env::temp_dir().join("codebook").join("cache")
-}
-
-/// Invalid patterns already reported. This function runs on every spell check
-/// when a file matches a config override — every keystroke in the LSP — so a
-/// bad pattern is logged once per process, not once per check.
-static REPORTED_INVALID_PATTERNS: LazyLock<Mutex<HashSet<String>>> =
-    LazyLock::new(|| Mutex::new(HashSet::new()));
-
-/// Compile user-provided ignore regex patterns, dropping invalid entries.
-/// Patterns are compiled with multiline mode so `^` and `$` match line boundaries.
-pub fn build_ignore_regexes(patterns: &[String]) -> Vec<Regex> {
-    patterns
-        .iter()
-        .filter_map(
-            |pattern| match RegexBuilder::new(pattern).multi_line(true).build() {
-                Ok(regex) => Some(regex),
-                Err(e) => {
-                    if REPORTED_INVALID_PATTERNS
-                        .lock()
-                        .unwrap()
-                        .insert(pattern.clone())
-                    {
-                        error!("Ignoring invalid regex pattern '{pattern}': {e}");
-                    }
-                    None
-                }
-            },
-        )
-        .collect()
 }
 
 /// Expand `~` and `~/` prefixes to the current user's home directory on all
@@ -242,40 +209,4 @@ mod tests {
         assert_eq!(expand_tilde(&path), Some(path));
     }
 
-    #[test]
-    fn test_build_ignore_regexes_valid_patterns() {
-        let patterns = vec![r"\b[A-Z]{2,}\b".to_string(), r"TODO:.*".to_string()];
-
-        let compiled = build_ignore_regexes(&patterns);
-        assert_eq!(compiled.len(), 2);
-        assert!(compiled[0].is_match("HTML"));
-        assert!(compiled[1].is_match("TODO: fix this"));
-    }
-
-    #[test]
-    fn test_build_ignore_regexes_invalid_pattern_skipped() {
-        let patterns = vec![
-            r"valid.*".to_string(),
-            r"[invalid".to_string(), // Missing closing bracket
-            r"also_valid".to_string(),
-        ];
-
-        let compiled = build_ignore_regexes(&patterns);
-        // Invalid pattern should be skipped, not crash
-        assert_eq!(compiled.len(), 2);
-    }
-
-    #[test]
-    fn test_build_ignore_regexes_multiline_mode() {
-        let patterns = vec![r"^vim\..*".to_string()];
-        let compiled = build_ignore_regexes(&patterns);
-
-        let text = "let x = 1\nvim.opt.showmode = false\nlet y = 2";
-
-        // Should match line starting with vim. (multiline mode)
-        assert!(compiled[0].is_match(text));
-
-        let m = compiled[0].find(text).unwrap();
-        assert_eq!(m.as_str(), "vim.opt.showmode = false");
-    }
 }

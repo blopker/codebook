@@ -72,8 +72,6 @@ struct ConfigInner {
     global_config: WatchedFile<ConfigSettings>,
     /// Current snapshot
     snapshot: Arc<ConfigSettings>,
-    /// Ignore regexes compiled from the snapshot, rebuilt whenever it changes
-    ignore_regexes: Vec<Regex>,
 }
 
 #[derive(Debug)]
@@ -90,7 +88,6 @@ impl Default for CodebookConfigFile {
             project_config: WatchedFile::new(None),
             global_config: WatchedFile::new(None),
             snapshot: Arc::new(ConfigSettings::default()),
-            ignore_regexes: Vec::new(),
         };
 
         Self {
@@ -441,7 +438,6 @@ impl CodebookConfigFile {
     fn rebuild_snapshot(inner: &mut ConfigInner) {
         let effective =
             Self::calculate_effective_settings(&inner.project_config, &inner.global_config);
-        inner.ignore_regexes = helpers::build_ignore_regexes(&effective.ignore_patterns);
         inner.snapshot = Arc::new(effective);
     }
 
@@ -537,9 +533,9 @@ impl CodebookConfig for CodebookConfigFile {
     }
 
     /// Get the list of user-defined ignore patterns, compiled when the
-    /// snapshot was last rebuilt. Regex clones are cheap (internally Arc'd).
+    /// config was parsed. Regex clones are cheap (internally Arc'd).
     fn get_ignore_patterns(&self) -> Vec<Regex> {
-        self.inner.read().unwrap().ignore_regexes.clone()
+        self.snapshot().ignore_patterns.clone()
     }
 
     /// Get the minimum word length which should be checked
@@ -649,7 +645,7 @@ impl CodebookConfig for CodebookConfigMemory {
     }
 
     fn get_ignore_patterns(&self) -> Vec<Regex> {
-        helpers::build_ignore_regexes(&self.settings.read().unwrap().ignore_patterns)
+        self.settings.read().unwrap().ignore_patterns.clone()
     }
 
     fn get_min_word_length(&self) -> usize {
@@ -795,8 +791,8 @@ mod tests {
 
         let config = load_from_file(ConfigType::Project, &config_path)?;
         let patterns = config.snapshot().ignore_patterns.clone();
-        assert!(patterns.contains(&String::from("^[ATCG]+$")));
-        assert!(patterns.contains(&String::from("\\d{3}-\\d{2}-\\d{4}")));
+        assert!(patterns.iter().any(|p| p.as_str() == "^[ATCG]+$"));
+        assert!(patterns.iter().any(|p| p.as_str() == "\\d{3}-\\d{2}-\\d{4}"));
         let patterns = config.get_ignore_patterns();
         assert!(patterns.len() == 2);
         Ok(())
@@ -1578,6 +1574,22 @@ mod tests {
         let err = result.expect_err("invalid config should fail to load");
         assert!(matches!(err, ConfigError::Parse { .. }));
         assert!(err.to_string().contains("codebook.toml"));
+    }
+
+    #[test]
+    fn test_load_fails_on_invalid_ignore_pattern() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("codebook.toml");
+        fs::write(&config_path, r#"ignore_patterns = ["[invalid"]"#).unwrap();
+
+        let result = CodebookConfigFile::load_with_overrides(
+            Some(temp_dir.path()),
+            Some(temp_dir.path().join("global.toml")),
+            None,
+        );
+        let err = result.expect_err("invalid regex should fail to load");
+        assert!(matches!(err, ConfigError::Parse { .. }));
+        assert!(err.to_string().contains("invalid regex pattern '[invalid'"));
     }
 
     #[test]

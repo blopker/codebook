@@ -11,7 +11,6 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
 
-use codebook_config::helpers::build_ignore_regexes;
 use codebook_config::{CodebookConfig, ConfigSettings};
 use dictionaries::{dictionary, manager::DictionaryManager};
 use dictionary::Dictionary;
@@ -70,7 +69,7 @@ impl Codebook {
         // Combine default and user skip patterns
         let mut all_patterns = get_default_skip_patterns().clone();
         if let Some(ref settings) = resolved {
-            all_patterns.extend(build_ignore_regexes(&settings.ignore_patterns));
+            all_patterns.extend(settings.ignore_patterns.iter().cloned());
         } else {
             all_patterns.extend(self.config.get_ignore_patterns());
         }

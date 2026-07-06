@@ -401,6 +401,7 @@ The `ignore_patterns` configuration allows you to define custom regex patterns t
 - **Multiline mode is enabled**: `^` and `$` match line boundaries, not just start/end of file
 - Example: `'^vim\..*'` skips all words on lines starting with `vim.`
 - Example: `'vim\.opt\.[a-z]+'` matches `vim.opt.showmode`, so `showmode` is skipped
+- Patterns are validated when the config is loaded: an invalid regex is a configuration error, reported with the offending pattern
 
 **TOML Literal Strings**: Use single quotes for regex patterns to avoid escaping backslashes:
 
@@ -472,7 +473,7 @@ dictionaries = ["de"]
 
 | Field                   | Behavior |
 | ----------------------- | -------- |
-| `paths`                 | Required. Glob patterns matched against the file path relative to the project root. A file matches the block if it matches *any* pattern. |
+| `paths`                 | Required. Glob patterns matched against the file path relative to the project root. A file matches the block if it matches *any* pattern. An invalid glob is a configuration error. |
 | `dictionaries`          | Replaces the resolved `dictionaries` list. |
 | `words`                 | Replaces the resolved `words` list. |
 | `flag_words`            | Replaces the resolved `flag_words` list. |
