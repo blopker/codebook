@@ -1,5 +1,7 @@
 use codebook::queries::LanguageType;
 
+use super::utils::{assert_spelling_with, get_processor_with_tags};
+
 /// Sample Rust code with misspellings in comments, strings, and identifiers.
 const RUST_SAMPLE: &str = r#"
     // A commet with a typo
@@ -8,145 +10,85 @@ const RUST_SAMPLE: &str = r#"
     }
 "#;
 
-fn check(text: &str, lang: LanguageType, include: Vec<&str>, exclude: Vec<&str>) -> Vec<String> {
-    let processor = super::utils::get_processor_with_tags(include, exclude);
-    let mut words: Vec<String> = processor
-        .spell_check(text, Some(lang), None)
-        .iter()
-        .map(|r| r.word.clone())
-        .collect();
-    words.sort();
-    words
-}
-
 #[test]
 fn test_no_filters_returns_all() {
-    let words = check(RUST_SAMPLE, LanguageType::Rust, vec![], vec![]);
     // Should find typos in all three categories
-    assert!(
-        words.contains(&"commet".to_string()),
-        "missing comment typo"
+    assert_spelling_with(
+        &get_processor_with_tags(vec![], vec![]),
+        LanguageType::Rust,
+        RUST_SAMPLE,
+        &["commet", "calculat", "nmber", "strng"],
+        &[],
     );
-    assert!(
-        words.contains(&"calculat".to_string()),
-        "missing identifier typo"
-    );
-    assert!(words.contains(&"strng".to_string()), "missing string typo");
 }
 
 #[test]
 fn test_include_comments_only() {
-    let words = check(RUST_SAMPLE, LanguageType::Rust, vec!["comment"], vec![]);
-    assert!(
-        words.contains(&"commet".to_string()),
-        "missing comment typo"
-    );
-    assert!(
-        !words.contains(&"calculat".to_string()),
-        "identifier should be excluded"
-    );
-    assert!(
-        !words.contains(&"strng".to_string()),
-        "string should be excluded"
-    );
-    assert!(
-        !words.contains(&"nmber".to_string()),
-        "variable should be excluded"
+    assert_spelling_with(
+        &get_processor_with_tags(vec!["comment"], vec![]),
+        LanguageType::Rust,
+        RUST_SAMPLE,
+        &["commet"],
+        // Identifiers, variables, and strings are excluded.
+        &["calculat", "nmber", "strng"],
     );
 }
 
 #[test]
 fn test_include_strings_only() {
-    let words = check(RUST_SAMPLE, LanguageType::Rust, vec!["string"], vec![]);
-    assert!(words.contains(&"strng".to_string()), "missing string typo");
-    assert!(
-        !words.contains(&"commet".to_string()),
-        "comment should be excluded"
-    );
-    assert!(
-        !words.contains(&"calculat".to_string()),
-        "identifier should be excluded"
+    assert_spelling_with(
+        &get_processor_with_tags(vec!["string"], vec![]),
+        LanguageType::Rust,
+        RUST_SAMPLE,
+        &["strng"],
+        &["commet", "calculat"],
     );
 }
 
 #[test]
 fn test_include_identifiers_only() {
-    let words = check(RUST_SAMPLE, LanguageType::Rust, vec!["identifier"], vec![]);
-    assert!(
-        words.contains(&"calculat".to_string()),
-        "missing function name typo"
-    );
-    assert!(
-        words.contains(&"nmber".to_string()),
-        "missing variable name typo"
-    );
-    assert!(
-        !words.contains(&"commet".to_string()),
-        "comment should be excluded"
-    );
-    assert!(
-        !words.contains(&"strng".to_string()),
-        "string should be excluded"
+    assert_spelling_with(
+        &get_processor_with_tags(vec!["identifier"], vec![]),
+        LanguageType::Rust,
+        RUST_SAMPLE,
+        &["calculat", "nmber"],
+        &["commet", "strng"],
     );
 }
 
 #[test]
 fn test_exclude_identifiers() {
-    let words = check(RUST_SAMPLE, LanguageType::Rust, vec![], vec!["identifier"]);
-    assert!(
-        words.contains(&"commet".to_string()),
-        "missing comment typo"
-    );
-    assert!(words.contains(&"strng".to_string()), "missing string typo");
-    assert!(
-        !words.contains(&"calculat".to_string()),
-        "identifier should be excluded"
-    );
-    assert!(
-        !words.contains(&"nmber".to_string()),
-        "variable should be excluded"
+    assert_spelling_with(
+        &get_processor_with_tags(vec![], vec!["identifier"]),
+        LanguageType::Rust,
+        RUST_SAMPLE,
+        &["commet", "strng"],
+        &["calculat", "nmber"],
     );
 }
 
 #[test]
 fn test_exclude_specific_subtag() {
     // Exclude only identifier.variable, keep identifier.function
-    let words = check(
-        RUST_SAMPLE,
+    assert_spelling_with(
+        &get_processor_with_tags(vec![], vec!["identifier.variable"]),
         LanguageType::Rust,
-        vec![],
-        vec!["identifier.variable"],
-    );
-    assert!(
-        words.contains(&"calculat".to_string()),
-        "function name should still be checked"
-    );
-    assert!(
-        !words.contains(&"nmber".to_string()),
-        "variable should be excluded"
+        RUST_SAMPLE,
+        &["commet", "calculat", "strng"],
+        &["nmber"],
     );
 }
 
 #[test]
 fn test_include_and_exclude_combined() {
     // Include comments and strings, but exclude string specifically
-    let words = check(
-        RUST_SAMPLE,
+    assert_spelling_with(
+        &get_processor_with_tags(vec!["comment", "string"], vec!["string"]),
         LanguageType::Rust,
-        vec!["comment", "string"],
-        vec!["string"],
-    );
-    assert!(
-        words.contains(&"commet".to_string()),
-        "missing comment typo"
-    );
-    assert!(
-        !words.contains(&"strng".to_string()),
-        "string should be excluded by exclude_tags"
-    );
-    assert!(
-        !words.contains(&"calculat".to_string()),
-        "identifier not in include_tags"
+        RUST_SAMPLE,
+        &["commet"],
+        // strng excluded by exclude_tags; calculat not in include_tags.
+        &["strng", "calculat"],
     );
 }
 
@@ -169,18 +111,12 @@ def calculat_age():
 
 #[test]
 fn test_injection_no_filters_returns_all() {
-    let words = check(MARKDOWN_WITH_PYTHON, LanguageType::Markdown, vec![], vec![]);
-    assert!(
-        words.contains(&"commet".to_string()),
-        "missing comment typo from injected python"
-    );
-    assert!(
-        words.contains(&"calculat".to_string()),
-        "missing identifier typo from injected python"
-    );
-    assert!(
-        words.contains(&"strng".to_string()),
-        "missing string typo from injected python"
+    assert_spelling_with(
+        &get_processor_with_tags(vec![], vec![]),
+        LanguageType::Markdown,
+        MARKDOWN_WITH_PYTHON,
+        &["commet", "calculat", "strng"],
+        &[],
     );
 }
 
@@ -188,23 +124,12 @@ fn test_injection_no_filters_returns_all() {
 fn test_injection_include_comments_only() {
     // include_tags = ["comment"] should only check comments,
     // even inside injected code blocks
-    let words = check(
-        MARKDOWN_WITH_PYTHON,
+    assert_spelling_with(
+        &get_processor_with_tags(vec!["comment"], vec![]),
         LanguageType::Markdown,
-        vec!["comment"],
-        vec![],
-    );
-    assert!(
-        words.contains(&"commet".to_string()),
-        "comment typo should be found"
-    );
-    assert!(
-        !words.contains(&"calculat".to_string()),
-        "identifier should be excluded in injected region"
-    );
-    assert!(
-        !words.contains(&"strng".to_string()),
-        "string should be excluded in injected region"
+        MARKDOWN_WITH_PYTHON,
+        &["commet"],
+        &["calculat", "strng"],
     );
 }
 
@@ -212,23 +137,12 @@ fn test_injection_include_comments_only() {
 fn test_injection_exclude_identifiers() {
     // exclude_tags = ["identifier"] should suppress identifiers
     // in both prose and injected code blocks
-    let words = check(
-        MARKDOWN_WITH_PYTHON,
+    assert_spelling_with(
+        &get_processor_with_tags(vec![], vec!["identifier"]),
         LanguageType::Markdown,
-        vec![],
-        vec!["identifier"],
-    );
-    assert!(
-        words.contains(&"commet".to_string()),
-        "comment should still be checked"
-    );
-    assert!(
-        words.contains(&"strng".to_string()),
-        "string should still be checked"
-    );
-    assert!(
-        !words.contains(&"calculat".to_string()),
-        "identifier should be excluded in injected region"
+        MARKDOWN_WITH_PYTHON,
+        &["commet", "strng"],
+        &["calculat"],
     );
 }
 
@@ -236,38 +150,24 @@ fn test_injection_exclude_identifiers() {
 fn test_injection_include_strings_only() {
     // include_tags = ["string"] should check strings in both
     // markdown prose (which uses @string) and injected python
-    let words = check(
-        MARKDOWN_WITH_PYTHON,
+    assert_spelling_with(
+        &get_processor_with_tags(vec!["string"], vec![]),
         LanguageType::Markdown,
-        vec!["string"],
-        vec![],
-    );
-    assert!(
-        words.contains(&"strng".to_string()),
-        "string typo in injected python should be found"
-    );
-    assert!(
-        !words.contains(&"commet".to_string()),
-        "comment should be excluded"
-    );
-    assert!(
-        !words.contains(&"calculat".to_string()),
-        "identifier should be excluded"
+        MARKDOWN_WITH_PYTHON,
+        &["strng"],
+        &["commet", "calculat"],
     );
 }
 
 #[test]
 fn test_text_language_ignores_tags() {
-    // Text language doesn't use tree-sitter, so tags should have no effect
-    let processor = super::utils::get_processor_with_tags(vec!["comment"], vec![]);
-    let text = "This has a tset typo";
-    let words: Vec<String> = processor
-        .spell_check(text, Some(LanguageType::Text), None)
-        .iter()
-        .map(|r| r.word.clone())
-        .collect();
-    assert!(
-        words.contains(&"tset".to_string()),
-        "Text mode should check everything regardless of tags"
+    // Text language doesn't use tree-sitter, so tags should have no effect;
+    // Text mode checks everything regardless of tags.
+    assert_spelling_with(
+        &get_processor_with_tags(vec!["comment"], vec![]),
+        LanguageType::Text,
+        "This has a tset typo",
+        &["tset"],
+        &[],
     );
 }

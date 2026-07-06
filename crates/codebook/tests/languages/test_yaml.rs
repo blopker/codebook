@@ -1,12 +1,9 @@
-use codebook::{
-    parser::{TextRange, WordLocation},
-    queries::LanguageType,
-};
+use codebook::queries::LanguageType;
+
+use super::utils::{assert_spelling, assert_spelling_at};
 
 #[test]
 fn test_yaml_simple() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
     let sample_text = r#"
       # On a sepaate line
       title: "Example lne"
@@ -25,25 +22,19 @@ fn test_yaml_simple() {
       var: 'helo'
       symbol: ':hello'
     "#;
-    let expected = vec![
-        "Iteem", "Naame", "comented", "froozen", "helo", "inented", "lne", "opttions", "sepaate",
-        "wors",
-    ];
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::YAML), None)
-        .to_vec();
-    let mut misspelled = binding
-        .iter()
-        .map(|r| r.word.as_str())
-        .collect::<Vec<&str>>();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
+    assert_spelling(
+        LanguageType::YAML,
+        sample_text,
+        &[
+            "Iteem", "Naame", "comented", "froozen", "helo", "inented", "lne", "opttions",
+            "sepaate", "wors",
+        ],
+        &[],
+    );
 }
 
 #[test]
 fn test_yaml_code() {
-    super::utils::init_logging();
     let sample_yaml_code = r#"
       # On a separate line
       tiitle: "Example line"
@@ -60,59 +51,19 @@ fn test_yaml_code() {
       items: [ { id: 1, naame: "one" }, { id: 2, name: "two" } ]
 
     "#;
-
-    let expected = vec![
-        WordLocation::new(
-            "tiitle".to_string(),
-            vec![TextRange {
-                start_byte: 34,
-                end_byte: 40,
-            }],
-        ),
-        WordLocation::new(
-            "subtiitle".to_string(),
-            vec![TextRange {
-                start_byte: 63,
-                end_byte: 72,
-            }],
-        ),
-        WordLocation::new(
-            "descriptioon".to_string(),
-            vec![TextRange {
-                start_byte: 89,
-                end_byte: 101,
-            }],
-        ),
-        WordLocation::new(
-            "struucture".to_string(),
-            vec![TextRange {
-                start_byte: 124,
-                end_byte: 134,
-            }],
-        ),
-        WordLocation::new(
-            "nestted".to_string(),
-            vec![TextRange {
-                start_byte: 165,
-                end_byte: 172,
-            }],
-        ),
-        WordLocation::new(
-            "naame".to_string(),
-            vec![TextRange {
-                start_byte: 326,
-                end_byte: 331,
-            }],
-        ),
-    ];
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_yaml_code, Some(LanguageType::YAML), None)
-        .to_vec();
-    println!("Misspelled words: {misspelled:?}");
-    for e in &expected {
-        let miss = misspelled.iter().find(|r| r.word == e.word).unwrap();
-        println!("Expecting: {e:?}");
-        assert_eq!(miss.locations, e.locations);
-    }
+    // "tiitle" also occurs inside "subtiitle" (occurrence 1); only the
+    // standalone key is flagged as "tiitle" — the "subtiitle" key is flagged
+    // as its own word.
+    assert_spelling_at(
+        LanguageType::YAML,
+        sample_yaml_code,
+        &[
+            ("tiitle", &[0]),
+            ("subtiitle", &[0]),
+            ("descriptioon", &[0]),
+            ("struucture", &[0]),
+            ("nestted", &[0]),
+            ("naame", &[0]),
+        ],
+    );
 }

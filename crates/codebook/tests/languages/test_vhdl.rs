@@ -1,12 +1,9 @@
-use codebook::{
-    parser::{TextRange, WordLocation},
-    queries::LanguageType,
-};
+use codebook::queries::LanguageType;
+
+use super::utils::{assert_spelling, assert_spelling_at};
 
 #[test]
 fn test_vhdl_simple() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
     let sample_text = r#"
 -- This is an exmple comment with speling errors
 entity calculatr is
@@ -17,56 +14,28 @@ entity calculatr is
     );
 end entity calculatr;
 "#;
-    let expected = vec!["calculatr", "clk", "exmple", "inputt", "resett", "speling"];
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::VHDL), None)
-        .to_vec();
-    let mut misspelled = binding
-        .iter()
-        .map(|r| r.word.as_str())
-        .collect::<Vec<&str>>();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
+    assert_spelling_at(
+        LanguageType::VHDL,
+        sample_text,
+        &[
+            ("exmple", &[0]),
+            ("speling", &[0]),
+            // Entity names are flagged at declaration, not at the
+            // `end entity` reference.
+            ("calculatr", &[0]),
+            ("clk", &[0]),
+            ("resett", &[0]),
+            ("inputt", &[0]),
+        ],
+    );
 }
 
 #[test]
 fn test_vhdl_comment_location() {
-    super::utils::init_logging();
-    let sample_text = r#"
--- A calculater for numbrs
-"#;
-    let expected = vec![
-        WordLocation::new(
-            "calculater".to_string(),
-            vec![TextRange {
-                start_byte: 6,
-                end_byte: 16,
-            }],
-        ),
-        WordLocation::new(
-            "numbrs".to_string(),
-            vec![TextRange {
-                start_byte: 21,
-                end_byte: 27,
-            }],
-        ),
-    ];
-    let not_expected = ["std_logic", "entity", "port", "signal"];
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::VHDL), None)
-        .to_vec();
-    println!("Misspelled words: {misspelled:?}");
-    for e in &expected {
-        println!("Expecting: {e:?}");
-        let miss = misspelled.iter().find(|r| r.word == e.word).unwrap();
-        assert!(miss.locations.len() == e.locations.len());
-        for location in &miss.locations {
-            assert!(e.locations.contains(location));
-        }
-    }
-    for result in misspelled {
-        assert!(!not_expected.contains(&result.word.as_str()));
-    }
+    assert_spelling(
+        LanguageType::VHDL,
+        "\n-- A calculater for numbrs\n",
+        &["calculater", "numbrs"],
+        &[],
+    );
 }

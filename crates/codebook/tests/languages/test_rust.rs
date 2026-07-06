@@ -1,12 +1,9 @@
-use codebook::{
-    parser::{TextRange, WordLocation},
-    queries::LanguageType,
-};
+use codebook::queries::LanguageType;
+
+use super::utils::{assert_spelling, assert_spelling_at};
 
 #[test]
 fn test_rust_simple() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
     let sample_text = r#"
         fn calculat_user_age(bithDate: String) -> u32 {
             // This is an examle_function that calculates age
@@ -14,44 +11,30 @@ fn test_rust_simple() {
             userAge
         }
     "#;
-    let expected = vec!["bith", "calculat", "examle"];
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::Rust), None)
-        .to_vec();
-    let mut misspelled = binding
-        .iter()
-        .map(|r| r.word.as_str())
-        .collect::<Vec<&str>>();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
+    // Identifiers are flagged at their definition (the `bithDate` parameter),
+    // not at usages.
+    assert_spelling_at(
+        LanguageType::Rust,
+        sample_text,
+        &[("bith", &[0]), ("calculat", &[0]), ("examle", &[0])],
+    );
 }
 
 #[test]
 fn test_rust_comment_location() {
-    super::utils::init_logging();
-    let sample_rust = r#"
+    // "mment" is also a substring of "Comment"; only the standalone word
+    // (occurrence 1) is flagged.
+    assert_spelling_at(
+        LanguageType::Rust,
+        r#"
         // Comment with a typo: mment
-        "#;
-    let expected = vec![WordLocation::new(
-        "mment".to_string(),
-        vec![TextRange {
-            start_byte: 33,
-            end_byte: 38,
-        }],
-    )];
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_rust, Some(LanguageType::Rust), None)
-        .to_vec();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
-    assert!(misspelled[0].locations.len() == 1);
+        "#,
+        &[("mment", &[1])],
+    );
 }
 
 #[test]
 fn test_rust_block_comments() {
-    super::utils::init_logging();
     let sample_rust = r#"
         /* Comment with a typos on multiple lines: mment
 
@@ -66,92 +49,34 @@ fn test_rust_block_comments() {
         Eror.
         */
         "#;
-    let expected = [
-        WordLocation::new(
-            "mment".to_string(),
-            vec![TextRange {
-                start_byte: 52,
-                end_byte: 57,
-            }],
-        ),
-        WordLocation::new(
-            "examle".to_string(),
-            vec![TextRange {
-                start_byte: 67,
-                end_byte: 73,
-            }],
-        ),
-        WordLocation::new(
-            "testz".to_string(),
-            vec![TextRange {
-                start_byte: 123,
-                end_byte: 128,
-            }],
-        ),
-        WordLocation::new(
-            "Eror".to_string(),
-            vec![TextRange {
-                start_byte: 187,
-                end_byte: 191,
-            }],
-        ),
-    ];
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_rust, Some(LanguageType::Rust), None)
-        .to_vec();
-    println!("Misspelled words: {misspelled:?}");
-    for expect in expected.iter() {
-        println!("Expecting {}", expect.word);
-        let result = misspelled.iter().find(|r| r.word == expect.word).unwrap();
-        assert_eq!(result.word, expect.word);
-        assert_eq!(result.locations, expect.locations);
-    }
+    // "mment" is also a substring of "Comment"; only the standalone word
+    // (occurrence 1) is flagged.
+    assert_spelling_at(
+        LanguageType::Rust,
+        sample_rust,
+        &[
+            ("mment", &[1]),
+            ("examle", &[0]),
+            ("testz", &[0]),
+            ("Eror", &[0]),
+        ],
+    );
 }
 
 #[test]
 fn test_rust_struct() {
-    super::utils::init_logging();
     let sample_rust = r#"
         pub struct BadSpeler {
             /// Terrible spelling: dwnloader
             pub dataz: String,
         }
         "#;
-    let expected = [
-        WordLocation::new(
-            "Speler".to_string(),
-            vec![TextRange {
-                start_byte: 23,
-                end_byte: 29,
-            }],
-        ),
-        WordLocation::new(
-            "dwnloader".to_string(),
-            vec![TextRange {
-                start_byte: 67,
-                end_byte: 76,
-            }],
-        ),
-        WordLocation::new(
-            "dataz".to_string(),
-            vec![TextRange {
-                start_byte: 93,
-                end_byte: 98,
-            }],
-        ),
-    ];
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_rust, Some(LanguageType::Rust), None)
-        .to_vec();
-    println!("Misspelled words: {misspelled:?}");
-    for expect in expected.iter() {
-        println!("Expecting {}", expect.word);
-        let result = misspelled.iter().find(|r| r.word == expect.word).unwrap();
-        assert_eq!(result.word, expect.word);
-        assert_eq!(result.locations, expect.locations);
-    }
+    assert_spelling(
+        LanguageType::Rust,
+        sample_rust,
+        &["Speler", "dwnloader", "dataz"],
+        &[],
+    );
 }
 
 #[test]
@@ -159,8 +84,6 @@ fn test_rust_trait_impl_function_names_not_checked() {
     // https://github.com/blopker/codebook/issues/225
     // Function names in `impl Trait for Type` blocks should not be spell-checked
     // because the names are dictated by the trait, not the implementor.
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
     let sample_text = r#"
         struct MyType;
 
@@ -170,28 +93,13 @@ fn test_rust_trait_impl_function_names_not_checked() {
             }
         }
     "#;
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::Rust), None)
-        .to_vec();
-    let misspelled: Vec<&str> = binding.iter().map(|r| r.word.as_str()).collect();
-    println!("Misspelled words: {misspelled:?}");
-    // "erorr" in the function name should NOT be flagged (name dictated by trait)
-    assert!(
-        !misspelled.contains(&"erorr"),
-        "Function names in trait impl blocks should not be spell-checked"
-    );
-    // But comments inside the impl block should still be checked
-    assert!(
-        misspelled.contains(&"tset"),
-        "Comments inside trait impl blocks should still be spell-checked"
-    );
+    // Comments inside the impl block are still checked.
+    assert_spelling(LanguageType::Rust, sample_text, &["tset"], &["erorr"]);
 }
 
 #[test]
 fn test_rust_regular_impl_function_names_checked() {
     // Regular impl blocks (not trait implementations) should still be spell-checked
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
     let sample_text = r#"
         struct MyType;
 
@@ -201,19 +109,7 @@ fn test_rust_regular_impl_function_names_checked() {
 
         fn top_level_erorr() {}
     "#;
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::Rust), None)
-        .to_vec();
-    let misspelled: Vec<&str> = binding.iter().map(|r| r.word.as_str()).collect();
-    println!("Misspelled words: {misspelled:?}");
-    assert!(
-        misspelled.contains(&"erorr"),
-        "Expected 'erorr' to be flagged in regular impl and top-level functions"
-    );
-    let erorr = binding.iter().find(|r| r.word == "erorr").unwrap();
-    assert_eq!(
-        erorr.locations.len(),
-        2,
-        "Expected 'erorr' flagged in both regular impl and top-level function"
-    );
+    // "erorr" is flagged in both the regular impl method and the top-level
+    // function.
+    assert_spelling_at(LanguageType::Rust, sample_text, &[("erorr", &[0, 1])]);
 }

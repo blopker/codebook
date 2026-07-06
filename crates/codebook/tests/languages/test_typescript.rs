@@ -1,11 +1,9 @@
-use codebook::{
-    parser::{TextRange, WordLocation},
-    queries::LanguageType,
-};
+use codebook::queries::LanguageType;
+
+use super::utils::assert_spelling_at;
 
 #[test]
 fn test_typescript_location() {
-    super::utils::init_logging();
     let sample_text = r#"
     import { Component } from 'react';
 
@@ -34,131 +32,30 @@ fn test_typescript_location() {
             }
         }
     }"#;
-
-    let expected = vec![
-        WordLocation::new(
-            "Proifle".to_string(),
-            vec![TextRange {
-                start_byte: 59,
-                end_byte: 66,
-            }],
-        ),
-        WordLocation::new(
-            "Adress".to_string(),
-            vec![TextRange {
-                start_byte: 155,
-                end_byte: 161,
-            }],
-        ),
-        WordLocation::new(
-            "Acttive".to_string(),
-            vec![TextRange {
-                start_byte: 181,
-                end_byte: 188,
-            }],
-        ),
-        WordLocation::new(
-            "Managger".to_string(),
-            vec![TextRange {
-                start_byte: 220,
-                end_byte: 228,
-            }],
-        ),
-        WordLocation::new(
-            "userz".to_string(),
-            vec![TextRange {
-                start_byte: 265,
-                end_byte: 270,
-            }],
-        ),
-        WordLocation::new(
-            "Endpoont".to_string(),
-            vec![TextRange {
-                start_byte: 324,
-                end_byte: 332,
-            }],
-        ),
-        WordLocation::new(
-            "Usars".to_string(),
-            vec![TextRange {
-                start_byte: 402,
-                end_byte: 407,
-            }],
-        ),
-        WordLocation::new(
-            "respoonse".to_string(),
-            vec![TextRange {
-                start_byte: 476,
-                end_byte: 485,
-            }],
-        ),
-        WordLocation::new(
-            "erorr".to_string(),
-            vec![TextRange {
-                start_byte: 587,
-                end_byte: 592,
-            }],
-        ),
-        WordLocation::new(
-            "usars".to_string(),
-            vec![TextRange {
-                start_byte: 634,
-                end_byte: 639,
-            }],
-        ),
-        WordLocation::new(
-            "failled".to_string(),
-            vec![TextRange {
-                start_byte: 640,
-                end_byte: 647,
-            }],
-        ),
-    ];
-
-    let not_expected = [
-        "import",
-        "Component",
-        "react",
-        "interface",
-        "number",
-        "string",
-        "boolean",
-        "class",
-        "extends",
-        "private",
-        "constructor",
-        "super",
-        "public",
-        "async",
-        "Promise",
-        "try",
-        "const",
-        "await",
-        "fetch",
-        "return",
-        "json",
-        "catch",
-        "console",
-        "log",
-    ];
-
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Typescript), None)
-        .to_vec();
-
-    println!("Misspelled words: {misspelled:?}\n");
-
-    for e in &expected {
-        println!("Expecting: {e:?}");
-        let miss = misspelled
-            .iter()
-            .find(|r| r.word == e.word)
-            .expect("Word not found");
-        assert_eq!(miss.locations, e.locations);
-    }
-
-    for result in misspelled {
-        assert!(!not_expected.contains(&result.word.as_str()));
-    }
+    // Keywords, built-ins (Promise, console, fetch), and imported names are
+    // not flagged; exact set equality guards that.
+    assert_spelling_at(
+        LanguageType::Typescript,
+        sample_text,
+        &[
+            // Flagged at the interface definition; the two `UserProifle`
+            // type references are not.
+            ("Proifle", &[0]),
+            ("Adress", &[0]),
+            ("Acttive", &[0]),
+            ("Managger", &[0]),
+            ("userz", &[0]),
+            // Flagged at the constructor parameter definition; the
+            // `this.apiEndpoont` usage is not.
+            ("Endpoont", &[0]),
+            ("Usars", &[0]),
+            // Flagged at the declaration; the `respoonse.json()` usage is not.
+            ("respoonse", &[0]),
+            // Flagged at the catch parameter; the usage in the log call is not.
+            ("erorr", &[0]),
+            // String contents are checked.
+            ("usars", &[0]),
+            ("failled", &[0]),
+        ],
+    );
 }

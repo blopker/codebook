@@ -1,21 +1,6 @@
-use codebook::{
-    parser::{TextRange, WordLocation},
-    queries::LanguageType,
-};
+use codebook::queries::LanguageType;
 
-fn expect_spelling(text: &str, expected: &Vec<&str>) {
-    let processor = super::utils::get_processor();
-    let binding = processor
-        .spell_check(text, Some(LanguageType::Text), None)
-        .to_vec();
-    let mut misspelled = binding
-        .iter()
-        .map(|r| r.word.as_str())
-        .collect::<Vec<&str>>();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, *expected);
-}
+use super::utils::{assert_spelling_at, get_processor, spell_check};
 
 #[test]
 fn test_text_simple() {
@@ -23,25 +8,41 @@ fn test_text_simple() {
         I'm bvd at splellin Wolrd wolrd
         hello caféx regular regu
     "#;
-    let expected = vec!["Wolrd", "bvd", "caféx", "regu", "splellin", "wolrd"];
-    expect_spelling(sample_text, &expected);
+    // "regu" also appears inside "regular" (occurrence 0); only the
+    // standalone occurrence is flagged.
+    assert_spelling_at(
+        LanguageType::Text,
+        sample_text,
+        &[
+            ("Wolrd", &[0]),
+            ("bvd", &[0]),
+            ("caféx", &[0]),
+            ("regu", &[1]),
+            ("splellin", &[0]),
+            ("wolrd", &[0]),
+        ],
+    );
+}
+
+/// Anchor test for the Text path (no grammar: the whole input is
+/// word-split). Multi-byte content — emoji, ZWJ sequences, accented chars —
+/// sits BEFORE the misspellings so that any UTF-16/char-offset confusion in
+/// range arithmetic shifts the reported ranges and fails the comparison.
+/// Expected ranges are derived from the text, and `spell_check` in utils
+/// additionally asserts every reported range slices back to its word.
+#[test]
+fn test_text_location_multibyte_anchor() {
+    let sample_text = "café 👨‍👩‍👧‍👦 wrold, and 🌍 wrold again";
+    assert_spelling_at(LanguageType::Text, sample_text, &[("wrold", &[0, 1])]);
 }
 
 #[test]
-fn test_text_location() {
-    let sample_text = r#"hello regular regu"#;
-    let expected = vec![WordLocation::new(
-        "regu".to_string(),
-        vec![TextRange {
-            start_byte: 14,
-            end_byte: 18,
-        }],
-    )];
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Text), None)
-        .to_vec();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
-    assert!(misspelled[0].locations.len() == 1);
+fn test_text_no_false_positives_after_emoji() {
+    let processor = get_processor();
+    let results = spell_check(
+        &processor,
+        LanguageType::Text,
+        "hello 😀 world, this is all spelled correctly",
+    );
+    assert!(results.is_empty(), "unexpected flags: {results:?}");
 }

@@ -1,12 +1,9 @@
-use codebook::{
-    parser::{TextRange, WordLocation},
-    queries::LanguageType,
-};
+use codebook::queries::LanguageType;
+
+use super::utils::{assert_spelling, assert_spelling_at};
 
 #[test]
 fn test_elixir_simple() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
     let sample_text = r#"
         defmodule Calculatr do
           # This is an exampl module that performz calculashuns
@@ -16,51 +13,64 @@ fn test_elixir_simple() {
           end
         end
     "#;
-    let expected = vec![
-        "Calculatr",
-        "calculashuns",
-        "exampl",
-        "numbr",
-        "performz",
-        "resalt",
-    ];
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::Elixir), None)
-        .to_vec();
-    let mut misspelled = binding
-        .iter()
-        .map(|r| r.word.as_str())
-        .collect::<Vec<&str>>();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
+    // "numbr" is flagged at the two parameter definitions only; the usages
+    // in `numbr1 + numbr2` are not definitions. "resalt" is flagged at the
+    // `=` binding, not at the bare return usage.
+    assert_spelling_at(
+        LanguageType::Elixir,
+        sample_text,
+        &[
+            ("Calculatr", &[0]),
+            ("exampl", &[0]),
+            ("performz", &[0]),
+            ("calculashuns", &[0]),
+            ("numbr", &[0, 1]),
+            ("resalt", &[0]),
+        ],
+    );
+}
+
+#[test]
+fn test_elixir_binary_operator_bindings() {
+    // Only `=` and comprehension generators (`<-`) bind variables. The left
+    // side of any other binary operator (arithmetic, `|>`, ...) is a usage
+    // and must not be flagged.
+    let sample_text = r#"
+        defmodule Sample do
+          def process(itemms) do
+            for itemm <- itemms, do: itemm * 2
+          end
+
+          def pipeline(inputt) do
+            inputt |> IO.inspect()
+          end
+        end
+    "#;
+    assert_spelling_at(
+        LanguageType::Elixir,
+        sample_text,
+        &[
+            // Parameter definition only, not the `<- itemms` usage.
+            ("itemms", &[0]),
+            // The `<-` generator binding; occurrence 0 is inside "itemms",
+            // occurrence 3 is the `itemm * 2` usage.
+            ("itemm", &[1]),
+            // Parameter definition only, not the `inputt |>` usage.
+            ("inputt", &[0]),
+        ],
+    );
 }
 
 #[test]
 fn test_elixir_comment_location() {
-    super::utils::init_logging();
     let sample_elixir = r#"
         # Structur definition with misspellings
     "#;
-    let expected = vec![WordLocation::new(
-        "Structur".to_string(),
-        vec![TextRange {
-            start_byte: 11,
-            end_byte: 19,
-        }],
-    )];
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_elixir, Some(LanguageType::Elixir), None)
-        .to_vec();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
-    assert!(misspelled[0].locations.len() == 1);
+    assert_spelling(LanguageType::Elixir, sample_elixir, &["Structur"], &[]);
 }
 
 #[test]
 fn test_elixir_module() {
-    super::utils::init_logging();
     let sample_elixir = r#"
         defmodule UserAccaunt do
           @moduledoc """
@@ -78,100 +88,27 @@ fn test_elixir_module() {
           end
         end
     "#;
-    let expected = [
-        WordLocation::new(
-            "Accaunt".to_string(),
-            vec![
-                TextRange {
-                    start_byte: 23,
-                    end_byte: 30,
-                },
-                TextRange {
-                    start_byte: 234,
-                    end_byte: 241,
-                },
-            ],
-        ),
-        WordLocation::new(
-            "handels".to_string(),
-            vec![TextRange {
-                start_byte: 81,
-                end_byte: 88,
-            }],
-        ),
-        WordLocation::new(
-            "accaunts".to_string(),
-            vec![TextRange {
-                start_byte: 94,
-                end_byte: 102,
-            }],
-        ),
-        WordLocation::new(
-            "usrrnamee".to_string(),
-            vec![
-                TextRange {
-                    start_byte: 140,
-                    end_byte: 149,
-                },
-                TextRange {
-                    start_byte: 257,
-                    end_byte: 266,
-                },
-            ],
-        ),
-        WordLocation::new(
-            "ballancee".to_string(),
-            vec![
-                TextRange {
-                    start_byte: 152,
-                    end_byte: 161,
-                },
-                TextRange {
-                    start_byte: 288,
-                    end_byte: 297,
-                },
-            ],
-        ),
-        WordLocation::new(
-            "intrest".to_string(),
-            vec![
-                TextRange {
-                    start_byte: 164,
-                    end_byte: 171,
-                },
-                TextRange {
-                    start_byte: 316,
-                    end_byte: 323,
-                },
-            ],
-        ),
-        WordLocation::new(
-            "accaunt".to_string(),
-            vec![TextRange {
-                start_byte: 200,
-                end_byte: 207,
-            }],
-        ),
-    ];
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_elixir, Some(LanguageType::Elixir), None)
-        .to_vec();
-    println!("Misspelled words: {misspelled:?}");
-    for expect in expected.iter() {
-        println!("Expecting {}", expect.word);
-        let result = misspelled.iter().find(|r| r.word == expect.word).unwrap();
-        assert_eq!(result.word, expect.word);
-        assert!(result.locations.len() == expect.locations.len());
-        for location in result.locations.iter() {
-            assert!(expect.locations.contains(location))
-        }
-    }
+    // Struct fields are flagged both in the defstruct atom list and as keys
+    // in the struct literal; "Accaunt" at the module def and struct literal.
+    // Lowercase "accaunt" occurrence 0 is inside "accaunts" in the
+    // moduledoc; occurrence 1 is the flagged create_accaunt def.
+    assert_spelling_at(
+        LanguageType::Elixir,
+        sample_elixir,
+        &[
+            ("Accaunt", &[0, 1]),
+            ("handels", &[0]),
+            ("accaunts", &[0]),
+            ("usrrnamee", &[0, 1]),
+            ("ballancee", &[0, 1]),
+            ("intrest", &[0, 1]),
+            ("accaunt", &[1]),
+        ],
+    );
 }
 
 #[test]
 fn test_elixir_functions() {
-    super::utils::init_logging();
     let sample_elixir = r#"
         defmodule ProcessingPipeline do
           # Handles incomming data procesing
@@ -198,36 +135,30 @@ fn test_elixir_functions() {
           end
         end
     "#;
-    let expected = vec![
-        "Aplies",
-        "Performz",
-        "Savs",
-        "databse",
-        "incomming",
-        "logik",
-        "persiste",
-        "proccess",
-        "procesing",
-        "ruls",
-        "transfrom",
-        "validatte",
-    ];
-    let processor = super::utils::get_processor();
-    let binding = processor
-        .spell_check(sample_elixir, Some(LanguageType::Elixir), None)
-        .to_vec();
-    let mut misspelled = binding
-        .iter()
-        .map(|r| r.word.as_str())
-        .collect::<Vec<&str>>();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
+    // Function names are flagged both at the pipeline call sites
+    // (occurrence 0) and at their defp definitions (occurrence 1).
+    assert_spelling_at(
+        LanguageType::Elixir,
+        sample_elixir,
+        &[
+            ("Aplies", &[0]),
+            ("Performz", &[0]),
+            ("Savs", &[0]),
+            ("databse", &[0]),
+            ("incomming", &[0]),
+            ("logik", &[0]),
+            ("persiste", &[0, 1]),
+            ("proccess", &[0]),
+            ("procesing", &[0]),
+            ("ruls", &[0]),
+            ("transfrom", &[0, 1]),
+            ("validatte", &[0, 1]),
+        ],
+    );
 }
 
 #[test]
 fn test_elixir_pattern_matching() {
-    super::utils::init_logging();
     let sample_elixir = r#"
         defmodule PatternMatcher do
           def handle_responce({:ok, resalt}) do
@@ -243,23 +174,21 @@ fn test_elixir_pattern_matching() {
           end
         end
     "#;
-    let expected = vec![
-        "conten",
-        "failur",
-        "mesage",
-        "notfication",
-        "responce",
-        "succes",
-    ];
-    let processor = super::utils::get_processor();
-    let binding = processor
-        .spell_check(sample_elixir, Some(LanguageType::Elixir), None)
-        .to_vec();
-    let mut misspelled = binding
-        .iter()
-        .map(|r| r.word.as_str())
-        .collect::<Vec<&str>>();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
+    // Atoms (:succes, :failur), map keys ("conten:"), string patterns
+    // ("notfication"), function definition names, call names
+    // (process_notfication), and call arguments (conten occurrence 2) are
+    // flagged; pattern-bound variables (resalt, reson, conten occurrence 1)
+    // are not.
+    assert_spelling_at(
+        LanguageType::Elixir,
+        sample_elixir,
+        &[
+            ("conten", &[0, 2]),
+            ("failur", &[0]),
+            ("mesage", &[0]),
+            ("notfication", &[0, 1]),
+            ("responce", &[0, 1]),
+            ("succes", &[0]),
+        ],
+    );
 }

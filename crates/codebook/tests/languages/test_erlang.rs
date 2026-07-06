@@ -1,12 +1,9 @@
-use codebook::{
-    parser::{TextRange, WordLocation},
-    queries::LanguageType,
-};
+use codebook::queries::LanguageType;
+
+use super::utils::{assert_spelling, assert_spelling_at};
 
 #[test]
 fn test_erlang_simple() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
     let sample_text = r#"
         -module(calculatr).
         % This is an exampl module that performz calculashuns
@@ -16,52 +13,35 @@ fn test_erlang_simple() {
             Resalt = Numbr1 + Numbr2,
             Resalt.
     "#;
-    let expected = vec![
-        "Numbr",
-        "Resalt",
-        "calculashuns",
-        "calculatr",
-        "exampl",
-        "performz",
-    ];
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::Erlang), None)
-        .to_vec();
-    let mut misspelled = binding
-        .iter()
-        .map(|r| r.word.as_str())
-        .collect::<Vec<&str>>();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
+    assert_spelling_at(
+        LanguageType::Erlang,
+        sample_text,
+        &[
+            ("calculatr", &[0]),
+            ("exampl", &[0]),
+            ("performz", &[0]),
+            ("calculashuns", &[0]),
+            // Erlang variables are flagged at every occurrence, not just
+            // where they are bound.
+            ("Numbr", &[0, 1, 2, 3]),
+            ("Resalt", &[0, 1]),
+        ],
+    );
 }
 
 #[test]
 fn test_erlang_comment_location() {
-    super::utils::init_logging();
-    let sample_erlang = r#"
-        % Structur definition with misspellings
-    "#;
-    let expected = vec![WordLocation::new(
-        "Structur".to_string(),
-        vec![TextRange {
-            start_byte: 11,
-            end_byte: 19,
-        }],
-    )];
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_erlang, Some(LanguageType::Erlang), None)
-        .to_vec();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
-    assert!(misspelled[0].locations.len() == 1);
+    assert_spelling(
+        LanguageType::Erlang,
+        "\n        % Structur definition with misspellings\n    ",
+        &["Structur"],
+        &[],
+    );
 }
 
 #[test]
 fn test_erlang_pattern_matching() {
-    super::utils::init_logging();
-    let sample_erlang = r#"
+    let sample_text = r#"
         -module(example).
         -export([handle_response/1]).
 
@@ -73,24 +53,20 @@ fn test_erlang_pattern_matching() {
         parse_message(#{type := <<"notfication">>, conten := Conten}) ->
             process_notfication(Conten).
     "#;
-    let expected = vec![
-        "Conten",
-        "Resalt",
-        "Reson",
-        "conten",
-        "failur",
-        "notfication",
-        "succes",
-    ];
-    let processor = super::utils::get_processor();
-    let binding = processor
-        .spell_check(sample_erlang, Some(LanguageType::Erlang), None)
-        .to_vec();
-    let mut misspelled = binding
-        .iter()
-        .map(|r| r.word.as_str())
-        .collect::<Vec<&str>>();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
+    assert_spelling_at(
+        LanguageType::Erlang,
+        sample_text,
+        &[
+            // Variables are flagged at every occurrence (pattern and body).
+            ("Resalt", &[0, 1]),
+            ("Reson", &[0, 1]),
+            ("Conten", &[0, 1]),
+            ("succes", &[0]),
+            ("failur", &[0]),
+            ("conten", &[0]),
+            // Flagged in the binary string and again inside the
+            // process_notfication atom.
+            ("notfication", &[0, 1]),
+        ],
+    );
 }

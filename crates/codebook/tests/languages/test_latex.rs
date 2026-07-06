@@ -1,83 +1,40 @@
-use codebook::{
-    parser::{TextRange, WordLocation},
-    queries::LanguageType,
-};
+use codebook::queries::LanguageType;
+
+use super::utils::{assert_spelling, assert_spelling_at};
 
 #[test]
 fn test_latex_comments() {
-    super::utils::init_logging();
     let sample_text = r#"
 % This is a coment with a typo
 % Another commnet with wrng spelling
 \documentclass{article}
     "#;
-    let expected = vec![
-        WordLocation::new(
-            "coment".to_string(),
-            vec![TextRange {
-                start_byte: 13,
-                end_byte: 19,
-            }],
-        ),
-        WordLocation::new(
-            "commnet".to_string(),
-            vec![TextRange {
-                start_byte: 42,
-                end_byte: 49,
-            }],
-        ),
-        WordLocation::new(
-            "wrng".to_string(),
-            vec![TextRange {
-                start_byte: 55,
-                end_byte: 59,
-            }],
-        ),
-    ];
-    let not_expected = vec!["documentclass", "article"];
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Latex), None)
-        .to_vec();
-    println!("Misspelled words: {misspelled:?}");
-    for e in &expected {
-        println!("Expecting: {e:?}");
-        let miss = misspelled
-            .iter()
-            .find(|r| r.word == e.word)
-            .unwrap_or_else(|| panic!("Word '{}' not found in misspelled list", e.word));
-        assert_eq!(miss.locations, e.locations);
-    }
-    for word in not_expected {
-        assert!(!misspelled.iter().any(|r| r.word == word));
-    }
+    // Command names (\documentclass) and their arguments are not checked.
+    assert_spelling(
+        LanguageType::Latex,
+        sample_text,
+        &["coment", "commnet", "wrng"],
+        &["documentclass", "article"],
+    );
 }
 
 #[test]
 fn test_latex_text_content() {
-    super::utils::init_logging();
     let sample_text = r#"
 \section{Introducton}
 
 This is an exampl of text with speling errors.
     "#;
-    let expected = vec!["Introducton", "exampl", "speling"];
-    let processor = super::utils::get_processor();
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::Latex), None)
-        .to_vec();
-    let mut misspelled = binding
-        .iter()
-        .map(|r| r.word.as_str())
-        .collect::<Vec<&str>>();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
+    assert_spelling(
+        LanguageType::Latex,
+        sample_text,
+        &["Introducton", "exampl", "speling"],
+        &[],
+    );
 }
 
 #[test]
 fn test_latex_sections_and_text() {
-    super::utils::init_logging();
     let sample_text = r#"
 \section{Methology}
 
@@ -87,53 +44,40 @@ The methology section describs the approach.
 
 In this secion we discuss importnt concepts.
     "#;
-    let expected = vec![
-        "Bakground",
-        "Methology",
-        "describs",
-        "importnt",
-        "methology",
-        "secion",
-    ];
-    let processor = super::utils::get_processor();
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::Latex), None)
-        .to_vec();
-    let mut misspelled = binding
-        .iter()
-        .map(|r| r.word.as_str())
-        .collect::<Vec<&str>>();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
+    assert_spelling(
+        LanguageType::Latex,
+        sample_text,
+        &[
+            "Bakground",
+            "Methology",
+            "describs",
+            "importnt",
+            "methology",
+            "secion",
+        ],
+        &[],
+    );
 }
 
 #[test]
 fn test_latex_itemize() {
-    super::utils::init_logging();
     let sample_text = r#"
 \begin{itemize}
     \item First itm with algoritm
     \item Second itm about formulas
 \end{itemize}
     "#;
-    let expected = vec!["algoritm", "itm"];
-    let processor = super::utils::get_processor();
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::Latex), None)
-        .to_vec();
-    let mut misspelled = binding
-        .iter()
-        .map(|r| r.word.as_str())
-        .collect::<Vec<&str>>();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
+    // "itm" appears in both \item lines and is flagged at both; occurrence 1
+    // is the substring inside "algoritm", which is flagged as its own word.
+    assert_spelling_at(
+        LanguageType::Latex,
+        sample_text,
+        &[("algoritm", &[0]), ("itm", &[0, 2])],
+    );
 }
 
 #[test]
 fn test_latex_mixed_content() {
-    super::utils::init_logging();
     let sample_text = r#"
 % Comment: calcuate the result
 \section{Resuts}
@@ -146,35 +90,26 @@ The resuts show our aproach is efective.
 
 As shown in Equation~\ref{eq:enrgy}, the relatioship is clear.
     "#;
-    let expected = vec![
-        "Resuts",
-        "aproach",
-        "calcuate",
-        "efective",
-        "enrgy",
-        "relatioship",
-        "resuts",
-    ];
-    let not_expected = vec!["equation", "label", "ref", "begin", "end", "section"];
-    let processor = super::utils::get_processor();
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::Latex), None)
-        .to_vec();
-    let mut misspelled = binding
-        .iter()
-        .map(|r| r.word.as_str())
-        .collect::<Vec<&str>>();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
-    for word in not_expected {
-        assert!(!misspelled.contains(&word));
-    }
+    // Exact set equality: command names (equation, label, ref, begin, end,
+    // section) can't appear in the flagged set. Label names ARE checked:
+    // "enrgy" is flagged both in \label and \ref.
+    assert_spelling_at(
+        LanguageType::Latex,
+        sample_text,
+        &[
+            ("Resuts", &[0]),
+            ("aproach", &[0]),
+            ("calcuate", &[0]),
+            ("efective", &[0]),
+            ("enrgy", &[0, 1]),
+            ("relatioship", &[0]),
+            ("resuts", &[0]),
+        ],
+    );
 }
 
 #[test]
 fn test_latex_comprehensive() {
-    super::utils::init_logging();
     let sample_text = r#"
 \documentclass{article}
 
@@ -193,40 +128,24 @@ The analyss reveals paterns in the data.
 
 \end{document}
     "#;
-    let expected = vec![
-        "Analyss",
-        "Introducton",
-        "Sampel",
-        "analyss",
-        "coment",
-        "docment",
-        "paterns",
-        "spel",
-        "speling",
-        "wrng",
-    ];
-    let not_expected = vec![
-        "documentclass",
-        "article",
-        "title",
-        "begin",
-        "end",
-        "document",
-        "section",
-        "subsection",
-    ];
-    let processor = super::utils::get_processor();
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::Latex), None)
-        .to_vec();
-    let mut misspelled = binding
-        .iter()
-        .map(|r| r.word.as_str())
-        .collect::<Vec<&str>>();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
-    for word in not_expected {
-        assert!(!misspelled.contains(&word));
-    }
+    // Exact set equality: command names (documentclass, article, title,
+    // begin, end, document, section, subsection) can't appear in the flagged
+    // set. "spel" also occurs inside "speling" (occurrence 0); only the
+    // standalone word is flagged as "spel".
+    assert_spelling_at(
+        LanguageType::Latex,
+        sample_text,
+        &[
+            ("Analyss", &[0]),
+            ("Introducton", &[0]),
+            ("Sampel", &[0]),
+            ("analyss", &[0]),
+            ("coment", &[0]),
+            ("docment", &[0]),
+            ("paterns", &[0]),
+            ("spel", &[1]),
+            ("speling", &[0]),
+            ("wrng", &[0]),
+        ],
+    );
 }

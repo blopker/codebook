@@ -1,16 +1,12 @@
-use codebook::{
-    parser::{TextRange, WordLocation},
-    queries::LanguageType,
-};
+use codebook::{parser::TextRange, queries::LanguageType};
 
+/// Path relative to the crate directory, which is the cwd when cargo runs tests.
 fn example_file_path(file: &str) -> String {
-    // get root of the project through CARGO_MANIFEST_DIR
     format!("tests/examples/{file}")
 }
 
 #[test]
 fn test_ignore_file() {
-    super::utils::init_logging();
     let processor = super::utils::get_processor();
     let results = processor.spell_check("badword", None, Some("ignore.txt"));
     assert_eq!(results.len(), 0);
@@ -18,7 +14,6 @@ fn test_ignore_file() {
 
 #[test]
 fn test_include_paths_allowlist() {
-    super::utils::init_logging();
     let processor = super::utils::get_processor_with_include("**/*.rs");
     assert!(
         !processor
@@ -34,7 +29,6 @@ fn test_include_paths_allowlist() {
 
 #[test]
 fn test_include_paths_empty_includes_everything() {
-    super::utils::init_logging();
     let processor = super::utils::get_processor();
     assert!(
         !processor
@@ -50,7 +44,6 @@ fn test_include_paths_empty_includes_everything() {
 
 #[test]
 fn test_ignore_paths_takes_precedence_over_include_paths() {
-    super::utils::init_logging();
     let processor = super::utils::get_processor_with_include_and_ignore("**/*.rs", "**/*.rs");
     assert_eq!(
         processor
@@ -62,99 +55,61 @@ fn test_ignore_paths_takes_precedence_over_include_paths() {
 
 #[test]
 fn test_example_files_word_locations() {
-    super::utils::init_logging();
-    let files: Vec<(&str, Vec<WordLocation>)> = vec![
-        (
-            "example.py",
-            vec![WordLocation::new(
-                "Pthon".to_string(),
-                vec![TextRange {
-                    start_byte: 10,
-                    end_byte: 15,
-                }],
-            )],
-        ),
-        (
-            "example.ts",
-            vec![WordLocation::new(
-                "mistkes".to_string(),
-                vec![TextRange {
-                    start_byte: 315,
-                    end_byte: 322,
-                }],
-            )],
-        ),
-        // ("example.md", vec!["bvd", "splellin", "wolrd"]),
-        (
-            "example.txt",
-            vec![WordLocation {
-                word: "Splellin".to_string(),
-                locations: vec![TextRange {
-                    start_byte: 10,
-                    end_byte: 18,
-                }],
-            }],
-        ),
-        (
-            "example.md",
-            vec![
-                WordLocation {
-                    word: "wolrd".to_string(),
-                    locations: vec![TextRange {
-                        start_byte: 26,
-                        end_byte: 31,
-                    }],
-                },
-                WordLocation {
-                    word: "Wolrd".to_string(),
-                    locations: vec![TextRange {
-                        start_byte: 20,
-                        end_byte: 25,
-                    }],
-                },
-                WordLocation {
-                    word: "regulr".to_string(),
-                    locations: vec![TextRange {
-                        start_byte: 38,
-                        end_byte: 44,
-                    }],
-                },
-            ],
-        ),
+    // Each listed word occurs exactly once in its file (case-sensitive), so
+    // the expected range is derived from the text instead of hand-written
+    // byte offsets. `spell_check` also enforces the slice invariant.
+    let files: &[(&str, &[&str])] = &[
+        ("example.py", &["Pthon"]),
+        ("example.ts", &["mistkes"]),
+        ("example.txt", &["Splellin"]),
+        ("example.md", &["wolrd", "Wolrd", "regulr"]),
     ];
-    for file in files {
-        let path = example_file_path(file.0);
-        println!("Checking file: {path:?}");
-        let text = std::fs::read_to_string(path).unwrap();
-        let processor = super::utils::get_processor();
-        let results = processor.spell_check(&text, Some(LanguageType::Text), None);
-        println!("Misspelled words: {results:?}");
-        for expected in file.1 {
-            let found = results.iter().find(|r| r.word == expected.word).unwrap();
-            assert_eq!(found.locations, expected.locations);
+    let processor = super::utils::get_processor();
+    for (file, words) in files {
+        let text = std::fs::read_to_string(example_file_path(file)).unwrap();
+        let results = super::utils::spell_check(&processor, LanguageType::Text, &text);
+        for word in *words {
+            let starts: Vec<usize> = text.match_indices(word).map(|(i, _)| i).collect();
+            assert_eq!(
+                starts.len(),
+                1,
+                "'{word}' must occur exactly once in {file}"
+            );
+            let expected = vec![TextRange {
+                start_byte: starts[0],
+                end_byte: starts[0] + word.len(),
+            }];
+            let found = results
+                .iter()
+                .find(|r| r.word == *word)
+                .unwrap_or_else(|| panic!("'{word}' was not flagged in {file}"));
+            assert_eq!(found.locations, expected, "'{word}' in {file}");
         }
     }
 }
 
 #[test]
 fn test_example_files() {
-    super::utils::init_logging();
-    let files = [
-        ("example.html", vec!["Spelin", "Wolrd", "sor"]),
-        ("example.py", vec!["Pthon", "Wolrd"]),
+    // Exact (sorted) set of flagged words per file, checked through
+    // `spell_check_file` so language detection from the path is exercised.
+    let files: &[(&str, &[&str])] = &[
+        ("example.html", &["Documentt", "Spelin", "Wolrd", "sor"]),
+        ("example.py", &["Pthon", "Wolrd", "linest", "spelin"]),
+        // The DNA sequence is flagged by default; the README documents
+        // skipping such sequences via user-defined ignore_patterns.
         (
             "example.md",
-            vec!["Wolrd", "bvd", "regulr", "splellin", "wolrd"],
+            &["ATGCATCG", "Wolrd", "bvd", "regulr", "splellin", "wolrd"],
         ),
-        ("example.txt", vec!["Splellin"]),
-        ("example.rs", vec!["birt", "calclate", "curent", "jalopin"]),
+        ("example.txt", &["Splellin"]),
+        ("example.rs", &["birt", "calclate", "curent", "jalopin"]),
         (
             "example.go",
-            vec!["speling", "Wolrd", "mispeled", "Funcion"],
+            &["Alicz", "Funcion", "Wolrd", "alicz", "mispeled", "speling"],
         ),
         (
             "example.js",
-            vec![
+            &[
                 "Accaunt",
                 "Calculater",
                 "Exportt",
@@ -166,45 +121,78 @@ fn test_example_files() {
                 "Pleese",
                 "additshun",
                 "arra",
+                "calculater",
+                "divde",
+                "divishun",
+                "emale",
+                "funcsions",
+                "inputt",
+                "multiplacation",
+                "numbr",
+                "numbrs",
+                "operashun",
+                "passwrd",
+                "propertys",
+                "prosess",
+                "resalt",
+                "secand",
+                "substractshun",
+                "summ",
+                "totel",
+                "usege",
+                "usrname",
             ],
         ),
         (
             "example.ts",
-            vec![
-                "Accaunt", "Exportt", "Funcshun", "Funktion", "Inputt", "Numbr", "Numbrs",
+            &[
+                "Accaunt",
+                "Exportt",
+                "Funcshun",
+                "Funktion",
+                "Inputt",
+                "Numbr",
+                "Numbrs",
+                "Pleese",
+                "arra",
+                "emale",
+                "funcsions",
+                "inputt",
+                "linet",
+                "mistkes",
+                "numbr",
+                "numbrs",
+                "passwrd",
+                "propertys",
+                "prosess",
+                "secand",
+                "totel",
+                "usege",
+                "usrname",
             ],
         ),
         (
             "example.lua",
-            vec![
-                "exampl",
+            &[
+                "Accont",
                 "Helo",
                 "Wrold",
-                "mesage",
-                "countr",
-                "Accont",
                 "calculat",
-                "intrest",
                 "calculatr",
+                "countr",
+                "exampl",
+                "intrest",
+                "mesage",
                 "numbr",
                 "operashun",
             ],
         ),
     ];
-    for mut file in files {
-        let path = example_file_path(file.0);
-        println!("---------- Checking file: {path:?} ----------");
-        let processor = super::utils::get_processor();
-        let results = processor.spell_check_file(&path);
-        let mut misspelled = results
-            .iter()
-            .map(|r| r.word.as_str())
-            .collect::<Vec<&str>>();
-        misspelled.sort();
-        file.1.sort();
-        println!("Misspelled words: {misspelled:?}");
-        for word in &file.1 {
-            assert!(misspelled.contains(word), "Word: {}", word);
-        }
+    let processor = super::utils::get_processor();
+    for (file, expected) in files {
+        let results = processor.spell_check_file(&example_file_path(file));
+        let mut misspelled: Vec<&str> = results.iter().map(|r| r.word.as_str()).collect();
+        misspelled.sort_unstable();
+        assert_eq!(&misspelled, expected, "flagged words in {file}");
     }
 }

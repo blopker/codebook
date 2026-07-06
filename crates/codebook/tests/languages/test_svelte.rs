@@ -1,9 +1,9 @@
 use codebook::queries::LanguageType;
 
+use super::utils::assert_spelling_at;
+
 #[test]
 fn test_svelte_simple() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
     let sample_text = r#"<script>
     // A componet with speling erors
     let couter = 0;
@@ -22,49 +22,45 @@ fn test_svelte_simple() {
     }
 </style>
 "#;
-    let expected = vec![
-        // comment in script
-        "componet",
-        "speling",
-        "erors",
-        // script identifiers
-        "couter",
-        "incremnt",
-        // html text
-        "Welcom",
-        "aplicaton",
-        "curent",
-        "Incrementt",
-        // css identifier
-        "containr",
-    ];
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::HTML), None)
-        .to_vec();
-    let mut misspelled: Vec<&str> = binding.iter().map(|r| r.word.as_str()).collect();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    for word in &expected {
-        assert!(
-            misspelled.contains(word),
-            "Expected misspelled word not found: {word}"
-        );
-    }
+    assert_spelling_at(
+        LanguageType::HTML,
+        sample_text,
+        &[
+            // Comment in the script block.
+            ("componet", &[0]),
+            ("speling", &[0]),
+            ("erors", &[0]),
+            // Flagged at `let couter` (definition) and inside `{couter}` in
+            // the <p> element, which is plain HTML text content; the
+            // `couter += 1` usage is not flagged.
+            ("couter", &[0, 2]),
+            // Flagged at the function definition; the `on:click={incremnt}`
+            // attribute value is not.
+            ("incremnt", &[0]),
+            // HTML text content.
+            ("Welcom", &[0]),
+            ("aplicaton", &[0]),
+            ("curent", &[0]),
+            ("Incrementt", &[0]),
+            // CSS class identifier in the style block.
+            ("containr", &[0]),
+        ],
+    );
 }
 
+/// Passing a .svelte file path routes the text through the HTML/Svelte
+/// pipeline; needs a raw processor call because the shared helpers don't
+/// take a file path.
 #[test]
 fn test_svelte_file_detection() {
-    super::utils::init_logging();
     let processor = super::utils::get_processor();
     let sample_text = r#"<p>Misspeled word</p>
 "#;
-    let results = processor
-        .spell_check(
-            sample_text,
-            Some(LanguageType::HTML),
-            Some("component.svelte"),
-        )
-        .to_vec();
+    let results = processor.spell_check(
+        sample_text,
+        Some(LanguageType::HTML),
+        Some("component.svelte"),
+    );
     let misspelled: Vec<&str> = results.iter().map(|r| r.word.as_str()).collect();
-    assert!(misspelled.contains(&"Misspeled"));
+    assert_eq!(misspelled, ["Misspeled"]);
 }

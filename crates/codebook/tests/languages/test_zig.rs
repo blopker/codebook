@@ -1,60 +1,43 @@
 use codebook::queries::LanguageType;
 
+use super::utils::{assert_spelling, assert_spelling_at};
+
 #[test]
 fn test_zig_simple() {
-    super::utils::init_logging();
     let sample_text = r#"
 const tesst = 5;
 var valuue = 10;
 "#;
-
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Zig), None)
-        .to_vec();
-
-    println!("Misspelled words: {:#?}", misspelled);
-
-    assert!(misspelled.iter().any(|w| w.word == "tesst"));
-    assert!(misspelled.iter().any(|w| w.word == "valuue"));
+    assert_spelling(LanguageType::Zig, sample_text, &["tesst", "valuue"], &[]);
 }
 
 #[test]
 fn test_zig_strings() {
-    super::utils::init_logging();
     let sample_text = r#"
 test "bad speling" {
     const msg = "Hello Wolrd";
 }
 "#;
-
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Zig), None)
-        .to_vec();
-
-    println!("Misspelled words: {:#?}", misspelled);
-
-    assert!(misspelled.iter().any(|w| w.word == "speling"));
-    assert!(misspelled.iter().any(|w| w.word == "Wolrd"));
+    assert_spelling(LanguageType::Zig, sample_text, &["speling", "Wolrd"], &[]);
 }
 
 #[test]
 fn test_zig_functions() {
-    super::utils::init_logging();
     let sample_text = r#"
 fn addNumberrs(firstt: i32, seconnd: i32) i32 {
     return firstt + seconnd;
 }
 "#;
-
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Zig), None)
-        .to_vec();
-
-    println!("Misspelled words: {:#?}", misspelled);
-    assert!(misspelled.iter().any(|w| w.word == "Numberrs"));
-    assert!(misspelled.iter().any(|w| w.word == "firstt"));
-    assert!(misspelled.iter().any(|w| w.word == "seconnd"));
+    assert_spelling_at(
+        LanguageType::Zig,
+        sample_text,
+        &[
+            // Flagged at its camelCase sub-token range inside addNumberrs.
+            ("Numberrs", &[0]),
+            // Parameters are flagged at their declaration, not at usages
+            // in the function body.
+            ("firstt", &[0]),
+            ("seconnd", &[0]),
+        ],
+    );
 }

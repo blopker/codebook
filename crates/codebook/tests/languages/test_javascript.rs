@@ -1,11 +1,9 @@
-use codebook::{
-    parser::{TextRange, WordLocation},
-    queries::LanguageType,
-};
+use codebook::queries::LanguageType;
+
+use super::utils::assert_spelling_at;
 
 #[test]
 fn test_javascript_location() {
-    super::utils::init_logging();
     let sample_text = r#"
     import { useState } from 'react';
 
@@ -30,89 +28,22 @@ fn test_javascript_location() {
         }
         return scoree + misspelleed.length;
     }"#;
-
-    let expected = vec![
-        WordLocation::new(
-            "objectz".to_string(),
-            vec![TextRange {
-                start_byte: 48,
-                end_byte: 55,
-            }],
-        ),
-        WordLocation::new(
-            "namee".to_string(),
-            vec![TextRange {
-                start_byte: 68,
-                end_byte: 73,
-            }],
-        ),
-        WordLocation::new(
-            "calculaate".to_string(),
-            vec![TextRange {
-                start_byte: 146,
-                end_byte: 156,
-            }],
-        ),
-        WordLocation::new(
-            "misspelleed".to_string(),
-            vec![TextRange {
-                start_byte: 189,
-                end_byte: 200,
-            }],
-        ),
-        WordLocation::new(
-            "thhis".to_string(),
-            vec![TextRange {
-                start_byte: 204,
-                end_byte: 209,
-            }],
-        ),
-        WordLocation::new(
-            "scoree".to_string(),
-            vec![TextRange {
-                start_byte: 233,
-                end_byte: 239,
-            }],
-        ),
-        WordLocation::new(
-            "errorz".to_string(),
-            vec![TextRange {
-                start_byte: 434,
-                end_byte: 440,
-            }],
-        ),
-    ];
-
-    let not_expected = [
-        "import",
-        "useState",
-        "react",
-        "function",
-        "const",
-        "let",
-        "if",
-        "return",
-        "length",
-        "incluudes",
-    ];
-
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Javascript), None)
-        .to_vec();
-
-    println!("Misspelled words: {misspelled:?}\n");
-
-    for e in &expected {
-        println!("Expecting: {e:?}");
-        let miss = misspelled
-            .iter()
-            .find(|r| r.word == e.word)
-            .expect("Word not found");
-        assert_eq!(miss.locations, e.locations);
-    }
-
-    for result in misspelled {
-        assert!(!not_expected.contains(&result.word.as_str()));
-    }
+    // Method-call references (`incluudes`) and imported names (`useState`,
+    // `react`) are not spell-checked; exact set equality guards that.
+    assert_spelling_at(
+        LanguageType::Javascript,
+        sample_text,
+        &[
+            ("objectz", &[0]),
+            ("namee", &[0]),
+            // Inside `calculaateScore` via camelCase split.
+            ("calculaate", &[0]),
+            // Flagged at the declaration; the `misspelleed.length` usage is not.
+            ("misspelleed", &[0]),
+            ("thhis", &[0]),
+            // Flagged at `let scoree`; the later `+=` and `return` usages are not.
+            ("scoree", &[0]),
+            ("errorz", &[0]),
+        ],
+    );
 }

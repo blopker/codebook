@@ -1,9 +1,9 @@
 use codebook::queries::LanguageType;
 
+use super::utils::assert_spelling_at;
+
 #[test]
 fn test_dart_simple() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
     let sample_text = r#"
 import 'dart:math';
 import 'package:flutter/materail.dart';
@@ -37,56 +37,44 @@ enum Statuss {
   inacive,
 }
     "#;
-    let expected = vec![
-        "Helllo",
-        "Itemms",
-        "Messge",
-        "Statuss",
-        "Widgett",
-        "Worlld",
-        "activve",
-        "coment",
-        "countr",
-        "documntation",
-        "firstt",
-        "greting",
-        "inacive",
-        "itemms",
-        "misspeled",
-        "misspeling",
-        "numbr",
-        "seconnd",
-        "thirdd",
-        "titlee",
-    ];
-    let not_expected = vec![
-        "dart",     // import URI content
-        "flutter",  // import URI content
-        "materail", // import URI content (misspelled but in import)
-        "package",  // import URI content
-    ];
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::Dart), None)
-        .to_vec();
-    let mut misspelled = binding
-        .iter()
-        .map(|r| r.word.as_str())
-        .collect::<Vec<&str>>();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
-    for word in &not_expected {
-        assert!(
-            !misspelled.contains(word),
-            "'{word}' should not be spell-checked (import URI)"
-        );
-    }
+    // Import URI contents (dart, package, flutter, and even the misspelled
+    // materail) are not spell-checked; exact set equality guards that.
+    assert_spelling_at(
+        LanguageType::Dart,
+        sample_text,
+        &[
+            ("documntation", &[0]),
+            // Flagged at the class definition; the `const MyWidgett({...})`
+            // constructor is not.
+            ("Widgett", &[0]),
+            // Fields are flagged at their definitions; `this.titlee`,
+            // `this.countr`, and the `$countr` interpolation are not.
+            ("titlee", &[0]),
+            ("countr", &[0]),
+            // Both the line comment and the block comment are checked.
+            ("coment", &[0, 1]),
+            ("misspeling", &[0]),
+            ("misspeled", &[0]),
+            ("Messge", &[0]),
+            // Flagged at the declaration; the later usage is not.
+            ("greting", &[0]),
+            ("Helllo", &[0]),
+            ("Worlld", &[0]),
+            ("itemms", &[0]),
+            ("numbr", &[0]),
+            ("Itemms", &[0]),
+            ("firstt", &[0]),
+            ("seconnd", &[0]),
+            ("thirdd", &[0]),
+            ("Statuss", &[0]),
+            ("activve", &[0]),
+            ("inacive", &[0]),
+        ],
+    );
 }
 
 #[test]
 fn test_dart_string_interpolation() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
     let sample_text = r#"
 class Foo {
   String usrname = "bob";
@@ -98,34 +86,30 @@ class Foo {
   }
 }
     "#;
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::Dart), None)
-        .to_vec();
-    let mut misspelled: Vec<&str> = binding.iter().map(|r| r.word.as_str()).collect();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-
-    let expected = vec![
-        "Deleeted", "Greting", "Helllo", "accaunt", "greting", "numbr", "usrname",
-    ];
-    let not_expected = vec![
-        "bob",    // string content, valid word
-        "logg",   // function call (reference, not definition)
-        "length", // interpolation expression member
-    ];
-    assert_eq!(misspelled, expected);
-    for word in &not_expected {
-        assert!(
-            !misspelled.contains(word),
-            "'{word}' should not be spell-checked (interpolation)"
-        );
-    }
+    // Not flagged: "bob" (valid word in string content), `logg` (function
+    // call reference, not a definition), and `length` (interpolation
+    // expression member).
+    assert_spelling_at(
+        LanguageType::Dart,
+        sample_text,
+        &[
+            // Flagged at the field definition; the `$usrname` and
+            // `${usrname.length}` interpolation references are not.
+            ("usrname", &[0]),
+            // Flagged at the declaration; the `$greting` interpolation is not.
+            ("greting", &[0]),
+            ("Helllo", &[0]),
+            // String content around interpolations is checked.
+            ("Deleeted", &[0]),
+            ("accaunt", &[0]),
+            ("Greting", &[0]),
+            ("numbr", &[0]),
+        ],
+    );
 }
 
 #[test]
 fn test_dart_class_fields() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
     let sample_text = r#"
 class UserAccaunt {
   final String usrname;
@@ -133,45 +117,24 @@ class UserAccaunt {
   int _balanse = 0;
 }
     "#;
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::Dart), None)
-        .to_vec();
-    let mut misspelled: Vec<&str> = binding.iter().map(|r| r.word.as_str()).collect();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-
-    // Class fields should be flagged at definitions
-    assert!(
-        misspelled.contains(&"usrname"),
-        "class field 'usrname' should be flagged"
+    // Type references (String, Map, int, and the `UserAccaunt` inside the
+    // Map generic) are not spell-checked; exact set equality guards that.
+    assert_spelling_at(
+        LanguageType::Dart,
+        sample_text,
+        &[
+            // Class name flagged at the definition only.
+            ("Accaunt", &[0]),
+            // Class fields are flagged at their definitions.
+            ("usrname", &[0]),
+            ("accaunts", &[0]),
+            ("balanse", &[0]),
+        ],
     );
-    assert!(
-        misspelled.contains(&"accaunts"),
-        "class field '_accaunts' should be flagged"
-    );
-    assert!(
-        misspelled.contains(&"balanse"),
-        "class field '_balanse' should be flagged"
-    );
-    assert!(
-        misspelled.contains(&"Accaunt"),
-        "class name 'UserAccaunt' should be flagged at definition"
-    );
-
-    // Type references should NOT be flagged
-    let type_ref_words = vec!["String", "Map", "int"];
-    for word in &type_ref_words {
-        assert!(
-            !misspelled.contains(word),
-            "type reference '{word}' should not be spell-checked"
-        );
-    }
 }
 
 #[test]
 fn test_dart_arrow_body_strings() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
     let sample_text = r#"
 class Foo {
   String usrname = "bob";
@@ -181,32 +144,22 @@ class Foo {
   String toString() => 'Accaunt(usrname: $usrname, balanse: $_balanse)';
 }
     "#;
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::Dart), None)
-        .to_vec();
-    let mut misspelled: Vec<&str> = binding.iter().map(|r| r.word.as_str()).collect();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-
-    // Arrow body string content should be checked
-    assert!(
-        misspelled.contains(&"Accaunt"),
-        "string in arrow body should be checked"
-    );
-    assert!(
-        misspelled.contains(&"balanse"),
-        "field definition should be flagged"
-    );
-    assert!(
-        misspelled.contains(&"usrname"),
-        "field definition should be flagged"
+    assert_spelling_at(
+        LanguageType::Dart,
+        sample_text,
+        &[
+            // String content in the arrow body is checked.
+            ("Accaunt", &[0]),
+            // Flagged at the field definition and at the literal text inside
+            // the arrow-body string; the `$usrname` interpolation is not.
+            ("usrname", &[0, 1]),
+            ("balanse", &[0, 1]),
+        ],
     );
 }
 
 #[test]
 fn test_dart_type_references_not_flagged() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
     let sample_text = r#"
 typedef MyCallbak = void Function(int);
 
@@ -223,53 +176,23 @@ class Foo with Loggabel {
   }
 }
     "#;
-    let binding = processor
-        .spell_check(sample_text, Some(LanguageType::Dart), None)
-        .to_vec();
-    let mut misspelled: Vec<&str> = binding.iter().map(|r| r.word.as_str()).collect();
-    misspelled.sort();
-    println!("Misspelled words: {misspelled:?}");
-
-    // Definitions should be flagged
-    assert!(
-        misspelled.contains(&"Callbak"),
-        "typedef name should be flagged"
+    // Type references (Map, String, List, int, Future) are not
+    // spell-checked; exact set equality guards that.
+    assert_spelling_at(
+        LanguageType::Dart,
+        sample_text,
+        &[
+            // Flagged at the typedef definition; the `MyCallbak?` field type
+            // reference is not.
+            ("Callbak", &[0]),
+            // Flagged at the mixin definition; the `with Loggabel` reference
+            // is not.
+            ("Loggabel", &[0]),
+            // Fields are flagged at definitions; `this.dataa`/`this.callbak`
+            // are not.
+            ("dataa", &[0]),
+            ("callbak", &[0]),
+            ("Stuf", &[0]),
+        ],
     );
-    assert!(
-        misspelled.contains(&"Loggabel"),
-        "mixin name should be flagged"
-    );
-    assert!(
-        misspelled.contains(&"dataa"),
-        "field name should be flagged"
-    );
-    assert!(
-        misspelled.contains(&"callbak"),
-        "field name should be flagged"
-    );
-    assert!(
-        misspelled.contains(&"Stuf"),
-        "method name should be flagged"
-    );
-
-    // Type references should NOT be flagged
-    let not_expected = vec![
-        "Map",
-        "String",
-        "List",
-        "int",
-        "Future",
-        "Loggabel",
-        "MyCallbak",
-    ];
-    for word in &not_expected {
-        // Skip words that are also flagged as definitions
-        if *word == "Loggabel" || *word == "MyCallbak" {
-            continue;
-        }
-        assert!(
-            !misspelled.contains(word),
-            "type reference '{word}' should not be spell-checked"
-        );
-    }
 }

@@ -20,5 +20,9 @@
 (call
     (identifier) @identifier.function)
 
+; Only match (=) and comprehension/for generators (<-) bind variables;
+; the left side of any other binary operator (arithmetic, pipes, ...) is a
+; usage, not a definition.
 (binary_operator
-    left: (identifier) @identifier.variable)
+    left: (identifier) @identifier.variable
+    operator: ["=" "<-"])

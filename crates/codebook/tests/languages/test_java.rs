@@ -1,11 +1,9 @@
-use codebook::{
-    parser::{TextRange, WordLocation},
-    queries::LanguageType,
-};
+use codebook::queries::LanguageType;
+
+use super::utils::assert_spelling_at;
 
 #[test]
 fn test_java_location() {
-    super::utils::init_logging();
     let sample_text = r#"
     // Singl-line comment
     /* Blck comment */
@@ -33,128 +31,28 @@ fn test_java_location() {
             }
         }
     }"#;
-
-    let expected = vec![
-        WordLocation::new(
-            "Singl".to_string(),
-            vec![TextRange {
-                start_byte: 8,
-                end_byte: 13,
-            }],
-        ),
-        WordLocation::new(
-            "Blck".to_string(),
-            vec![TextRange {
-                start_byte: 34,
-                end_byte: 38,
-            }],
-        ),
-        WordLocation::new(
-            "Exampl".to_string(),
-            vec![TextRange {
-                start_byte: 65,
-                end_byte: 71,
-            }],
-        ),
-        WordLocation::new(
-            "Somethng".to_string(),
-            vec![
-                TextRange {
-                    start_byte: 98,
-                    end_byte: 106,
-                },
-                TextRange {
-                    start_byte: 261,
-                    end_byte: 269,
-                },
-            ],
-        ),
-        WordLocation::new(
-            "Statuss".to_string(),
-            vec![TextRange {
-                start_byte: 126,
-                end_byte: 133,
-            }],
-        ),
-        WordLocation::new(
-            "ACTIV".to_string(),
-            vec![TextRange {
-                start_byte: 136,
-                end_byte: 141,
-            }],
-        ),
-        WordLocation::new(
-            "Soem".to_string(),
-            vec![TextRange {
-                start_byte: 162,
-                end_byte: 166,
-            }],
-        ),
-        WordLocation::new(
-            "messag".to_string(),
-            vec![TextRange {
-                start_byte: 220,
-                end_byte: 226,
-            }],
-        ),
-        WordLocation::new(
-            "smth".to_string(),
-            vec![TextRange {
-                start_byte: 277,
-                end_byte: 281,
-            }],
-        ),
-        WordLocation::new(
-            "errorr".to_string(),
-            vec![TextRange {
-                start_byte: 492,
-                end_byte: 498,
-            }],
-        ),
-    ];
-
-    let not_expected = [
-        "interface",
-        "void",
-        "enum",
-        "public",
-        "class",
-        "implements",
-        "String",
-        "System",
-        "out",
-        "println",
-        "static",
-        "main",
-        "try",
-        "catch",
-        "ArithmeticException",
-        "Hello",
-        "Doing",
-        "Caught",
-        "Mthod",
-    ];
-
-    let processor = super::utils::get_processor();
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Java), None)
-        .to_vec();
-
-    println!("Misspelled words: {misspelled:?}\n");
-
-    for e in &expected {
-        println!("Expecting: {e:?}");
-        let miss = misspelled
-            .iter()
-            .find(|r| r.word == e.word)
-            .expect("Word not found");
-        assert!(miss.locations.len() == e.locations.len());
-        for location in &miss.locations {
-            assert!(e.locations.contains(location));
-        }
-    }
-
-    for result in misspelled {
-        assert!(!not_expected.contains(&result.word.as_str()));
-    }
+    // Keywords and method-call references (`recoveryMthod`) are not
+    // spell-checked; exact set equality guards that.
+    assert_spelling_at(
+        LanguageType::Java,
+        sample_text,
+        &[
+            ("Singl", &[0]),
+            ("Blck", &[0]),
+            // Flagged at the interface definition; the `implements` reference
+            // is not.
+            ("Exampl", &[0]),
+            // Flagged at both method definitions (interface and class).
+            ("Somethng", &[0, 1]),
+            ("Statuss", &[0]),
+            ("ACTIV", &[0]),
+            ("Soem", &[0]),
+            ("messag", &[0]),
+            // Flagged at the parameter definition; the usage in the string
+            // concatenation is not.
+            ("smth", &[0]),
+            // Flagged at the catch parameter; the usage in println is not.
+            ("errorr", &[0]),
+        ],
+    );
 }

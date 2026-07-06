@@ -1,17 +1,11 @@
-use codebook::{
-    Codebook,
-    parser::{TextRange, WordLocation},
-    queries::LanguageType,
-};
+use codebook::{Codebook, queries::LanguageType};
 use codebook_config::{CodebookConfig, CodebookConfigMemory};
 use std::sync::Arc;
 
-pub fn get_processor(words: Option<&[&str]>) -> Codebook {
+fn get_processor_with_words(words: &[&str]) -> Codebook {
     let config = Arc::new(CodebookConfigMemory::default());
-    if let Some(words) = words {
-        for w in words {
-            let _ = config.add_word(w);
-        }
+    for w in words {
+        let _ = config.add_word(w);
     }
     super::utils::make_codebook(config)
 }
@@ -24,22 +18,12 @@ fn test_custom_words() {
         good words
         actualbad
 "#;
-    let expected = vec![WordLocation::new(
-        "actualbad".to_string(),
-        vec![TextRange {
-            start_byte: 62,
-            end_byte: 71,
-        }],
-    )];
-    let not_expected = ["testword"];
-    let processor = get_processor(Some(&not_expected));
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Text), None)
-        .to_vec();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled, expected);
-    assert!(misspelled[0].locations.len() == 1);
-    for result in misspelled {
-        assert!(!not_expected.contains(&result.word.as_str()));
-    }
+    // "testword" is added to the config dictionary, so only "actualbad" is flagged.
+    super::utils::assert_spelling_with(
+        &get_processor_with_words(&["testword"]),
+        LanguageType::Text,
+        sample_text,
+        &["actualbad"],
+        &["testword"],
+    );
 }

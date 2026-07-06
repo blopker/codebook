@@ -1,51 +1,33 @@
-use codebook::{
-    parser::{TextRange, WordLocation},
-    queries::LanguageType,
-};
+use codebook::queries::LanguageType;
+
+use super::utils::{assert_spelling, assert_spelling_at};
 
 #[test]
 fn test_markdown_paragraph() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
-    let sample_text = "Some paragraph text with a misspeled word.\n";
-    let expected = [WordLocation::new(
-        "misspeled".to_string(),
-        vec![TextRange {
-            start_byte: 27,
-            end_byte: 36,
-        }],
-    )];
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Markdown), None)
-        .to_vec();
-    println!("Misspelled words: {misspelled:?}");
-    assert_eq!(misspelled.len(), 1);
-    assert_eq!(misspelled[0].word, expected[0].word);
-    assert_eq!(misspelled[0].locations, expected[0].locations);
+    assert_spelling(
+        LanguageType::Markdown,
+        "Some paragraph text with a misspeled word.\n",
+        &["misspeled"],
+        &[],
+    );
 }
 
 #[test]
 fn test_markdown_heading() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
-    let sample_text = "# A headng with a tyypo\n";
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Markdown), None)
-        .to_vec();
-    let words: Vec<&str> = misspelled.iter().map(|r| r.word.as_str()).collect();
-    println!("Misspelled words: {words:?}");
-    assert!(words.contains(&"headng"));
-    assert!(words.contains(&"tyypo"));
+    assert_spelling(
+        LanguageType::Markdown,
+        "# A headng with a tyypo\n",
+        &["headng", "tyypo"],
+        &[],
+    );
 }
 
 #[test]
 fn test_markdown_fenced_code_block_known_lang() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
-    // Note: bash.scm only captures comments, strings, function names,
-    // heredocs, and variable names, NOT command invocations.
-    // So mkdir/some_dir are not checked because bash.scm doesn't capture them,
-    // not because they're in a bash dictionary.
+    // bash.scm only captures comments, strings, function names, heredocs,
+    // and variable names, NOT command invocations. So mkdir/some_dir are
+    // not checked because bash.scm doesn't capture them, not because
+    // they're in a bash dictionary.
     let sample_text = r#"# Hello World
 
 Some correct text here.
@@ -56,20 +38,11 @@ mkdir some_dir
 
 More correct text here.
 "#;
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Markdown), None)
-        .to_vec();
-    let words: Vec<&str> = misspelled.iter().map(|r| r.word.as_str()).collect();
-    println!("Misspelled words: {words:?}");
-    // bash.scm doesn't capture command invocations, so these are not checked
-    assert!(!words.contains(&"mkdir"));
-    assert!(!words.contains(&"dir"));
+    assert_spelling(LanguageType::Markdown, sample_text, &[], &["mkdir", "dir"]);
 }
 
 #[test]
 fn test_markdown_fenced_code_block_unknown_lang_skipped() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
     let sample_text = r#"Some text.
 
 ```unknownlang
@@ -78,19 +51,12 @@ badwwword_in_code
 
 More text.
 "#;
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Markdown), None)
-        .to_vec();
-    let words: Vec<&str> = misspelled.iter().map(|r| r.word.as_str()).collect();
-    println!("Misspelled words: {words:?}");
-    // Unknown language code blocks are completely skipped
-    assert!(!words.contains(&"badwwword"));
+    // Unknown language code blocks are completely skipped.
+    assert_spelling(LanguageType::Markdown, sample_text, &[], &["badwwword"]);
 }
 
 #[test]
 fn test_markdown_fenced_code_block_no_lang_skipped() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
     let sample_text = r#"Some text.
 
 ```
@@ -99,20 +65,14 @@ badwwword_in_code
 
 More text.
 "#;
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Markdown), None)
-        .to_vec();
-    let words: Vec<&str> = misspelled.iter().map(|r| r.word.as_str()).collect();
-    println!("Misspelled words: {words:?}");
-    // Code blocks without language info are completely skipped
-    assert!(!words.contains(&"badwwword"));
+    // Code blocks without language info are completely skipped.
+    assert_spelling(LanguageType::Markdown, sample_text, &[], &["badwwword"]);
 }
 
 #[test]
 fn test_markdown_code_block_uses_language_grammar() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
-    // In Python grammar, function names are checked as identifiers
+    // In Python grammar, function names are checked as identifiers, so the
+    // typo inside the code block is flagged alongside both prose typos.
     let sample_text = r#"A paragrap with a tyypo.
 
 ```python
@@ -122,22 +82,15 @@ def some_functin():
 
 Another paragrap with a tyypo.
 "#;
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Markdown), None)
-        .to_vec();
-    let words: Vec<&str> = misspelled.iter().map(|r| r.word.as_str()).collect();
-    println!("Misspelled words: {words:?}");
-    // Prose typos should be flagged
-    assert!(words.contains(&"paragrap"));
-    assert!(words.contains(&"tyypo"));
-    // Python function name typo should also be flagged (multi-language support!)
-    assert!(words.contains(&"functin"));
+    assert_spelling_at(
+        LanguageType::Markdown,
+        sample_text,
+        &[("paragrap", &[0, 1]), ("tyypo", &[0, 1]), ("functin", &[0])],
+    );
 }
 
 #[test]
 fn test_markdown_multiple_code_blocks() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
     let sample_text = r#"Some text with a tyypo.
 
 ```bash
@@ -152,38 +105,30 @@ badspel = True
 
 End text is also corect.
 "#;
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Markdown), None)
-        .to_vec();
-    let words: Vec<&str> = misspelled.iter().map(|r| r.word.as_str()).collect();
-    println!("Misspelled words: {words:?}");
-    assert!(words.contains(&"tyypo"));
-    assert!(words.contains(&"corect"));
-    // bash commands should be handled by bash grammar
-    assert!(!words.contains(&"mkdir"));
-    // unknown language blocks are skipped entirely
-    assert!(!words.contains(&"badspel"));
+    // Exact set equality: bash commands (mkdir/somedir) aren't captured by
+    // bash.scm and the unknown-language block (badspel) is skipped entirely,
+    // so neither can appear in the flagged set.
+    assert_spelling_at(
+        LanguageType::Markdown,
+        sample_text,
+        &[("tyypo", &[0]), ("corect", &[0, 1])],
+    );
 }
 
 #[test]
 fn test_markdown_block_quote() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
-    let sample_text = "> A block quoet with a tyypo.\n";
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Markdown), None)
-        .to_vec();
-    let words: Vec<&str> = misspelled.iter().map(|r| r.word.as_str()).collect();
-    println!("Misspelled words: {words:?}");
-    assert!(words.contains(&"quoet"));
-    assert!(words.contains(&"tyypo"));
+    assert_spelling(
+        LanguageType::Markdown,
+        "> A block quoet with a tyypo.\n",
+        &["quoet", "tyypo"],
+        &[],
+    );
 }
 
 #[test]
 fn test_markdown_code_block_alias_resolution() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
-    // Test that common aliases work (py -> Python, js -> Javascript, etc.)
+    // Common aliases resolve to their language (py -> Python, js ->
+    // Javascript), so "wrld" is flagged in both code blocks.
     let sample_text = r#"Some text.
 
 ```py
@@ -197,67 +142,35 @@ function hello_wrld() {}
 
 More text.
 "#;
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Markdown), None)
-        .to_vec();
-    println!("Misspelled words: {misspelled:?}");
-    // wrld should be flagged from both code blocks, verify two locations
-    let wrld = misspelled.iter().find(|w| w.word == "wrld");
-    assert!(wrld.is_some(), "wrld should be flagged");
-    assert_eq!(
-        wrld.unwrap().locations.len(),
-        2,
-        "wrld should have 2 locations (one from py block, one from js block)"
-    );
+    assert_spelling_at(LanguageType::Markdown, sample_text, &[("wrld", &[0, 1])]);
 }
 
+/// Anchor test for the injection path: ranges reported from an injected
+/// language (python inside a markdown code block) must map back to original
+/// document coordinates. The emoji in the prose sit BEFORE the code block so
+/// any remapping that counts chars or UTF-16 units instead of UTF-8 bytes
+/// shifts the ranges and fails the comparison. Expected ranges are derived
+/// from the text, and `spell_check` in utils additionally asserts every
+/// reported range slices back to its word.
 #[test]
-fn test_markdown_injected_region_byte_offsets() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
-    // Verify that byte offsets from injected regions map back correctly
-    // to the original document coordinates.
-    //                       0         1         2         3
-    //                       0123456789012345678901234567890123456789
-    let sample_text = "# OK\n\n```python\ndef some_functin(): pass\n```\n";
-    //                       ^15 = start of python block content
-    //                       "def some_functin(): pass\n" starts at byte 16
-    //                       "functin" is at offset 9 within "def some_functin"
-    //                       so global offset = 16 + 9 = 25
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Markdown), None)
-        .to_vec();
-    println!("Misspelled words: {misspelled:?}");
-    let functin = misspelled.iter().find(|w| w.word == "functin");
-    assert!(functin.is_some(), "Expected 'functin' to be flagged");
-    let loc = &functin.unwrap().locations[0];
-    // Verify the byte offsets point to the right place in the original document
-    assert_eq!(
-        &sample_text[loc.start_byte..loc.end_byte],
-        "functin",
-        "Byte offsets should map back to 'functin' in the original document"
+fn test_markdown_injected_region_offsets_multibyte_anchor() {
+    let sample_text =
+        "# OK 🎉\n\nProse 👨‍👩‍👧‍👦 with a tyypo.\n\n```python\ndef some_functin(): pass\n```\n";
+    assert_spelling_at(
+        LanguageType::Markdown,
+        sample_text,
+        &[("tyypo", &[0]), ("functin", &[0])],
     );
 }
 
 #[test]
 fn test_markdown_no_duplicate_spans() {
-    super::utils::init_logging();
-    let processor = super::utils::get_processor();
-    // Block quotes contain paragraphs. Make sure the inline content
-    // isn't captured twice (once for the paragraph, once for the block quote)
-    let sample_text = "> A tyypo in a block quoet.\n";
-    let misspelled = processor
-        .spell_check(sample_text, Some(LanguageType::Markdown), None)
-        .to_vec();
-    for result in &misspelled {
-        let unique_count = result.locations.len();
-        let deduped: std::collections::HashSet<_> = result.locations.iter().collect();
-        assert_eq!(
-            unique_count,
-            deduped.len(),
-            "Word '{}' has duplicate spans: {:?}",
-            result.word,
-            result.locations
-        );
-    }
+    // Block quotes contain paragraphs. Make sure the inline content isn't
+    // captured twice (once for the paragraph, once for the block quote):
+    // a duplicated span would show up as an extra, unexpected range.
+    assert_spelling_at(
+        LanguageType::Markdown,
+        "> A tyypo in a block quoet.\n",
+        &[("tyypo", &[0]), ("quoet", &[0])],
+    );
 }
