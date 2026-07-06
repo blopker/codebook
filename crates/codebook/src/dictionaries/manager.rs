@@ -131,7 +131,7 @@ impl DictionaryManager {
         if aff.is_file() && dic.is_file() {
             match HunspellDictionary::new(aff.to_str()?, dic.to_str()?) {
                 Ok(dict) => return Some(Arc::new(dict)),
-                Err(e) => error!("Failed to load local dictionary '{id}': {e:?}"),
+                Err(e) => error!("Failed to load local dictionary '{id}': {e}"),
             }
         }
         None
@@ -139,7 +139,7 @@ impl DictionaryManager {
 
     fn download(&self, url: &str) -> Result<PathBuf, LoadError> {
         self.downloader.get(url).map_err(|e| {
-            error!("Error: {e:?}");
+            error!("Failed to download dictionary file {url}: {e:?}");
             LoadError {
                 permanent: e.downcast_ref::<PermanentHttpError>().is_some(),
             }
@@ -152,14 +152,17 @@ impl DictionaryManager {
     ) -> Result<Arc<dyn Dictionary>, LoadError> {
         let aff_path = self.download(&repo.aff_url)?;
         let dic_path = self.download(&repo.dict_url)?;
-        let dict =
-            match HunspellDictionary::new(aff_path.to_str().unwrap(), dic_path.to_str().unwrap()) {
-                Ok(dict) => dict,
-                Err(e) => {
-                    error!("Error: {e:?}");
-                    return Err(LoadError { permanent: false });
-                }
-            };
+        let (Some(aff), Some(dic)) = (aff_path.to_str(), dic_path.to_str()) else {
+            error!("Dictionary cache path is not valid UTF-8: {aff_path:?}");
+            return Err(LoadError { permanent: true });
+        };
+        let dict = match HunspellDictionary::new(aff, dic) {
+            Ok(dict) => dict,
+            Err(e) => {
+                error!("Failed to load Hunspell dictionary: {e}");
+                return Err(LoadError { permanent: false });
+            }
+        };
         let base: Arc<dyn Dictionary> = Arc::new(dict);
         Ok(match repo.transliteration {
             Some(t) => Arc::new(TransliteratingDictionary::new(base, t.variants_fn())),
@@ -171,7 +174,14 @@ impl DictionaryManager {
         if let Some(text) = repo.text {
             return Ok(Arc::new(TextDictionary::new(text)));
         }
-        let text_path = self.download(&repo.url.unwrap())?;
+        let Some(url) = repo.url else {
+            error!(
+                "Text dictionary repo '{}' has neither embedded text nor a URL",
+                repo.name
+            );
+            return Err(LoadError { permanent: true });
+        };
+        let text_path = self.download(&url)?;
         let dict = TextDictionary::new_from_path(&text_path);
         Ok(Arc::new(dict))
     }

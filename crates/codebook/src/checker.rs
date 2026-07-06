@@ -145,7 +145,7 @@ mod tests {
     fn test_check_words_respects_allowed_words() {
         let dict = Arc::new(TextDictionary::new(""));
         let config = Arc::new(codebook_config::CodebookConfigMemory::default());
-        config.add_word("codebook").unwrap();
+        config.add_word("codebook");
         let candidates = make_candidates(&[("codebook", 0, 8)]);
         let results = check_words(&candidates, &[dict], config.as_ref(), None);
         assert!(results.is_empty(), "Allowed words should not be flagged");

@@ -31,7 +31,7 @@ const SOURCE_NAME: &str = "Codebook";
 /// on every keystroke with checkWhileTyping, so polling is debounced rather
 /// than done per call; changes made via code actions bypass this by calling
 /// recheck_all directly.
-const CONFIG_POLL_INTERVAL: Duration = Duration::from_secs(1);
+const CONFIG_POLL_INTERVAL: Duration = Duration::from_secs(5);
 
 /// Computes the relative path of a file from a workspace directory.
 /// Returns the relative path if the file is within the workspace, otherwise returns the absolute path.
@@ -342,7 +342,9 @@ impl LanguageServer for Backend {
                 );
                 let updated = self.add_words(config.as_ref(), words);
                 if updated {
-                    let _ = config.save();
+                    if let Err(e) = config.save() {
+                        error!("Failed to save config: {e}");
+                    }
                     self.recheck_all().await;
                 }
                 Ok(None)
@@ -355,7 +357,9 @@ impl LanguageServer for Backend {
                     .filter_map(|arg| arg.as_str().map(|s| s.to_string()));
                 let updated = self.add_words_global(config.as_ref(), words);
                 if updated {
-                    let _ = config.save_global();
+                    if let Err(e) = config.save_global() {
+                        error!("Failed to save global config: {e}");
+                    }
                     self.recheck_all().await;
                 }
                 Ok(None)
@@ -368,7 +372,9 @@ impl LanguageServer for Backend {
                 let config = self.config_handle();
                 let updated = self.add_ignore_file(config.as_ref(), file_uri);
                 if updated {
-                    let _ = config.save();
+                    if let Err(e) = config.save() {
+                        error!("Failed to save config: {e}");
+                    }
                     self.recheck_all().await;
                 }
                 Ok(None)
@@ -432,12 +438,7 @@ impl Backend {
 
     fn codebook_handle(&self) -> Arc<Codebook> {
         self.codebook
-            .get_or_init(|| {
-                Arc::new(
-                    Codebook::new(self.config_handle())
-                        .unwrap_or_else(|e| panic!("Unable to initialize codebook: {e}")),
-                )
-            })
+            .get_or_init(|| Arc::new(Codebook::new(self.config_handle())))
             .clone()
     }
 
@@ -448,16 +449,10 @@ impl Backend {
     fn add_words(&self, config: &CodebookConfigFile, words: impl Iterator<Item = String>) -> bool {
         let mut should_save = false;
         for word in words {
-            match config.add_word(&word) {
-                Ok(true) => {
-                    should_save = true;
-                }
-                Ok(false) => {
-                    info!("Word '{word}' already exists in dictionary.");
-                }
-                Err(e) => {
-                    error!("Failed to add word: {e}");
-                }
+            if config.add_word(&word) {
+                should_save = true;
+            } else {
+                info!("Word '{word}' already exists in dictionary.");
             }
         }
         should_save
@@ -470,16 +465,10 @@ impl Backend {
     ) -> bool {
         let mut should_save = false;
         for word in words {
-            match config.add_word_global(&word) {
-                Ok(true) => {
-                    should_save = true;
-                }
-                Ok(false) => {
-                    info!("Word '{word}' already exists in global dictionary.");
-                }
-                Err(e) => {
-                    error!("Failed to add word: {e}");
-                }
+            if config.add_word_global(&word) {
+                should_save = true;
+            } else {
+                info!("Word '{word}' already exists in global dictionary.");
             }
         }
         should_save
@@ -505,16 +494,11 @@ impl Backend {
         let Some(relative_path) = self.get_relative_path(file_uri) else {
             return false;
         };
-        match config.add_ignore(&relative_path) {
-            Ok(true) => true,
-            Ok(false) => {
-                info!("File {file_uri} already exists in the ignored files.");
-                false
-            }
-            Err(e) => {
-                error!("Failed to add ignore file: {e}");
-                false
-            }
+        if config.add_ignore(&relative_path) {
+            true
+        } else {
+            info!("File {file_uri} already exists in the ignored files.");
+            false
         }
     }
 
@@ -564,13 +548,7 @@ impl Backend {
             *last_poll = Some(Instant::now());
         }
 
-        match self.config_handle().reload() {
-            Ok(did_reload) => did_reload,
-            Err(e) => {
-                error!("Failed to reload config: {e}");
-                false
-            }
-        }
+        self.config_handle().reload()
     }
 
     async fn spell_check(&self, uri: &Url) {

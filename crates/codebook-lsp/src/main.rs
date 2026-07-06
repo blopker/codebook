@@ -5,7 +5,7 @@ mod lsp;
 mod lsp_logger;
 
 use clap::{Parser, Subcommand};
-use codebook_config::{CodebookConfig, CodebookConfigFile};
+use codebook_config::{CodebookConfig, CodebookConfigFile, ConfigError};
 use log::{LevelFilter, debug, info};
 use lsp::Backend;
 use lsp_logger::LspLogger;
@@ -108,14 +108,14 @@ async fn main() {
 
 /// Adds words to the project (or global) config's allowlist and saves the file,
 /// creating it if it doesn't exist yet.
-fn add_words(root: &Path, words: &[String], global: bool) -> Result<(), std::io::Error> {
+fn add_words(root: &Path, words: &[String], global: bool) -> Result<(), ConfigError> {
     let config = CodebookConfigFile::load(Some(root))?;
     let mut added = 0;
     for word in words {
         let inserted = if global {
-            config.add_word_global(word)?
+            config.add_word_global(word)
         } else {
-            config.add_word(word)?
+            config.add_word(word)
         };
         if inserted {
             added += 1;

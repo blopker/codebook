@@ -53,7 +53,7 @@ fn main() {
     }
 
     let config = Arc::new(codebook_config::CodebookConfigFile::load(None).unwrap());
-    let processor = Codebook::new(config).unwrap();
+    let processor = Codebook::new(config);
 
     // Check for benchmark flag
     if args.contains(&"--benchmark".to_string()) {
@@ -80,7 +80,13 @@ fn main() {
         eprintln!("Can't find file {path:?}");
         return;
     }
-    let results = processor.spell_check_file(path.to_str().unwrap());
+    let results = match processor.spell_check_file(path.to_str().unwrap()) {
+        Ok(results) => results,
+        Err(e) => {
+            eprintln!("Can't read file {path:?}: {e}");
+            return;
+        }
+    };
     println!("Misspelled words: {results:?}");
     println!("Done");
 }

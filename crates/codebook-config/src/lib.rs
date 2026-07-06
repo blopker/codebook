@@ -11,7 +11,6 @@ use std::env;
 use std::fmt::Debug;
 use std::fs;
 use std::io;
-use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
@@ -19,12 +18,34 @@ static CACHE_DIR: &str = "codebook";
 static GLOBAL_CONFIG_FILE: &str = "codebook.toml";
 static USER_CONFIG_FILES: [&str; 2] = ["codebook.toml", ".codebook.toml"];
 
+/// Errors from loading or saving Codebook configuration.
+#[derive(Debug, thiserror::Error)]
+pub enum ConfigError {
+    #[error("failed to read config file {path}: {source}")]
+    Read { path: PathBuf, source: io::Error },
+    #[error("failed to parse config file {path}: {source}")]
+    Parse {
+        path: PathBuf,
+        source: toml::de::Error,
+    },
+    #[error("failed to write config file {path}: {source}")]
+    Write { path: PathBuf, source: io::Error },
+    #[error("failed to serialize config: {0}")]
+    Serialize(#[from] toml::ser::Error),
+    #[error(transparent)]
+    Io(#[from] io::Error),
+}
+
 /// The main trait for Codebook configuration.
+///
+/// The `add_*` methods only mutate in-memory settings and report whether the
+/// entry was newly added; persisting is a separate, fallible step (see
+/// `CodebookConfigFile::save`).
 pub trait CodebookConfig: Sync + Send + Debug {
-    fn add_word(&self, word: &str) -> Result<bool, io::Error>;
-    fn add_word_global(&self, word: &str) -> Result<bool, io::Error>;
-    fn add_ignore(&self, file: &str) -> Result<bool, io::Error>;
-    fn add_include(&self, file: &str) -> Result<bool, io::Error>;
+    fn add_word(&self, word: &str) -> bool;
+    fn add_word_global(&self, word: &str) -> bool;
+    fn add_ignore(&self, file: &str) -> bool;
+    fn add_include(&self, file: &str) -> bool;
     fn get_dictionary_ids(&self) -> Vec<String>;
     fn should_ignore_path(&self, path: &Path) -> bool;
     fn should_include_path(&self, path: &Path) -> bool;
@@ -51,8 +72,6 @@ struct ConfigInner {
     global_config: WatchedFile<ConfigSettings>,
     /// Current snapshot
     snapshot: Arc<ConfigSettings>,
-    /// Ignore regexes compiled from the snapshot, rebuilt whenever it changes
-    ignore_regexes: Vec<Regex>,
 }
 
 #[derive(Debug)]
@@ -69,7 +88,6 @@ impl Default for CodebookConfigFile {
             project_config: WatchedFile::new(None),
             global_config: WatchedFile::new(None),
             snapshot: Arc::new(ConfigSettings::default()),
-            ignore_regexes: Vec::new(),
         };
 
         Self {
@@ -81,7 +99,7 @@ impl Default for CodebookConfigFile {
 
 impl CodebookConfigFile {
     /// Load configuration by searching for both global and project-specific configs
-    pub fn load(current_dir: Option<&Path>) -> Result<Self, io::Error> {
+    pub fn load(current_dir: Option<&Path>) -> Result<Self, ConfigError> {
         Self::load_with_overrides(current_dir, None, None)
     }
 
@@ -93,7 +111,7 @@ impl CodebookConfigFile {
         current_dir: Option<&Path>,
         global_config_path: Option<PathBuf>,
         project_config_path: Option<PathBuf>,
-    ) -> Result<Self, io::Error> {
+    ) -> Result<Self, ConfigError> {
         debug!("Initializing CodebookConfig");
 
         let current_dir = match current_dir {
@@ -109,7 +127,7 @@ impl CodebookConfigFile {
         start_dir: &Path,
         global_config_override: Option<PathBuf>,
         project_config_override: Option<PathBuf>,
-    ) -> Result<Self, io::Error> {
+    ) -> Result<Self, ConfigError> {
         // Canonicalize so a relative start_dir (like the CLI's default ".") can
         // walk up past the current directory: Path::new(".").parent() is ""
         // and then None, so the search would never reach real parent folders.
@@ -137,12 +155,8 @@ impl CodebookConfigFile {
                 // error the user should hear about, not a silent fallback to
                 // defaults. Mid-session reload stays lenient (keeps the last
                 // good config) since there's state to fall back to there.
-                inner.global_config = global_config
-                    .load(|path| {
-                        Self::load_settings_from_file(path)
-                            .map_err(|e| format!("Failed to load global config: {}", e))
-                    })
-                    .map_err(|e| io::Error::new(ErrorKind::InvalidData, e))?;
+                inner.global_config =
+                    global_config.load(|path| Self::load_settings_from_file(path))?;
                 debug!("Loaded global config from {}", global_path.display());
             } else {
                 info!("No global config found, using default");
@@ -166,19 +180,15 @@ impl CodebookConfigFile {
                     Some(override_path)
                 }
             }
-            None => Self::find_project_config(start_dir)?,
+            None => Self::find_project_config(start_dir),
         };
 
         if let Some(project_path) = project_path {
             let project_config = WatchedFile::new(Some(project_path.clone()));
 
             if project_path.exists() {
-                inner.project_config = project_config
-                    .load(|path| {
-                        Self::load_settings_from_file(path)
-                            .map_err(|e| format!("Failed to load project config: {}", e))
-                    })
-                    .map_err(|e| io::Error::new(ErrorKind::InvalidData, e))?;
+                inner.project_config =
+                    project_config.load(|path| Self::load_settings_from_file(path))?;
                 debug!("Loaded project config from {}", project_path.display());
             } else {
                 inner.project_config = project_config;
@@ -229,7 +239,7 @@ impl CodebookConfigFile {
     }
 
     /// Find project configuration by searching up from the current directory
-    fn find_project_config(start_dir: &Path) -> Result<Option<PathBuf>, io::Error> {
+    fn find_project_config(start_dir: &Path) -> Option<PathBuf> {
         let config_files = USER_CONFIG_FILES;
 
         // Start from the given directory and walk up to root
@@ -240,7 +250,7 @@ impl CodebookConfigFile {
             for config_name in &config_files {
                 let config_path = dir.join(config_name);
                 if config_path.is_file() {
-                    return Ok(Some(config_path));
+                    return Some(config_path);
                 }
             }
 
@@ -248,24 +258,21 @@ impl CodebookConfigFile {
             current_dir = dir.parent().map(PathBuf::from);
         }
 
-        Ok(None)
+        None
     }
 
     /// Load settings from a file
-    fn load_settings_from_file<P: AsRef<Path>>(path: P) -> Result<ConfigSettings, io::Error> {
+    fn load_settings_from_file<P: AsRef<Path>>(path: P) -> Result<ConfigSettings, ConfigError> {
         let path = path.as_ref();
-        let content = fs::read_to_string(path)?;
+        let content = fs::read_to_string(path).map_err(|source| ConfigError::Read {
+            path: path.to_path_buf(),
+            source,
+        })?;
 
-        match toml::from_str(&content) {
-            Ok(settings) => Ok(settings),
-            Err(e) => {
-                let err = io::Error::new(
-                    ErrorKind::InvalidData,
-                    format!("Failed to parse config file {}: {e}", path.display()),
-                );
-                Err(err)
-            }
-        }
+        toml::from_str(&content).map_err(|source| ConfigError::Parse {
+            path: path.to_path_buf(),
+            source,
+        })
     }
 
     /// Calculate the effective settings based on global and project settings
@@ -296,8 +303,11 @@ impl CodebookConfigFile {
         self.inner.read().unwrap().snapshot.clone()
     }
 
-    /// Reload both global and project configurations, only reading files if they've changed
-    pub fn reload(&self) -> Result<bool, io::Error> {
+    /// Reload both global and project configurations, only reading files if
+    /// they've changed. Returns true when the effective settings changed.
+    /// Never fails: a config that can no longer be loaded keeps its last good
+    /// content (see WatchedFile::reload_if_changed).
+    pub fn reload(&self) -> bool {
         let mut inner = self.inner.write().unwrap();
         let mut changed = false;
 
@@ -305,13 +315,7 @@ impl CodebookConfigFile {
         let (new_global, global_changed) = inner
             .global_config
             .clone()
-            .reload_if_changed(|path| {
-                Self::load_settings_from_file(path).map_err(|e| e.to_string())
-            })
-            .unwrap_or_else(|e| {
-                debug!("Failed to reload global config: {}", e);
-                (inner.global_config.clone(), false)
-            });
+            .reload_if_changed(|path| Self::load_settings_from_file(path));
 
         if global_changed {
             debug!("Global config reloaded");
@@ -323,13 +327,7 @@ impl CodebookConfigFile {
         let (new_project, project_changed) = inner
             .project_config
             .clone()
-            .reload_if_changed(|path| {
-                Self::load_settings_from_file(path).map_err(|e| e.to_string())
-            })
-            .unwrap_or_else(|e| {
-                debug!("Failed to reload project config: {}", e);
-                (inner.project_config.clone(), false)
-            });
+            .reload_if_changed(|path| Self::load_settings_from_file(path));
 
         if project_changed {
             debug!("Project config reloaded");
@@ -342,11 +340,11 @@ impl CodebookConfigFile {
             Self::rebuild_snapshot(&mut inner);
         }
 
-        Ok(changed)
+        changed
     }
 
     /// Save the project configuration to its file
-    pub fn save(&self) -> Result<(), io::Error> {
+    pub fn save(&self) -> Result<(), ConfigError> {
         let mut inner = self.inner.write().unwrap();
         let watched = &inner.project_config;
         Self::save_watched(watched, "project")?;
@@ -355,7 +353,7 @@ impl CodebookConfigFile {
     }
 
     /// Save the global configuration to its file
-    pub fn save_global(&self) -> Result<(), io::Error> {
+    pub fn save_global(&self) -> Result<(), ConfigError> {
         let mut inner = self.inner.write().unwrap();
         let watched = &inner.global_config;
         Self::save_watched(watched, "global")?;
@@ -365,7 +363,7 @@ impl CodebookConfigFile {
 
     /// Write a watched config's content to its file. The caller must restamp
     /// the watched file afterwards so the write isn't seen as an external change.
-    fn save_watched(watched: &WatchedFile<ConfigSettings>, label: &str) -> Result<(), io::Error> {
+    fn save_watched(watched: &WatchedFile<ConfigSettings>, label: &str) -> Result<(), ConfigError> {
         let Some(path) = watched.path() else {
             return Ok(());
         };
@@ -373,12 +371,16 @@ impl CodebookConfigFile {
             return Ok(());
         };
 
-        let content = toml::to_string_pretty(settings).map_err(io::Error::other)?;
+        let content = toml::to_string_pretty(settings)?;
         info!("Saving {label} configuration to {}", path.display());
+        let write_err = |source| ConfigError::Write {
+            path: path.to_path_buf(),
+            source,
+        };
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
+            fs::create_dir_all(parent).map_err(write_err)?;
         }
-        fs::write(path, content)
+        fs::write(path, content).map_err(write_err)
     }
     /// Clean the cache directory
     pub fn clean_cache(&self) {
@@ -436,7 +438,6 @@ impl CodebookConfigFile {
     fn rebuild_snapshot(inner: &mut ConfigInner) {
         let effective =
             Self::calculate_effective_settings(&inner.project_config, &inner.global_config);
-        inner.ignore_regexes = helpers::build_ignore_regexes(&effective.ignore_patterns);
         inner.snapshot = Arc::new(effective);
     }
 
@@ -483,22 +484,22 @@ impl CodebookConfigFile {
 
 impl CodebookConfig for CodebookConfigFile {
     /// Add a word to the project configs allowlist
-    fn add_word(&self, word: &str) -> Result<bool, io::Error> {
-        Ok(self.update_project_settings(|settings| settings.insert_word(word)))
+    fn add_word(&self, word: &str) -> bool {
+        self.update_project_settings(|settings| settings.insert_word(word))
     }
     /// Add a word to the global configs allowlist
-    fn add_word_global(&self, word: &str) -> Result<bool, io::Error> {
-        Ok(self.update_global_settings(|settings| settings.insert_word(word)))
+    fn add_word_global(&self, word: &str) -> bool {
+        self.update_global_settings(|settings| settings.insert_word(word))
     }
 
     /// Add a file to the ignore list
-    fn add_ignore(&self, file: &str) -> Result<bool, io::Error> {
-        Ok(self.update_project_settings(|settings| settings.insert_ignore(file)))
+    fn add_ignore(&self, file: &str) -> bool {
+        self.update_project_settings(|settings| settings.insert_ignore(file))
     }
 
     /// Add a file to the include list
-    fn add_include(&self, file: &str) -> Result<bool, io::Error> {
-        Ok(self.update_project_settings(|settings| settings.insert_include(file)))
+    fn add_include(&self, file: &str) -> bool {
+        self.update_project_settings(|settings| settings.insert_include(file))
     }
 
     /// Get dictionary IDs from effective configuration
@@ -532,9 +533,9 @@ impl CodebookConfig for CodebookConfigFile {
     }
 
     /// Get the list of user-defined ignore patterns, compiled when the
-    /// snapshot was last rebuilt. Regex clones are cheap (internally Arc'd).
+    /// config was parsed. Regex clones are cheap (internally Arc'd).
     fn get_ignore_patterns(&self) -> Vec<Regex> {
-        self.inner.read().unwrap().ignore_regexes.clone()
+        self.snapshot().ignore_patterns.clone()
     }
 
     /// Get the minimum word length which should be checked
@@ -599,23 +600,23 @@ impl CodebookConfigMemory {
 }
 
 impl CodebookConfig for CodebookConfigMemory {
-    fn add_word(&self, word: &str) -> Result<bool, io::Error> {
+    fn add_word(&self, word: &str) -> bool {
         let mut settings = self.settings.write().unwrap();
-        Ok(settings.insert_word(word))
+        settings.insert_word(word)
     }
 
-    fn add_word_global(&self, word: &str) -> Result<bool, io::Error> {
+    fn add_word_global(&self, word: &str) -> bool {
         self.add_word(word)
     }
 
-    fn add_ignore(&self, file: &str) -> Result<bool, io::Error> {
+    fn add_ignore(&self, file: &str) -> bool {
         let mut settings = self.settings.write().unwrap();
-        Ok(settings.insert_ignore(file))
+        settings.insert_ignore(file)
     }
 
-    fn add_include(&self, file: &str) -> Result<bool, io::Error> {
+    fn add_include(&self, file: &str) -> bool {
         let mut settings = self.settings.write().unwrap();
-        Ok(settings.insert_include(file))
+        settings.insert_include(file)
     }
 
     fn get_dictionary_ids(&self) -> Vec<String> {
@@ -644,7 +645,7 @@ impl CodebookConfig for CodebookConfigMemory {
     }
 
     fn get_ignore_patterns(&self) -> Vec<Regex> {
-        helpers::build_ignore_regexes(&self.settings.read().unwrap().ignore_patterns)
+        self.settings.read().unwrap().ignore_patterns.clone()
     }
 
     fn get_min_word_length(&self) -> usize {
@@ -696,7 +697,7 @@ mod tests {
     }
 
     #[test]
-    fn test_save_global_creates_directories() -> Result<(), io::Error> {
+    fn test_save_global_creates_directories() -> Result<(), ConfigError> {
         let temp_dir = TempDir::new().unwrap();
         let global_dir = temp_dir.path().join("deep").join("nested").join("dir");
         let config_path = global_dir.join("codebook.toml");
@@ -725,7 +726,7 @@ mod tests {
     }
 
     #[test]
-    fn test_add_word() -> Result<(), io::Error> {
+    fn test_add_word() -> Result<(), ConfigError> {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("codebook.toml");
 
@@ -739,7 +740,7 @@ mod tests {
         config.save()?;
 
         // Add a word
-        config.add_word("testword")?;
+        config.add_word("testword");
         config.save()?;
 
         // Reload config and verify
@@ -750,7 +751,7 @@ mod tests {
     }
 
     #[test]
-    fn test_add_word_global() -> Result<(), io::Error> {
+    fn test_add_word_global() -> Result<(), ConfigError> {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("codebook.toml");
 
@@ -765,7 +766,7 @@ mod tests {
         config.save_global()?;
 
         // Add a word
-        config.add_word_global("testword")?;
+        config.add_word_global("testword");
         config.save_global()?;
 
         // Reload config and verify
@@ -776,7 +777,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ignore_patterns() -> Result<(), io::Error> {
+    fn test_ignore_patterns() -> Result<(), ConfigError> {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("codebook.toml");
         let mut file = File::create(&config_path)?;
@@ -790,15 +791,15 @@ mod tests {
 
         let config = load_from_file(ConfigType::Project, &config_path)?;
         let patterns = config.snapshot().ignore_patterns.clone();
-        assert!(patterns.contains(&String::from("^[ATCG]+$")));
-        assert!(patterns.contains(&String::from("\\d{3}-\\d{2}-\\d{4}")));
+        assert!(patterns.iter().any(|p| p.as_str() == "^[ATCG]+$"));
+        assert!(patterns.iter().any(|p| p.as_str() == "\\d{3}-\\d{2}-\\d{4}"));
         let patterns = config.get_ignore_patterns();
         assert!(patterns.len() == 2);
         Ok(())
     }
 
     #[test]
-    fn test_reload_ignore_patterns() -> Result<(), io::Error> {
+    fn test_reload_ignore_patterns() -> Result<(), ConfigError> {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("codebook.toml");
 
@@ -827,7 +828,7 @@ mod tests {
         file.write_all(a.as_bytes())?;
 
         // Reload and verify both patterns work
-        config.reload()?;
+        config.reload();
         assert!(config.get_ignore_patterns().len() == 2);
 
         // Update config to remove all patterns
@@ -840,14 +841,14 @@ mod tests {
         )?;
 
         // Reload and verify no patterns match
-        config.reload()?;
+        config.reload();
         assert!(config.get_ignore_patterns().is_empty());
 
         Ok(())
     }
 
     #[test]
-    fn test_config_recursive_search() -> Result<(), io::Error> {
+    fn test_config_recursive_search() -> Result<(), ConfigError> {
         let temp_dir = TempDir::new().unwrap();
         let sub_dir = temp_dir.path().join("sub");
         let sub_sub_dir = sub_dir.join("subsub");
@@ -878,7 +879,7 @@ mod tests {
     }
 
     #[test]
-    fn test_config_recursive_search_from_relative_dir() -> Result<(), io::Error> {
+    fn test_config_recursive_search_from_relative_dir() -> Result<(), ConfigError> {
         let temp_dir = TempDir::new().unwrap();
         let sub_dir = temp_dir.path().join("sub");
         fs::create_dir_all(&sub_dir)?;
@@ -902,7 +903,7 @@ mod tests {
     }
 
     #[test]
-    fn test_global_config_override_is_used() -> Result<(), io::Error> {
+    fn test_global_config_override_is_used() -> Result<(), ConfigError> {
         let temp_dir = TempDir::new().unwrap();
         let workspace_dir = temp_dir.path().join("workspace");
         fs::create_dir_all(&workspace_dir)?;
@@ -929,7 +930,7 @@ mod tests {
     }
 
     #[test]
-    fn test_project_config_override_is_used() -> Result<(), io::Error> {
+    fn test_project_config_override_is_used() -> Result<(), ConfigError> {
         let temp_dir = TempDir::new().unwrap();
         let workspace_dir = temp_dir.path().join("workspace");
         fs::create_dir_all(&workspace_dir)?;
@@ -958,7 +959,7 @@ mod tests {
     }
 
     #[test]
-    fn test_project_config_override_missing_file_used_on_save() -> Result<(), io::Error> {
+    fn test_project_config_override_missing_file_used_on_save() -> Result<(), ConfigError> {
         let temp_dir = TempDir::new().unwrap();
         let workspace_dir = temp_dir.path().join("workspace");
         fs::create_dir_all(&workspace_dir)?;
@@ -986,7 +987,7 @@ mod tests {
 
         // Adding a word and saving should create both the directory and the file
         // at the override location.
-        assert!(config.add_word("newword")?);
+        assert!(config.add_word("newword"));
         config.save()?;
         assert!(override_path.exists());
 
@@ -1053,7 +1054,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reload() -> Result<(), io::Error> {
+    fn test_reload() -> Result<(), ConfigError> {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("codebook.toml");
 
@@ -1076,14 +1077,14 @@ mod tests {
         )?;
 
         // Reload config and verify
-        config.reload()?;
+        config.reload();
         assert!(config.is_allowed_word("testword"));
 
         Ok(())
     }
 
     #[test]
-    fn test_reload_when_deleted() -> Result<(), io::Error> {
+    fn test_reload_when_deleted() -> Result<(), ConfigError> {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("codebook.toml");
 
@@ -1106,21 +1107,21 @@ mod tests {
         )?;
 
         // Reload config and verify
-        config.reload()?;
+        config.reload();
         assert!(config.is_allowed_word("testword"));
 
         // Delete the config file
         fs::remove_file(&config_path)?;
 
         // Reload config and verify
-        config.reload()?;
+        config.reload();
         assert!(!config.is_allowed_word("testword"));
 
         Ok(())
     }
 
     #[test]
-    fn test_add_word_case() -> Result<(), io::Error> {
+    fn test_add_word_case() -> Result<(), ConfigError> {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("codebook.toml");
 
@@ -1134,7 +1135,7 @@ mod tests {
         config.save()?;
 
         // Add a word with mixed case
-        config.add_word("TestWord")?;
+        config.add_word("TestWord");
         config.save()?;
 
         // Reload config and verify with different cases
@@ -1147,7 +1148,7 @@ mod tests {
     }
 
     #[test]
-    fn test_add_word_global_case() -> Result<(), io::Error> {
+    fn test_add_word_global_case() -> Result<(), ConfigError> {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("codebook.toml");
 
@@ -1162,7 +1163,7 @@ mod tests {
         config.save_global()?;
 
         // Add a word with mixed case
-        config.add_word_global("TestWord")?;
+        config.add_word_global("TestWord");
         config.save_global()?;
 
         // Reload config and verify with different cases
@@ -1175,7 +1176,7 @@ mod tests {
     }
 
     #[test]
-    fn test_global_and_project_config() -> Result<(), io::Error> {
+    fn test_global_and_project_config() -> Result<(), ConfigError> {
         // Create temporary directories for global and project configs
         let global_temp = TempDir::new().unwrap();
         let project_temp = TempDir::new().unwrap();
@@ -1269,7 +1270,7 @@ mod tests {
         )?;
 
         // Reload
-        config.reload()?;
+        config.reload();
 
         // Now should only see project words
         assert!(config.is_allowed_word("projectword")); // From project
@@ -1300,7 +1301,7 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_for_file_with_matching_override() -> Result<(), io::Error> {
+    fn test_resolve_for_file_with_matching_override() -> Result<(), ConfigError> {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("codebook.toml");
         let mut file = File::create(&config_path)?;
@@ -1331,7 +1332,7 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_for_file_global_and_project_overrides() -> Result<(), io::Error> {
+    fn test_resolve_for_file_global_and_project_overrides() -> Result<(), ConfigError> {
         let global_temp = TempDir::new().unwrap();
         let project_temp = TempDir::new().unwrap();
 
@@ -1397,7 +1398,7 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_for_file_use_global_false_ignores_global_overrides() -> Result<(), io::Error> {
+    fn test_resolve_for_file_use_global_false_ignores_global_overrides() -> Result<(), ConfigError> {
         let global_temp = TempDir::new().unwrap();
         let project_temp = TempDir::new().unwrap();
 
@@ -1462,7 +1463,7 @@ mod tests {
     }
 
     #[test]
-    fn test_save_preserves_overrides() -> Result<(), io::Error> {
+    fn test_save_preserves_overrides() -> Result<(), ConfigError> {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("codebook.toml");
         fs::write(
@@ -1479,7 +1480,7 @@ mod tests {
         let config = load_from_file(ConfigType::Project, &config_path)?;
 
         // Add a word and save
-        config.add_word("newword")?;
+        config.add_word("newword");
         config.save()?;
 
         // Reload and verify overrides are preserved
@@ -1496,7 +1497,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reload_picks_up_override_changes() -> Result<(), io::Error> {
+    fn test_reload_picks_up_override_changes() -> Result<(), ConfigError> {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("codebook.toml");
         fs::write(
@@ -1523,7 +1524,7 @@ mod tests {
             "#,
         )?;
 
-        config.reload()?;
+        config.reload();
 
         // Now overrides should apply
         let resolved = config.resolve_for_file(Path::new("README.md"));
@@ -1535,7 +1536,7 @@ mod tests {
 
     #[cfg(not(windows))]
     #[test]
-    fn test_tilde_in_global_override_is_expanded_at_load() -> Result<(), io::Error> {
+    fn test_tilde_in_global_override_is_expanded_at_load() -> Result<(), ConfigError> {
         let temp_dir = TempDir::new().unwrap();
 
         let config = CodebookConfigFile::load_with_overrides(
@@ -1571,12 +1572,28 @@ mod tests {
             None,
         );
         let err = result.expect_err("invalid config should fail to load");
-        assert_eq!(err.kind(), ErrorKind::InvalidData);
+        assert!(matches!(err, ConfigError::Parse { .. }));
         assert!(err.to_string().contains("codebook.toml"));
     }
 
     #[test]
-    fn test_reload_keeps_config_on_parse_error() -> Result<(), io::Error> {
+    fn test_load_fails_on_invalid_ignore_pattern() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("codebook.toml");
+        fs::write(&config_path, r#"ignore_patterns = ["[invalid"]"#).unwrap();
+
+        let result = CodebookConfigFile::load_with_overrides(
+            Some(temp_dir.path()),
+            Some(temp_dir.path().join("global.toml")),
+            None,
+        );
+        let err = result.expect_err("invalid regex should fail to load");
+        assert!(matches!(err, ConfigError::Parse { .. }));
+        assert!(err.to_string().contains("invalid regex pattern '[invalid'"));
+    }
+
+    #[test]
+    fn test_reload_keeps_config_on_parse_error() -> Result<(), ConfigError> {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("codebook.toml");
         fs::write(&config_path, r#"words = ["frobnicate"]"#)?;
@@ -1593,7 +1610,7 @@ mod tests {
         // Simulate a mid-edit save of broken TOML
         fs::write(&config_path, r#"words = [invalid !!! toml"#)?;
         assert!(
-            !config.reload()?,
+            !config.reload(),
             "parse error should not count as a change"
         );
         assert!(
@@ -1603,13 +1620,13 @@ mod tests {
 
         // Once the file is valid again, the reload picks it up
         fs::write(&config_path, r#"words = ["frobnicate", "fixed"]"#)?;
-        assert!(config.reload()?);
+        assert!(config.reload());
         assert!(config.is_allowed_word("fixed"));
         Ok(())
     }
 
     #[test]
-    fn test_save_does_not_trigger_spurious_reload() -> Result<(), io::Error> {
+    fn test_save_does_not_trigger_spurious_reload() -> Result<(), ConfigError> {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("codebook.toml");
         fs::write(&config_path, r#"words = ["zebra"]"#)?;
@@ -1620,11 +1637,11 @@ mod tests {
             None,
         )?;
 
-        config.add_word("frobnicate").unwrap();
+        config.add_word("frobnicate");
         config.save()?;
 
         // Our own save must not read back as an external change
-        assert!(!config.reload()?);
+        assert!(!config.reload());
         assert!(config.is_allowed_word("frobnicate"));
         assert!(config.is_allowed_word("zebra"));
         Ok(())

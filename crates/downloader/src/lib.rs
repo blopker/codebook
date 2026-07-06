@@ -1,7 +1,7 @@
 use anyhow::Result;
 use base16ct::lower;
 use chrono::{DateTime, Utc};
-use log::info;
+use log::{error, info};
 use reqwest::blocking::Client;
 use reqwest::header::{IF_MODIFIED_SINCE, LAST_MODIFIED};
 use rustls::ClientConfig;
@@ -212,8 +212,14 @@ impl Downloader {
         let metadata_path = self.metadata_path.clone();
         let cache_dir = self.cache_dir.clone();
         self.metadata.get_or_init(move || {
-            fs::create_dir_all(&cache_dir)
-                .expect("Failed to create cache directory: {cache_dir:?}");
+            // Best-effort: if the directory can't be created, downloads fail
+            // later with a real error instead of panicking here.
+            if let Err(e) = fs::create_dir_all(&cache_dir) {
+                error!(
+                    "Failed to create cache directory {}: {e}",
+                    cache_dir.display()
+                );
+            }
             let metadata = Self::load_metadata(&metadata_path);
             RwLock::new(metadata)
         })

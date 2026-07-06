@@ -1,19 +1,109 @@
 use glob::Pattern;
 use log::warn;
+use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+
+/// Compile a user-supplied ignore pattern. Multiline mode is enabled so `^`
+/// and `$` match line boundaries.
+fn compile_pattern(pattern: &str) -> Result<Regex, regex::Error> {
+    RegexBuilder::new(pattern).multi_line(true).build()
+}
+
+/// Deserialize regex strings, compiled at parse time: an invalid pattern is
+/// a config parse error, and the spell-check hot path never compiles or
+/// validates patterns.
+fn regex_vec<'de, D>(deserializer: D) -> Result<Vec<Regex>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v = Vec::<String>::deserialize(deserializer)?;
+    v.into_iter()
+        .map(|p| {
+            compile_pattern(&p).map_err(|e| {
+                serde::de::Error::custom(format!("invalid regex pattern '{p}': {e}"))
+            })
+        })
+        .collect()
+}
+
+fn regex_opt_vec<'de, D>(deserializer: D) -> Result<Option<Vec<Regex>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v = Option::<Vec<String>>::deserialize(deserializer)?;
+    v.map(|v| {
+        v.into_iter()
+            .map(|p| {
+                compile_pattern(&p).map_err(|e| {
+                    serde::de::Error::custom(format!("invalid regex pattern '{p}': {e}"))
+                })
+            })
+            .collect()
+    })
+    .transpose()
+}
+
+/// Serialize compiled regexes back to their original pattern strings.
+fn regexes_as_strings<S>(patterns: &[Regex], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.collect_seq(patterns.iter().map(Regex::as_str))
+}
+
+fn opt_regexes_as_strings<S>(
+    patterns: &Option<Vec<Regex>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    match patterns {
+        Some(patterns) => regexes_as_strings(patterns, serializer),
+        None => serializer.serialize_none(),
+    }
+}
+
+/// Deserialize glob strings, compiled at parse time: an invalid glob is a
+/// config parse error, and path matching never re-compiles patterns.
+fn glob_vec<'de, D>(deserializer: D) -> Result<Vec<Pattern>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v = Vec::<String>::deserialize(deserializer)?;
+    v.into_iter()
+        .map(|p| {
+            Pattern::new(&p)
+                .map_err(|e| serde::de::Error::custom(format!("invalid glob pattern '{p}': {e}")))
+        })
+        .collect()
+}
+
+/// Serialize compiled globs back to their original pattern strings.
+fn globs_as_strings<S>(patterns: &[Pattern], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.collect_seq(patterns.iter().map(Pattern::as_str))
+}
 
 /// A single `[[overrides]]` block in the config file.
 ///
 /// Word-related fields deserialize through `lowercase_*` so lookups are
 /// case-insensitive; paths and regex patterns keep their original casing.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct OverrideBlock {
-    /// Required: glob patterns matched against file path relative to project root.
-    /// Defaulted rather than required so a block missing `paths` is filtered out
-    /// with a warning instead of failing the whole config parse.
-    #[serde(default)]
-    pub paths: Vec<String>,
+    /// Required: glob patterns matched against file path relative to project
+    /// root, compiled at parse time. Defaulted rather than required so a
+    /// block missing `paths` is filtered out with a warning instead of
+    /// failing the whole config parse (an invalid glob does fail the parse).
+    #[serde(
+        default,
+        deserialize_with = "glob_vec",
+        serialize_with = "globs_as_strings"
+    )]
+    pub paths: Vec<Pattern>,
 
     // --- Replace fields (replace the base list entirely) ---
     #[serde(
@@ -37,8 +127,13 @@ pub struct OverrideBlock {
     )]
     pub flag_words: Option<Vec<String>>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ignore_patterns: Option<Vec<String>>,
+    #[serde(
+        default,
+        deserialize_with = "regex_opt_vec",
+        serialize_with = "opt_regexes_as_strings",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub ignore_patterns: Option<Vec<Regex>>,
 
     // --- Append fields (append to the resolved list) ---
     #[serde(
@@ -62,8 +157,13 @@ pub struct OverrideBlock {
     )]
     pub extra_flag_words: Option<Vec<String>>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub extra_ignore_patterns: Option<Vec<String>>,
+    #[serde(
+        default,
+        deserialize_with = "regex_opt_vec",
+        serialize_with = "opt_regexes_as_strings",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub extra_ignore_patterns: Option<Vec<Regex>>,
 }
 
 fn lowercase_vec<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
@@ -92,7 +192,7 @@ where
         .into_iter()
         .filter(|o| {
             if !o.is_valid() {
-                warn!("Skipping invalid override block (empty or invalid paths)");
+                warn!("Skipping invalid override block (no paths)");
                 return false;
             }
             if !o.has_effect() {
@@ -105,22 +205,16 @@ where
 }
 
 impl OverrideBlock {
-    /// Returns true if this override block is valid (has non-empty paths with at least one valid glob).
+    /// Returns true if this override block is valid (has at least one path
+    /// glob — globs are always valid here, having been compiled at parse time).
     pub fn is_valid(&self) -> bool {
-        if self.paths.is_empty() {
-            return false;
-        }
-        self.paths.iter().any(|p| Pattern::new(p).is_ok())
+        !self.paths.is_empty()
     }
 
     /// Check if this override applies to the given relative file path.
     pub fn matches_path(&self, relative_path: &Path) -> bool {
         let path_str = normalize_separators(&relative_path.to_string_lossy());
-        self.paths.iter().any(|pattern| {
-            Pattern::new(pattern)
-                .map(|p| p.matches(&path_str))
-                .unwrap_or(false)
-        })
+        self.paths.iter().any(|pattern| pattern.matches(&path_str))
     }
 
     /// Returns true if any field besides `paths` is set (the override has an effect).
@@ -136,7 +230,7 @@ impl OverrideBlock {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ConfigSettings {
     /// List of dictionaries to use for spell checking.
     /// Dictionary IDs are language codes (e.g. "en_US") — normalized to
@@ -165,9 +259,14 @@ pub struct ConfigSettings {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ignore_paths: Vec<String>,
 
-    /// Regex patterns for text to ignore
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub ignore_patterns: Vec<String>,
+    /// Regex patterns for text to ignore, compiled at parse time
+    #[serde(
+        default,
+        deserialize_with = "regex_vec",
+        serialize_with = "regexes_as_strings",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub ignore_patterns: Vec<Regex>,
 
     /// Whether to use global configuration
     #[serde(
@@ -267,10 +366,11 @@ impl ConfigSettings {
         sort_and_dedup_unicase(&mut self.flag_words);
         sort_and_dedup(&mut self.include_paths);
         sort_and_dedup(&mut self.ignore_paths);
-        sort_and_dedup(&mut self.ignore_patterns);
         sort_and_dedup(&mut self.include_tags);
         sort_and_dedup(&mut self.exclude_tags);
-        // Note: overrides are NOT sorted — order matters for resolution
+        // Note: overrides are NOT sorted — order matters for resolution.
+        // ignore_patterns keep their written order too: they're never added
+        // programmatically, and a duplicate pattern is harmless.
     }
 
     /// Apply a single override block to this settings (mutates in place).
@@ -470,6 +570,64 @@ fn sort_and_dedup_unicase(vec: &mut Vec<String>) {
 mod tests {
     use super::*;
 
+    fn pat(pattern: &str) -> Regex {
+        compile_pattern(pattern).unwrap()
+    }
+
+    fn glob(pattern: &str) -> Pattern {
+        Pattern::new(pattern).unwrap()
+    }
+
+    /// Regexes don't implement PartialEq; compare them by pattern string.
+    fn pattern_strings(patterns: &[Regex]) -> Vec<&str> {
+        patterns.iter().map(Regex::as_str).collect()
+    }
+
+    #[test]
+    fn test_ignore_pattern_is_multiline() {
+        let pattern = pat(r"^vim\..*");
+        let text = "let x = 1\nvim.opt.showmode = false\nlet y = 2";
+
+        let m = pattern.find(text).unwrap();
+        assert_eq!(m.as_str(), "vim.opt.showmode = false");
+    }
+
+    #[test]
+    fn test_invalid_ignore_pattern_fails_deserialization() {
+        let toml_str = r#"
+        ignore_patterns = ["valid.*", "[invalid"]
+        "#;
+
+        let err = toml::from_str::<ConfigSettings>(toml_str).unwrap_err();
+        assert!(err.to_string().contains("invalid regex pattern '[invalid'"));
+    }
+
+    #[test]
+    fn test_invalid_override_glob_fails_deserialization() {
+        let toml_str = r#"
+        [[overrides]]
+        paths = ["docs/[invalid"]
+        extra_words = ["test"]
+        "#;
+
+        let err = toml::from_str::<ConfigSettings>(toml_str).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("invalid glob pattern 'docs/[invalid'")
+        );
+    }
+
+    #[test]
+    fn test_ignore_pattern_serializes_as_string() {
+        let settings = ConfigSettings {
+            ignore_patterns: vec![pat(r"^```.*$")],
+            ..Default::default()
+        };
+
+        let toml_str = toml::to_string(&settings).unwrap();
+        assert!(toml_str.contains(r#"ignore_patterns = ["^```.*$"]"#));
+    }
+
     #[test]
     fn test_default() {
         let config = ConfigSettings::default();
@@ -478,7 +636,7 @@ mod tests {
         assert_eq!(config.flag_words, Vec::<String>::new());
         assert_eq!(config.include_paths, Vec::<String>::new());
         assert_eq!(config.ignore_paths, Vec::<String>::new());
-        assert_eq!(config.ignore_patterns, Vec::<String>::new());
+        assert!(config.ignore_patterns.is_empty());
         assert!(config.use_global);
         assert_eq!(config.min_word_length, None);
         assert_eq!(config.min_word_length(), 3);
@@ -505,10 +663,7 @@ mod tests {
         assert_eq!(config.include_paths, vec!["src/**/*.rs", "lib/"]);
         assert_eq!(config.ignore_paths, vec!["**/*.md", "target/"]);
 
-        // Don't test the exact order, just check that both elements are present
-        assert_eq!(config.ignore_patterns.len(), 2);
-        assert!(config.ignore_patterns.contains(&"^```.*$".to_string()));
-        assert!(config.ignore_patterns.contains(&"^//.*$".to_string()));
+        assert_eq!(pattern_strings(&config.ignore_patterns), ["^```.*$", "^//.*$"]);
 
         assert!(!config.use_global);
     }
@@ -570,7 +725,7 @@ mod tests {
             flag_words: vec!["todo".to_string()],
             include_paths: vec!["src/".to_string()],
             ignore_paths: vec!["**/*.md".to_string()],
-            ignore_patterns: vec!["^```.*$".to_string()],
+            ignore_patterns: vec![pat("^```.*$")],
             use_global: true,
             min_word_length: Some(3),
             ..Default::default()
@@ -582,7 +737,7 @@ mod tests {
             flag_words: vec!["fixme".to_string()],
             include_paths: vec!["lib/".to_string(), "src/".to_string()],
             ignore_paths: vec!["target/".to_string()],
-            ignore_patterns: vec!["^//.*$".to_string()],
+            ignore_patterns: vec![pat("^//.*$")],
             use_global: false,
             min_word_length: Some(2),
             ..Default::default()
@@ -597,10 +752,11 @@ mod tests {
         assert_eq!(base.include_paths, vec!["lib/", "src/"]);
         assert_eq!(base.ignore_paths, vec!["**/*.md", "target/"]);
 
-        // Don't test the exact order, just check that both elements are present
-        assert_eq!(base.ignore_patterns.len(), 2);
-        assert!(base.ignore_patterns.contains(&"^```.*$".to_string()));
-        assert!(base.ignore_patterns.contains(&"^//.*$".to_string()));
+        // Patterns keep their order: base's first, then other's
+        assert_eq!(
+            pattern_strings(&base.ignore_patterns),
+            ["^```.*$", "^//.*$"]
+        );
 
         // use_global from the base should be preserved
         assert!(base.use_global);
@@ -666,11 +822,7 @@ mod tests {
                 "**/*.md".to_string(),
                 "target/".to_string(),
             ],
-            ignore_patterns: vec![
-                "^//.*$".to_string(),
-                "^```.*$".to_string(),
-                "^//.*$".to_string(),
-            ],
+            ignore_patterns: vec![pat("^//.*$"), pat("^```.*$"), pat("^//.*$")],
             use_global: true,
             min_word_length: Some(3),
             ..Default::default()
@@ -683,10 +835,11 @@ mod tests {
         assert_eq!(config.flag_words, vec!["fixme", "todo"]);
         assert_eq!(config.ignore_paths, vec!["**/*.md", "target/"]);
 
-        // Don't test the exact order, just check that both elements are present and duplicates removed
-        assert_eq!(config.ignore_patterns.len(), 2);
-        assert!(config.ignore_patterns.contains(&"^```.*$".to_string()));
-        assert!(config.ignore_patterns.contains(&"^//.*$".to_string()));
+        // Patterns are not sorted or deduplicated: they keep their written order
+        assert_eq!(
+            pattern_strings(&config.ignore_patterns),
+            ["^//.*$", "^```.*$", "^//.*$"]
+        );
     }
 
     #[test]
@@ -704,7 +857,12 @@ mod tests {
         let toml_str = "";
         let config: ConfigSettings = toml::from_str(toml_str).unwrap();
 
-        assert_eq!(config, ConfigSettings::default());
+        // ConfigSettings has no PartialEq (Regex doesn't compare); an empty
+        // config and the default both serialize to nothing.
+        assert_eq!(
+            toml::to_string(&config).unwrap(),
+            toml::to_string(&ConfigSettings::default()).unwrap()
+        );
     }
 
     #[test]
@@ -866,7 +1024,7 @@ mod tests {
         assert_eq!(config.words, vec!["CodeBook"]);
         assert_eq!(config.flag_words, Vec::<String>::new());
         assert_eq!(config.ignore_paths, Vec::<String>::new());
-        assert_eq!(config.ignore_patterns, Vec::<String>::new());
+        assert!(config.ignore_patterns.is_empty());
         assert!(config.use_global);
     }
 
@@ -886,11 +1044,11 @@ mod tests {
         let config: ConfigSettings = toml::from_str(toml_str).unwrap();
         assert_eq!(config.overrides.len(), 1);
         let ovr = &config.overrides[0];
-        assert_eq!(ovr.paths, vec!["**/*.md"]);
+        assert_eq!(ovr.paths, vec![glob("**/*.md")]);
         assert_eq!(ovr.extra_words, Some(vec!["markdown".to_string()])); // lowercased
         assert_eq!(ovr.dictionaries, Some(vec!["en_gb".to_string()])); // lowercased
         assert_eq!(ovr.words, None);
-        assert_eq!(ovr.ignore_patterns, None);
+        assert!(ovr.ignore_patterns.is_none());
     }
 
     #[test]
@@ -919,7 +1077,7 @@ mod tests {
     #[test]
     fn test_override_matches_path() {
         let ovr = OverrideBlock {
-            paths: vec!["**/*.md".to_string(), "docs/**/*".to_string()],
+            paths: vec![glob("**/*.md"), glob("docs/**/*")],
             extra_words: Some(vec!["test".to_string()]),
             ..OverrideBlock::default_for_test()
         };
@@ -934,7 +1092,7 @@ mod tests {
     #[test]
     fn test_override_matches_backslash_path_on_windows() {
         let ovr = OverrideBlock {
-            paths: vec!["docs/**/*".to_string()],
+            paths: vec![glob("docs/**/*")],
             extra_words: Some(vec!["test".to_string()]),
             ..OverrideBlock::default_for_test()
         };
@@ -985,7 +1143,7 @@ mod tests {
         };
 
         let over = OverrideBlock {
-            paths: vec!["**/*.md".to_string()],
+            paths: vec![glob("**/*.md")],
             words: Some(vec!["gamma".to_string()]),
             ..OverrideBlock::default_for_test()
         };
@@ -1002,7 +1160,7 @@ mod tests {
         };
 
         let ovr = OverrideBlock {
-            paths: vec!["**/*.md".to_string()],
+            paths: vec![glob("**/*.md")],
             extra_words: Some(vec!["gamma".to_string()]),
             ..OverrideBlock::default_for_test()
         };
@@ -1019,7 +1177,7 @@ mod tests {
         };
 
         let ovr = OverrideBlock {
-            paths: vec!["**/*.md".to_string()],
+            paths: vec![glob("**/*.md")],
             words: Some(vec!["gamma".to_string()]),
             extra_words: Some(vec!["delta".to_string()]),
             ..OverrideBlock::default_for_test()
@@ -1038,7 +1196,7 @@ mod tests {
         };
 
         let over = OverrideBlock {
-            paths: vec!["**/*.md".to_string()],
+            paths: vec![glob("**/*.md")],
             extra_flag_words: Some(vec!["hack".to_string()]),
             ..OverrideBlock::default_for_test()
         };
@@ -1056,7 +1214,7 @@ mod tests {
         let settings = ConfigSettings {
             words: vec!["base".to_string()],
             overrides: vec![OverrideBlock {
-                paths: vec!["**/*.md".to_string()],
+                paths: vec![glob("**/*.md")],
                 extra_words: Some(vec!["markdown".to_string()]),
                 ..OverrideBlock::default_for_test()
             }],
@@ -1073,7 +1231,7 @@ mod tests {
         let settings = ConfigSettings {
             words: vec!["base".to_string()],
             overrides: vec![OverrideBlock {
-                paths: vec!["**/*.md".to_string()],
+                paths: vec![glob("**/*.md")],
                 extra_words: Some(vec!["markdown".to_string()]),
                 ..OverrideBlock::default_for_test()
             }],
@@ -1091,12 +1249,12 @@ mod tests {
             words: vec!["base".to_string()],
             overrides: vec![
                 OverrideBlock {
-                    paths: vec!["**/*.md".to_string()],
+                    paths: vec![glob("**/*.md")],
                     extra_words: Some(vec!["markdown".to_string()]),
                     ..OverrideBlock::default_for_test()
                 },
                 OverrideBlock {
-                    paths: vec!["docs/**/*".to_string()],
+                    paths: vec![glob("docs/**/*")],
                     extra_words: Some(vec!["documentation".to_string()]),
                     ..OverrideBlock::default_for_test()
                 },
@@ -1113,7 +1271,7 @@ mod tests {
         let settings = ConfigSettings {
             dictionaries: vec!["en_us".to_string()],
             overrides: vec![OverrideBlock {
-                paths: vec!["docs/de/**/*".to_string()],
+                paths: vec![glob("docs/de/**/*")],
                 dictionaries: Some(vec!["de".to_string()]),
                 extra_words: Some(vec!["codebook".to_string()]),
                 ..OverrideBlock::default_for_test()
@@ -1131,7 +1289,7 @@ mod tests {
         let mut global = ConfigSettings {
             words: vec!["global".to_string()],
             overrides: vec![OverrideBlock {
-                paths: vec!["**/*.md".to_string()],
+                paths: vec![glob("**/*.md")],
                 extra_words: Some(vec!["from_global".to_string()]),
                 ..OverrideBlock::default_for_test()
             }],
@@ -1141,7 +1299,7 @@ mod tests {
         let project = ConfigSettings {
             words: vec!["project".to_string()],
             overrides: vec![OverrideBlock {
-                paths: vec!["**/*.md".to_string()],
+                paths: vec![glob("**/*.md")],
                 extra_words: Some(vec!["from_project".to_string()]),
                 ..OverrideBlock::default_for_test()
             }],
@@ -1166,9 +1324,12 @@ mod tests {
     fn test_serialization_with_overrides() {
         let config = ConfigSettings {
             words: vec!["base".to_string()],
+            ignore_patterns: vec![pat(r"^```.*$")],
             overrides: vec![OverrideBlock {
-                paths: vec!["**/*.md".to_string()],
+                paths: vec![glob("**/*.md")],
                 extra_words: Some(vec!["markdown".to_string()]),
+                ignore_patterns: Some(vec![pat(r"\bhttps?://\S+")]),
+                extra_ignore_patterns: Some(vec![pat(r"^\s*//.*")]),
                 ..OverrideBlock::default_for_test()
             }],
             ..Default::default()
@@ -1177,7 +1338,20 @@ mod tests {
         let serialized = toml::to_string_pretty(&config).unwrap();
         let deserialized: ConfigSettings = toml::from_str(&serialized).unwrap();
 
-        assert_eq!(config, deserialized);
+        // ConfigSettings has no PartialEq (Regex doesn't compare); a stable
+        // re-serialization proves the round-trip lost nothing.
+        assert_eq!(serialized, toml::to_string_pretty(&deserialized).unwrap());
+
+        let ovr = &deserialized.overrides[0];
+        assert_eq!(pattern_strings(&deserialized.ignore_patterns), [r"^```.*$"]);
+        assert_eq!(
+            pattern_strings(ovr.ignore_patterns.as_deref().unwrap()),
+            [r"\bhttps?://\S+"]
+        );
+        assert_eq!(
+            pattern_strings(ovr.extra_ignore_patterns.as_deref().unwrap()),
+            [r"^\s*//.*"]
+        );
     }
 
     #[test]

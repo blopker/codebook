@@ -361,6 +361,7 @@ dependencies = [
  "spellbook",
  "streaming-iterator",
  "tempfile",
+ "thiserror",
  "tree-sitter",
  "tree-sitter-bash",
  "tree-sitter-c",
@@ -445,6 +446,7 @@ dependencies = [
  "regex",
  "serde",
  "tempfile",
+ "thiserror",
  "toml",
  "unicase",
 ]

@@ -1,7 +1,9 @@
 use crate::checker::WordCandidate;
-use crate::queries::{LANGUAGE_SETTINGS, LanguageType, get_language_setting};
+use crate::queries::{LANGUAGE_SETTINGS, LanguageSetting, LanguageType, get_language_setting};
 use crate::splitter;
+use log::{debug, error};
 use regex::Regex;
+use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::{LazyLock, Mutex};
@@ -13,7 +15,9 @@ use unicode_segmentation::UnicodeSegmentation;
 /// Global parser cache protected by a mutex. Serializes all tree-sitter
 /// operations (create, parse, destroy) to protect external scanners that
 /// use global mutable C state (e.g. tree-sitter-vhdl's static TokenTree).
-static PARSER_CACHE: LazyLock<Mutex<HashMap<LanguageType, Parser>>> =
+/// A cached `None` records a grammar that failed to load, so the failure is
+/// logged once instead of retried (and re-logged) on every spell check.
+static PARSER_CACHE: LazyLock<Mutex<HashMap<LanguageType, Option<Parser>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// One `(#not-has-ancestor? @capture "kind" ...)` rule, pre-parsed so the
@@ -232,6 +236,23 @@ struct ExtractionResult<'a> {
     languages: HashSet<LanguageType>,
 }
 
+/// Create a parser for a language's grammar, or None when the grammar can't
+/// be loaded (e.g. a tree-sitter ABI version mismatch).
+fn new_parser(setting: &LanguageSetting) -> Option<Parser> {
+    let lang = setting.language()?;
+    let mut parser = Parser::new();
+    match parser.set_language(&lang) {
+        Ok(()) => Some(parser),
+        Err(e) => {
+            error!(
+                "Failed to load tree-sitter grammar for {:?}: {e}",
+                setting.type_
+            );
+            None
+        }
+    }
+}
+
 /// Recursively extract words from a byte range of the document.
 ///
 /// For languages with a tree-sitter grammar and .scm query:
@@ -262,16 +283,26 @@ fn extract_recursive<'a>(
 
     let region_text = &document_text[start_byte..end_byte];
 
-    // Parse under global lock
+    // Parse under global lock. This block must not panic: a panic while
+    // holding PARSER_CACHE poisons the mutex and fails every spell check
+    // for the rest of the process.
     let tree = {
         let mut cache = PARSER_CACHE.lock().unwrap();
-        let parser = cache.entry(language).or_insert_with(|| {
-            let mut parser = Parser::new();
-            let lang = language_setting.language().unwrap();
-            parser.set_language(&lang).unwrap();
-            parser
-        });
-        parser.parse(region_text, None).unwrap()
+        let parser = match cache.entry(language) {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => entry.insert(new_parser(language_setting)),
+        };
+        parser.as_mut().and_then(|parser| parser.parse(region_text, None))
+    };
+
+    let Some(tree) = tree else {
+        // Grammar unavailable or parse failed: degrade to word-splitting the
+        // region as plain text so it is still checked. debug-level because
+        // this runs per check; the grammar failure itself was already logged
+        // once by new_parser.
+        debug!("Parsing {language:?} unavailable; checking region as plain text");
+        extract_words_from_text(region_text, start_byte, skip_ranges, &mut result.candidates);
+        return;
     };
 
     let root_node = tree.root_node();
