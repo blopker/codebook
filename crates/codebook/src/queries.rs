@@ -340,7 +340,7 @@ impl LanguageSetting {
             LanguageType::Haskell => Some(tree_sitter_haskell::LANGUAGE.into()),
             LanguageType::Java => Some(tree_sitter_java::LANGUAGE.into()),
             LanguageType::Javascript => Some(tree_sitter_javascript::LANGUAGE.into()),
-            LanguageType::Just => Some(tree_sitter_just::LANGUAGE.into()),
+            LanguageType::Just => Some(codebook_tree_sitter_just::LANGUAGE.into()),
             LanguageType::Latex => Some(codebook_tree_sitter_latex::LANGUAGE.into()),
             LanguageType::Lua => Some(tree_sitter_lua::LANGUAGE.into()),
             LanguageType::Markdown => Some(tree_sitter_md::LANGUAGE.into()),

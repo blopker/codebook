@@ -208,5 +208,4 @@ mod tests {
 
         assert_eq!(expand_tilde(&path), Some(path));
     }
-
 }

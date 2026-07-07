@@ -792,7 +792,11 @@ mod tests {
         let config = load_from_file(ConfigType::Project, &config_path)?;
         let patterns = config.snapshot().ignore_patterns.clone();
         assert!(patterns.iter().any(|p| p.as_str() == "^[ATCG]+$"));
-        assert!(patterns.iter().any(|p| p.as_str() == "\\d{3}-\\d{2}-\\d{4}"));
+        assert!(
+            patterns
+                .iter()
+                .any(|p| p.as_str() == "\\d{3}-\\d{2}-\\d{4}")
+        );
         let patterns = config.get_ignore_patterns();
         assert!(patterns.len() == 2);
         Ok(())
@@ -1398,7 +1402,8 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_for_file_use_global_false_ignores_global_overrides() -> Result<(), ConfigError> {
+    fn test_resolve_for_file_use_global_false_ignores_global_overrides() -> Result<(), ConfigError>
+    {
         let global_temp = TempDir::new().unwrap();
         let project_temp = TempDir::new().unwrap();
 
@@ -1609,10 +1614,7 @@ mod tests {
 
         // Simulate a mid-edit save of broken TOML
         fs::write(&config_path, r#"words = [invalid !!! toml"#)?;
-        assert!(
-            !config.reload(),
-            "parse error should not count as a change"
-        );
+        assert!(!config.reload(), "parse error should not count as a change");
         assert!(
             config.is_allowed_word("frobnicate"),
             "last good config should survive a parse error"

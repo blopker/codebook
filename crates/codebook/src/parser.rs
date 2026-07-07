@@ -292,7 +292,9 @@ fn extract_recursive<'a>(
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => entry.insert(new_parser(language_setting)),
         };
-        parser.as_mut().and_then(|parser| parser.parse(region_text, None))
+        parser
+            .as_mut()
+            .and_then(|parser| parser.parse(region_text, None))
     };
 
     let Some(tree) = tree else {

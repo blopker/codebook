@@ -360,6 +360,7 @@ dependencies = [
 name = "codebook"
 version = "0.3.41"
 dependencies = [
+ "codebook-tree-sitter-just",
  "codebook-tree-sitter-latex",
  "codebook-tree-sitter-typst",
  "codebook_config",
@@ -387,7 +388,6 @@ dependencies = [
  "tree-sitter-html",
  "tree-sitter-java",
  "tree-sitter-javascript",
- "tree-sitter-just",
  "tree-sitter-lua",
  "tree-sitter-md",
  "tree-sitter-ocaml",
@@ -425,6 +425,16 @@ dependencies = [
  "tempfile",
  "tokio",
  "tower-lsp",
+]
+
+[[package]]
+name = "codebook-tree-sitter-just"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ff9151900e03e431f2d8339fbb80eae85df292974a772336847114436b410c1"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
 ]
 
 [[package]]
@@ -2541,9 +2551,9 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter"
-version = "0.25.10"
+version = "0.26.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78f873475d258561b06f1c595d93308a7ed124d9977cb26b148c2084a4a3cc87"
+checksum = "3c343ed63e3f5c64d1acdecb5d2c13d4e169cb5fde0052106ebaa6c6f27f9e55"
 dependencies = [
  "cc",
  "regex",
@@ -2680,17 +2690,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68204f2abc0627a90bdf06e605f5c470aa26fdcb2081ea553a04bdad756693f5"
 dependencies = [
  "cc",
- "tree-sitter-language",
-]
-
-[[package]]
-name = "tree-sitter-just"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd46794f2c270f43d73b2f2c8c256992471f3493c903604da0886df984771920"
-dependencies = [
- "cc",
- "tree-sitter",
  "tree-sitter-language",
 ]
 

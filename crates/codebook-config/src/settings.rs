@@ -20,9 +20,8 @@ where
     let v = Vec::<String>::deserialize(deserializer)?;
     v.into_iter()
         .map(|p| {
-            compile_pattern(&p).map_err(|e| {
-                serde::de::Error::custom(format!("invalid regex pattern '{p}': {e}"))
-            })
+            compile_pattern(&p)
+                .map_err(|e| serde::de::Error::custom(format!("invalid regex pattern '{p}': {e}")))
         })
         .collect()
 }
@@ -663,7 +662,10 @@ mod tests {
         assert_eq!(config.include_paths, vec!["src/**/*.rs", "lib/"]);
         assert_eq!(config.ignore_paths, vec!["**/*.md", "target/"]);
 
-        assert_eq!(pattern_strings(&config.ignore_patterns), ["^```.*$", "^//.*$"]);
+        assert_eq!(
+            pattern_strings(&config.ignore_patterns),
+            ["^```.*$", "^//.*$"]
+        );
 
         assert!(!config.use_global);
     }
