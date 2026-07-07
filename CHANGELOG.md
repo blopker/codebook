@@ -2,7 +2,7 @@
 
 Important user-facing changes. See commit logs for more details.
 
-[Unreleased]
+[0.3.42]
 
 - Elixir: don't spell-check the left side of non-binding binary operators (e.g. `numbr1` in `resalt = numbr1 + numbr2` was flagged as if it were a definition); only `=` and `<-` bind variables
 - Add Just (justfile) support: comments, recipe/parameter/variable names, and strings are checked; recipe bodies are checked with the bash grammar, and shebang recipes (e.g. `#!/usr/bin/env python3`) with the shebang's language (#288)
