@@ -53,6 +53,7 @@ pub trait CodebookConfig: Sync + Send + Debug {
     fn should_flag_word(&self, word: &str) -> bool;
     fn get_ignore_patterns(&self) -> Vec<Regex>;
     fn get_min_word_length(&self) -> usize;
+    fn use_local(&self) -> bool;
     fn should_check_tag(&self, tag: &str) -> bool;
     fn cache_dir(&self) -> &Path;
 
@@ -284,6 +285,17 @@ impl CodebookConfigFile {
             .content()
             .cloned()
             .unwrap_or_else(ConfigSettings::default);
+
+        if !project.use_local {
+            return if project.use_global {
+                global_config
+                    .content()
+                    .cloned()
+                    .unwrap_or_else(ConfigSettings::default)
+            } else {
+                ConfigSettings::default()
+            };
+        }
 
         if project.use_global {
             if let Some(global) = global_config.content() {
@@ -543,6 +555,10 @@ impl CodebookConfig for CodebookConfigFile {
         self.snapshot().min_word_length()
     }
 
+    fn use_local(&self) -> bool {
+        self.snapshot().use_local
+    }
+
     fn should_check_tag(&self, tag: &str) -> bool {
         self.snapshot().should_check_tag(tag)
     }
@@ -650,6 +666,10 @@ impl CodebookConfig for CodebookConfigMemory {
 
     fn get_min_word_length(&self) -> usize {
         self.snapshot().min_word_length()
+    }
+
+    fn use_local(&self) -> bool {
+        self.snapshot().use_local
     }
 
     fn should_check_tag(&self, tag: &str) -> bool {

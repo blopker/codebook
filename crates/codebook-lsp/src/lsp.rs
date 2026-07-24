@@ -230,6 +230,7 @@ impl LanguageServer for Backend {
             None => return Ok(None),
         };
 
+        let use_local = self.config_handle().use_local();
         let mut has_codebook_diagnostic = false;
         for diag in params.context.diagnostics {
             // Only process our own diagnostics
@@ -277,20 +278,22 @@ impl LanguageServer for Backend {
                     &params.text_document.uri,
                 )));
             });
-            actions.push(CodeActionOrCommand::CodeAction(CodeAction {
-                title: format!("Add '{word}' to dictionary"),
-                kind: Some(CodeActionKind::QUICKFIX),
-                diagnostics: None,
-                edit: None,
-                command: Some(Command {
+            if use_local {
+                actions.push(CodeActionOrCommand::CodeAction(CodeAction {
                     title: format!("Add '{word}' to dictionary"),
-                    command: CodebookCommand::AddWord.into(),
-                    arguments: Some(vec![word.to_string().into()]),
-                }),
-                is_preferred: None,
-                disabled: None,
-                data: None,
-            }));
+                    kind: Some(CodeActionKind::QUICKFIX),
+                    diagnostics: None,
+                    edit: None,
+                    command: Some(Command {
+                        title: format!("Add '{word}' to dictionary"),
+                        command: CodebookCommand::AddWord.into(),
+                        arguments: Some(vec![word.to_string().into()]),
+                    }),
+                    is_preferred: None,
+                    disabled: None,
+                    data: None,
+                }));
+            }
             actions.push(CodeActionOrCommand::CodeAction(CodeAction {
                 title: format!("Add '{word}' to global dictionary"),
                 kind: Some(CodeActionKind::QUICKFIX),
@@ -306,7 +309,7 @@ impl LanguageServer for Backend {
                 data: None,
             }));
         }
-        if has_codebook_diagnostic {
+        if has_codebook_diagnostic && use_local {
             actions.push(CodeActionOrCommand::CodeAction(CodeAction {
                 title: "Add current file to ignore list".to_string(),
                 kind: Some(CodeActionKind::QUICKFIX),
