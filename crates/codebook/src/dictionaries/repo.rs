@@ -196,6 +196,11 @@ static HUNSPELL_DICTIONARIES: LazyLock<Vec<HunspellRepo>> = LazyLock::new(|| {
             "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/sl/index.aff",
             "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/sl/index.dic",
         ),
+        HunspellRepo::new(
+            "en_gb_ize",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/en-GB-ize/index.aff",
+            "https://raw.githubusercontent.com/blopker/dictionaries/refs/heads/main/dictionaries/en-GB-ize/index.dic",
+        ),
     ]
 });
 
