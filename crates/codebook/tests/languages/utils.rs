@@ -186,13 +186,23 @@ pub fn assert_spelling_at_with(
 }
 
 /// Proves the deny-network dev-dependency feature reaches the downloader in
-/// this crate's test builds: a dictionary miss (cold cache, no fixture) must
-/// panic instead of downloading.
+/// this crate's test builds: a real download attempt must panic instead of
+/// opening a socket.
 #[test]
 #[should_panic(expected = "Blocked network request")]
 fn network_guard_active_in_test_builds() {
     use codebook::dictionaries::manager::DictionaryManager;
     let temp_cache = tempfile::tempdir().unwrap();
     let manager = DictionaryManager::new(&temp_cache.path().to_path_buf());
-    let _ = manager.get_dictionary("en_gb");
+    let _ = manager.ensure_dictionary("en_gb");
+}
+
+/// The spell-check path never downloads: with the network guard armed and no
+/// fixture, a dictionary miss returns None instead of panicking.
+#[test]
+fn get_dictionary_never_touches_network() {
+    use codebook::dictionaries::manager::DictionaryManager;
+    let temp_cache = tempfile::tempdir().unwrap();
+    let manager = DictionaryManager::new(&temp_cache.path().to_path_buf());
+    assert!(manager.get_dictionary("en_gb").is_none());
 }

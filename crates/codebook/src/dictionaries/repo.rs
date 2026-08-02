@@ -233,6 +233,17 @@ static TEXT_DICTIONARIES: LazyLock<Vec<TextRepo>> = LazyLock::new(|| {
     ]
 });
 
+/// Names of every text dictionary in the repo, including the embedded one.
+pub fn text_dictionary_ids() -> impl Iterator<Item = &'static str> {
+    TEXT_DICTIONARIES.iter().map(|d| d.name.as_str())
+}
+
+/// Whether the id names a Hunspell (natural-language) repo. Cheaper than
+/// `get_repo` — no clone — for callers that only need the kind.
+pub fn is_hunspell(name: &str) -> bool {
+    HUNSPELL_DICTIONARIES.iter().any(|d| d.name == name)
+}
+
 pub fn get_repo(name: &str) -> Option<DictionaryRepo> {
     let res = HUNSPELL_DICTIONARIES.iter().find(|d| d.name == name);
     if let Some(res1) = res {

@@ -25,7 +25,10 @@ export class LSPTestClient extends EventEmitter {
 	private nextMessagePromise: { resolve: Function; reject: Function } | null =
 		null;
 
-	constructor(private serverPath: string) {
+	constructor(
+		private serverPath: string,
+		private env: Record<string, string> = {},
+	) {
 		super();
 	}
 
@@ -34,7 +37,7 @@ export class LSPTestClient extends EventEmitter {
 			try {
 				this.process = spawn(this.serverPath, ["serve"], {
 					stdio: ["pipe", "pipe", "pipe"],
-					env: { RUST_BACKTRACE: "1", RUST_LOG: "debug" },
+					env: { RUST_BACKTRACE: "1", RUST_LOG: "debug", ...this.env },
 				});
 
 				this.process.stdout?.on("data", (data) => this.handleData(data));

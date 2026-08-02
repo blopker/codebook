@@ -55,6 +55,18 @@ fn main() {
     let config = Arc::new(codebook_config::CodebookConfigFile::load(None).unwrap());
     let processor = Codebook::new(config);
 
+    // Checking never downloads on its own; warm the dictionaries up front.
+    let warmup = processor.warm_dictionaries();
+    if warmup.network_disabled {
+        eprintln!("NO_NETWORK set; checking with cached dictionaries only");
+    }
+    for (id, e) in &warmup.failures {
+        eprintln!("could not download dictionary '{id}': {e}");
+    }
+    if !warmup.primary_available {
+        eprintln!("warning: no primary dictionary available; checks will find nothing");
+    }
+
     // Check for benchmark flag
     if args.contains(&"--benchmark".to_string()) {
         run_benchmark(&processor);
