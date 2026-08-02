@@ -51,4 +51,50 @@ function getLanguageFromFileName(fileName: string): string {
   return extensionToLanguage[extension] || 'plaintext';
 }
 
-export {getLanguageFromFileName}
+import type { LSPTestClient } from "./client";
+
+interface Diagnostic {
+  message: string;
+  range: unknown;
+}
+
+interface PublishDiagnosticsParams {
+  uri: string;
+  diagnostics: Diagnostic[];
+}
+
+/**
+ * Resolve with the first publishDiagnostics matching the filters. Dictionary
+ * downloads happen in the background, so a check against a cold cache
+ * legitimately publishes empty diagnostics first and re-publishes once the
+ * dictionaries land — callers asserting on content should pass
+ * `nonEmpty: true` rather than grabbing the first event.
+ */
+function waitForDiagnostics(
+  client: LSPTestClient,
+  options: { uri?: string; nonEmpty?: boolean; timeoutMs?: number } = {},
+): Promise<PublishDiagnosticsParams> {
+  const { uri, nonEmpty = false, timeoutMs = 30000 } = options;
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      client.removeListener("textDocument/publishDiagnostics", listener);
+      reject(
+        new Error(
+          `Timeout waiting for ${nonEmpty ? "non-empty " : ""}diagnostics${uri ? ` for ${uri}` : ""}`,
+        ),
+      );
+    }, timeoutMs);
+
+    const listener = (params: PublishDiagnosticsParams) => {
+      if (uri && params.uri !== uri) return;
+      if (nonEmpty && params.diagnostics.length === 0) return;
+      clearTimeout(timeoutId);
+      client.removeListener("textDocument/publishDiagnostics", listener);
+      resolve(params);
+    };
+    client.on("textDocument/publishDiagnostics", listener);
+  });
+}
+
+export { getLanguageFromFileName, waitForDiagnostics };
+export type { PublishDiagnosticsParams };

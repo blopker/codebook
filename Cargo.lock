@@ -360,6 +360,7 @@ dependencies = [
 name = "codebook"
 version = "0.3.42"
 dependencies = [
+ "anyhow",
  "codebook-tree-sitter-just",
  "codebook-tree-sitter-latex",
  "codebook-tree-sitter-typst",

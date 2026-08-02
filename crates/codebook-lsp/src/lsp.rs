@@ -24,6 +24,7 @@ use log::{debug, info};
 use crate::file_cache::TextDocumentCache;
 use crate::init_options::ClientInitializationOptions;
 use crate::lsp_logger;
+use crate::prefetch::{self, PrefetchHandle};
 
 const SOURCE_NAME: &str = "Codebook";
 
@@ -62,6 +63,23 @@ fn compute_relative_path(
 }
 
 pub struct Backend {
+    state: Arc<BackendState>,
+}
+
+/// `Backend` is a pointer newtype over the shared state; Deref keeps every
+/// handler spelling `self.field` instead of `self.state.field`.
+impl std::ops::Deref for Backend {
+    type Target = BackendState;
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+/// Shared server state, `Arc`'d so tasks outside the LSP dispatch loop (the
+/// prefetch worker's recheck listener) can reach the same document cache,
+/// config, and client. Public only because `Deref<Target = BackendState>`
+/// requires it; all fields are private.
+pub struct BackendState {
     client: Client,
     workspace_dir: PathBuf,
     /// Cached canonicalized workspace directory for efficient relative path computation
@@ -72,6 +90,9 @@ pub struct Backend {
     initialize_options: RwLock<Arc<ClientInitializationOptions>>,
     /// When the config files were last polled for changes (None = never)
     last_config_poll: Mutex<Option<Instant>>,
+    /// Handle to the background dictionary prefetch worker (None until
+    /// `initialized`, or forever when NO_NETWORK is set)
+    prefetch: OnceLock<PrefetchHandle>,
 }
 
 enum CodebookCommand {
@@ -169,6 +190,7 @@ impl LanguageServer for Backend {
             "Global config: {}",
             config.global_config_path().unwrap_or_default().display()
         );
+        self.spawn_prefetch();
     }
 
     async fn shutdown(&self) -> RpcResult<()> {
@@ -388,17 +410,45 @@ impl Backend {
     pub fn new(client: Client, workspace_dir: &Path) -> Self {
         let workspace_dir_canonical = workspace_dir.canonicalize().ok();
         Self {
-            client,
-            workspace_dir: workspace_dir.to_path_buf(),
-            workspace_dir_canonical,
-            codebook: OnceLock::new(),
-            config: OnceLock::new(),
-            document_cache: TextDocumentCache::default(),
-            initialize_options: RwLock::new(Arc::new(ClientInitializationOptions::default())),
-            last_config_poll: Mutex::new(None),
+            state: Arc::new(BackendState {
+                client,
+                workspace_dir: workspace_dir.to_path_buf(),
+                workspace_dir_canonical,
+                codebook: OnceLock::new(),
+                config: OnceLock::new(),
+                document_cache: TextDocumentCache::default(),
+                initialize_options: RwLock::new(Arc::new(ClientInitializationOptions::default())),
+                last_config_poll: Mutex::new(None),
+                prefetch: OnceLock::new(),
+            }),
         }
     }
 
+    /// Start the background dictionary prefetch worker and the task that
+    /// re-checks open documents when a new dictionary lands.
+    fn spawn_prefetch(&self) {
+        if self.prefetch.get().is_some() {
+            return;
+        }
+        if codebook::network_disabled() {
+            info!("NO_NETWORK set; dictionary downloads disabled");
+            return;
+        }
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let state = self.state.clone();
+        tokio::spawn(async move {
+            while rx.recv().await.is_some() {
+                // Coalesce a burst of completions into one recheck
+                while rx.try_recv().is_ok() {}
+                state.recheck_all().await;
+            }
+        });
+        let handle = prefetch::spawn(self.codebook_handle(), tx);
+        let _ = self.prefetch.set(handle);
+    }
+}
+
+impl BackendState {
     fn config_handle(&self) -> Arc<CodebookConfigFile> {
         self.config
             .get_or_init(|| {
@@ -556,6 +606,11 @@ impl Backend {
 
         if did_reload {
             debug!("Config reloaded, rechecking all files.");
+            // The change may add dictionaries: wake the prefetch worker and
+            // reset its backoff so they download immediately.
+            if let Some(handle) = self.prefetch.get() {
+                handle.kick();
+            }
             self.recheck_all().await;
         } else {
             debug!("Checking file: {uri:?}");

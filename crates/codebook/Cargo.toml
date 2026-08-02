@@ -19,6 +19,7 @@ name = "codebook"
 path = "src/main.rs"
 
 [dependencies]
+anyhow.workspace = true
 env_logger.workspace = true
 log.workspace = true
 lru.workspace = true

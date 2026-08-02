@@ -3,6 +3,7 @@ mod init_options;
 mod lint;
 mod lsp;
 mod lsp_logger;
+mod prefetch;
 
 use clap::{Parser, Subcommand};
 use codebook_config::{CodebookConfig, CodebookConfigFile, ConfigError};

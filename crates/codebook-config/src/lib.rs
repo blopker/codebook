@@ -47,6 +47,11 @@ pub trait CodebookConfig: Sync + Send + Debug {
     fn add_ignore(&self, file: &str) -> bool;
     fn add_include(&self, file: &str) -> bool;
     fn get_dictionary_ids(&self) -> Vec<String>;
+    /// Every dictionary ID this config can resolve to for any file,
+    /// including per-path override blocks. Used for prefetching.
+    fn all_dictionary_ids(&self) -> Vec<String> {
+        self.get_dictionary_ids()
+    }
     fn should_ignore_path(&self, path: &Path) -> bool;
     fn should_include_path(&self, path: &Path) -> bool;
     fn is_allowed_word(&self, word: &str) -> bool;
@@ -508,6 +513,10 @@ impl CodebookConfig for CodebookConfigFile {
         snapshot.dictionary_ids()
     }
 
+    fn all_dictionary_ids(&self) -> Vec<String> {
+        self.snapshot().all_dictionary_ids()
+    }
+
     /// Check if a path is included based on the effective configuration
     fn should_include_path(&self, path: &Path) -> bool {
         let snapshot = self.snapshot();
@@ -622,6 +631,10 @@ impl CodebookConfig for CodebookConfigMemory {
     fn get_dictionary_ids(&self) -> Vec<String> {
         let snapshot = self.snapshot();
         snapshot.dictionary_ids()
+    }
+
+    fn all_dictionary_ids(&self) -> Vec<String> {
+        self.snapshot().all_dictionary_ids()
     }
 
     fn should_include_path(&self, path: &Path) -> bool {

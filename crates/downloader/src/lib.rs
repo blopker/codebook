@@ -41,6 +41,40 @@ impl std::fmt::Display for PermanentHttpError {
 
 impl std::error::Error for PermanentHttpError {}
 
+/// Returned when `NO_NETWORK` is set: the request was refused before any
+/// socket was opened. Cached files still serve; only fetching is disabled.
+#[derive(Debug)]
+pub struct NetworkDisabledError;
+
+impl std::fmt::Display for NetworkDisabledError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "network requests disabled (NO_NETWORK is set)")
+    }
+}
+
+impl std::error::Error for NetworkDisabledError {}
+
+/// True when the `NO_NETWORK` environment variable is set to anything other
+/// than "", "0", or "false" (reqwest itself only honors proxy variables).
+/// Read per call — at most one env lookup per fetch attempt.
+pub fn network_disabled() -> bool {
+    #[cfg(any(test, feature = "deny-network"))]
+    if let Some(value) = testing::network_disabled_override() {
+        return value;
+    }
+    parse_network_disabled(std::env::var("NO_NETWORK").ok().as_deref())
+}
+
+fn parse_network_disabled(value: Option<&str>) -> bool {
+    match value {
+        Some(v) => {
+            let v = v.trim();
+            !v.is_empty() && v != "0" && !v.eq_ignore_ascii_case("false")
+        }
+        None => false,
+    }
+}
+
 /// A response from an [`HttpTransport`]: status code, the Last-Modified
 /// header if present, and a streaming body.
 pub struct TransportResponse {
@@ -96,6 +130,12 @@ impl ReqwestTransport {
             let config = Self::build_tls_config(arc_crypto_provider);
             reqwest::blocking::Client::builder()
                 .use_preconfigured_tls(config)
+                .connect_timeout(std::time::Duration::from_secs(2))
+                // Generous: Hunspell .dic files run to several MB, and a
+                // timeout that a slow link can't beat makes the dictionary
+                // permanently undownloadable (retries hit the same wall).
+                // Offline hosts are bounded by the connect timeout instead.
+                .timeout(std::time::Duration::from_secs(60))
                 .build()
                 .expect("codebook: failed to build HTTP client")
         })
@@ -178,6 +218,29 @@ struct FileEntry {
     last_checked: DateTime<Utc>,
     last_modified: Option<DateTime<Utc>>,
     content_hash: String,
+}
+
+/// Result of a single-attempt [`Downloader::fetch`].
+#[derive(Debug)]
+pub enum FetchOutcome {
+    /// The local copy is current: it was within the revalidation window, or
+    /// revalidation confirmed it (304 / unchanged content hash).
+    UpToDate(PathBuf),
+    /// New content staged in a temp file — not visible until [`Downloader::commit`].
+    Pending(PendingDownload),
+}
+
+/// A downloaded file staged in a temp location. Commit with
+/// [`Downloader::commit`]; dropping it discards the download with no disk or
+/// metadata changes, which lets callers stage multi-file downloads and commit
+/// all-or-nothing.
+#[derive(Debug)]
+pub struct PendingDownload {
+    url: String,
+    temp_file: NamedTempFile,
+    last_modified: Option<DateTime<Utc>>,
+    content_hash: String,
+    was_present: bool,
 }
 
 pub struct Downloader {
@@ -289,107 +352,117 @@ impl Downloader {
         }
     }
 
-    pub fn get(&self, url: &str) -> Result<PathBuf> {
+    /// Test-only: mark a cached entry as past the revalidation window so the
+    /// next fetch revalidates. Available under `deny-network` so downstream
+    /// crates' tests can age entries without reaching into private metadata.
+    #[cfg(any(test, feature = "deny-network"))]
+    pub fn force_stale(&self, url: &str) {
+        let mut metadata = self.metadata().write().unwrap();
+        if let Some(entry) = metadata.files.get_mut(url) {
+            entry.last_checked = DateTime::<Utc>::MIN_UTC;
+        }
+    }
+
+    /// Pure disk lookup: the URL has a metadata entry whose file still
+    /// exists. Never touches the network.
+    pub fn local_path(&self, url: &str) -> Option<PathBuf> {
+        let path = {
+            let metadata = self.metadata().read().unwrap();
+            metadata.files.get(url).map(|e| e.path.clone())?
+        };
+        path.exists().then_some(path)
+    }
+
+    /// One network attempt, no retries or sleeps. Entries within the
+    /// revalidation window return `UpToDate` without any request, unless
+    /// `force` revalidates (conditional GET) regardless — callers of
+    /// multi-file downloads use that to keep file generations in lockstep:
+    /// when one file changed upstream, the others must be re-checked
+    /// regardless of their own revalidation clocks.
+    pub fn fetch(&self, url: &str, force: bool) -> Result<FetchOutcome> {
         let entry = {
             let metadata = self.metadata().read().unwrap();
             metadata.files.get(url).cloned()
         };
 
-        let result = match entry {
-            Some(entry) => {
-                if !entry.path.exists() {
-                    self.purge_stale_entry(url, &entry.path);
-                    self.download_new(url)
+        match entry {
+            Some(entry) if entry.path.exists() => {
+                let needs_update = force
+                    || entry.last_checked.timestamp() + TWO_WEEKS as i64 <= Utc::now().timestamp();
+                if needs_update {
+                    self.revalidate(url, &entry)
                 } else {
-                    let needs_update =
-                        entry.last_checked.timestamp() + TWO_WEEKS as i64 <= Utc::now().timestamp();
-                    if needs_update {
-                        self.try_update(url)
-                    } else {
-                        Ok(entry.path)
-                    }
+                    Ok(FetchOutcome::UpToDate(entry.path))
                 }
             }
-            None => self.download_new(url),
-        };
+            Some(entry) => {
+                self.purge_stale_entry(url, &entry.path);
+                self.stage_download(url)
+            }
+            None => self.stage_download(url),
+        }
+    }
 
-        // On failure, fall back to a cached copy when one exists on disk
-        // (e.g. offline revalidation). Every failing branch above was itself
-        // a download attempt, so re-downloading here would only repeat it.
-        result.or_else(|e| {
-            let cached = {
-                let metadata = self.metadata().read().unwrap();
-                metadata
-                    .files
-                    .get(url)
-                    .map(|file_info| file_info.path.clone())
-            };
-            match cached {
-                Some(path) if path.exists() => {
+    /// Persist a staged download: rename the temp file into place and update
+    /// metadata.
+    pub fn commit(&self, pending: PendingDownload) -> Result<PathBuf> {
+        let PendingDownload {
+            url,
+            temp_file,
+            last_modified,
+            content_hash,
+            was_present,
+        } = pending;
+        if was_present {
+            self.replace_file(&url, temp_file, last_modified, content_hash)
+        } else {
+            self.store_new_file(&url, temp_file, last_modified, content_hash)
+        }
+    }
+
+    /// Blocking fetch: cached path when fresh, otherwise download-and-commit.
+    /// Transient failures on a new download are retried with short sleeps;
+    /// when a cached copy exists, any failure falls back to it immediately.
+    /// Paths that must never block on the network use
+    /// [`Self::local_path`]/[`Self::fetch`] instead — the only production
+    /// caller left here is the dev binary's fixture fetcher.
+    pub fn get(&self, url: &str) -> Result<PathBuf> {
+        self.get_with_retries(url).or_else(|e| {
+            // Fall back to a cached copy when one exists on disk (e.g.
+            // offline revalidation, or NO_NETWORK with a warm cache).
+            match self.local_path(url) {
+                Some(path) => {
                     log::error!("Failed to update, using cached version: {e}");
                     Ok(path)
                 }
-                _ => Err(e),
+                None => Err(e),
             }
         })
     }
 
-    fn try_update(&self, url: &str) -> Result<PathBuf> {
-        // Get last modified time with read lock
-        let last_modified = {
-            self.metadata()
-                .read()
-                .unwrap()
-                .files
-                .get(url)
-                .and_then(|e| e.last_modified)
-        };
-
-        let if_modified_since = last_modified.map(|lm| lm.with_timezone(&Utc).to_rfc2822());
-        let response = self.transport.get(url, if_modified_since.as_deref())?;
-
-        match response.status {
-            304 => self.update_check_time(url),
-            200 => self.handle_updated_response(url, response),
-            status => {
-                let _ = self.update_check_time(url);
-                Err(anyhow::anyhow!("Unexpected status code: {}", status))
-            }
-        }
-    }
-
-    fn handle_updated_response(&self, url: &str, response: TransportResponse) -> Result<PathBuf> {
-        let last_modified = parse_last_modified(response.last_modified.as_deref());
-        let temp_file = self.download_to_temp(response.body)?;
-        let new_hash = compute_file_hash(temp_file.path())?;
-        // The entry can disappear concurrently (another thread purging a
-        // stale path); a missing entry just means "changed".
-        let old_hash = {
-            let metadata = self
-                .metadata()
-                .read()
-                .map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
-            metadata.files.get(url).map(|e| e.content_hash.clone())
-        };
-        if old_hash.as_deref() == Some(new_hash.as_str()) {
-            self.update_check_time(url)
-        } else {
-            self.replace_file(url, temp_file, last_modified, new_hash)
-        }
-    }
-
-    fn download_new(&self, url: &str) -> Result<PathBuf> {
+    fn get_with_retries(&self, url: &str) -> Result<PathBuf> {
         let max_retries = 2;
         let mut last_err = None;
         for attempt in 0..=max_retries {
             if attempt > 0 {
                 std::thread::sleep(std::time::Duration::from_millis(500 * attempt as u64));
             }
-            match self.try_download_new(url) {
+            let result = self.fetch(url, false).and_then(|outcome| match outcome {
+                FetchOutcome::UpToDate(path) => Ok(path),
+                FetchOutcome::Pending(pending) => self.commit(pending),
+            });
+            match result {
                 Ok(path) => return Ok(path),
                 Err(e) => {
                     if e.downcast_ref::<PermanentHttpError>().is_some() {
                         log::warn!("Not retrying download for {url}: {e}");
+                        return Err(e);
+                    }
+                    if e.downcast_ref::<NetworkDisabledError>().is_some()
+                        || self.local_path(url).is_some()
+                    {
+                        // No point retrying: either the network is off, or a
+                        // cached copy exists for the caller to fall back to.
                         return Err(e);
                     }
                     log::warn!(
@@ -404,7 +477,46 @@ impl Downloader {
         Err(last_err.unwrap())
     }
 
-    fn try_download_new(&self, url: &str) -> Result<PathBuf> {
+    /// Conditional GET for an entry past the revalidation window.
+    fn revalidate(&self, url: &str, entry: &FileEntry) -> Result<FetchOutcome> {
+        if network_disabled() {
+            return Err(anyhow::Error::new(NetworkDisabledError));
+        }
+        let if_modified_since = entry
+            .last_modified
+            .map(|lm| lm.with_timezone(&Utc).to_rfc2822());
+        let response = self.transport.get(url, if_modified_since.as_deref())?;
+
+        match response.status {
+            304 => Ok(FetchOutcome::UpToDate(self.update_check_time(url)?)),
+            200 => {
+                let last_modified = parse_last_modified(response.last_modified.as_deref());
+                let temp_file = self.download_to_temp(response.body)?;
+                let content_hash = compute_file_hash(temp_file.path())?;
+                if content_hash == entry.content_hash {
+                    Ok(FetchOutcome::UpToDate(self.update_check_time(url)?))
+                } else {
+                    Ok(FetchOutcome::Pending(PendingDownload {
+                        url: url.to_string(),
+                        temp_file,
+                        last_modified,
+                        content_hash,
+                        was_present: true,
+                    }))
+                }
+            }
+            status => {
+                let _ = self.update_check_time(url);
+                Err(anyhow::anyhow!("Unexpected status code: {status}"))
+            }
+        }
+    }
+
+    /// Unconditional GET for a URL with no usable local copy.
+    fn stage_download(&self, url: &str) -> Result<FetchOutcome> {
+        if network_disabled() {
+            return Err(anyhow::Error::new(NetworkDisabledError));
+        }
         let response = self.transport.get(url, None)?;
         let status = response.status;
         if (400..500).contains(&status) {
@@ -420,8 +532,14 @@ impl Downloader {
         }
         let last_modified = parse_last_modified(response.last_modified.as_deref());
         let temp_file = self.download_to_temp(response.body)?;
-        let new_hash = compute_file_hash(temp_file.path())?;
-        self.store_new_file(url, temp_file, last_modified, new_hash)
+        let content_hash = compute_file_hash(temp_file.path())?;
+        Ok(FetchOutcome::Pending(PendingDownload {
+            url: url.to_string(),
+            temp_file,
+            last_modified,
+            content_hash,
+            was_present: false,
+        }))
     }
 
     fn download_to_temp(&self, mut body: Box<dyn Read>) -> Result<NamedTempFile> {
@@ -536,58 +654,85 @@ fn parse_last_modified(header: Option<&str>) -> Option<DateTime<Utc>> {
         .map(|dt| dt.with_timezone(&Utc))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use chrono::Duration;
+/// In-memory transport for tests in this crate and downstream crates —
+/// available whenever the `deny-network` feature is on, which workspace
+/// crates enable from their dev-dependencies.
+#[cfg(any(test, feature = "deny-network"))]
+pub mod testing {
+    use super::{HttpTransport, TransportResponse};
+    use anyhow::Result;
     use std::collections::VecDeque;
     use std::io::Cursor;
-    use std::sync::Mutex;
-    use tempfile::tempdir;
+    use std::sync::{Arc, Mutex};
 
-    const URL: &str = "https://example.com/test.txt";
-
-    struct FakeResponse {
-        status: u16,
-        body: &'static str,
-        last_modified: Option<&'static str>,
+    pub struct FakeResponse {
+        pub status: u16,
+        pub body: String,
+        pub last_modified: Option<String>,
     }
 
-    fn ok(status: u16, body: &'static str, last_modified: Option<&'static str>) -> ScriptedResult {
+    pub type ScriptedResult = Result<FakeResponse>;
+
+    pub fn ok(status: u16, body: &str, last_modified: Option<&str>) -> ScriptedResult {
         Ok(FakeResponse {
             status,
-            body,
-            last_modified,
+            body: body.to_string(),
+            last_modified: last_modified.map(String::from),
         })
     }
 
-    fn connection_error() -> ScriptedResult {
+    pub fn connection_error() -> ScriptedResult {
         Err(anyhow::anyhow!("connection refused"))
     }
 
-    type ScriptedResult = Result<FakeResponse>;
+    // Thread-local so parallel tests can't interfere with each other the way
+    // mutating the real NO_NETWORK env var would.
+    thread_local! {
+        static NETWORK_DISABLED_OVERRIDE: std::cell::Cell<Option<bool>> =
+            const { std::cell::Cell::new(None) };
+    }
+
+    pub(super) fn network_disabled_override() -> Option<bool> {
+        NETWORK_DISABLED_OVERRIDE.with(|c| c.get())
+    }
+
+    /// Override [`super::network_disabled`] on the current thread until the
+    /// returned guard drops.
+    #[must_use]
+    pub fn override_network_disabled(value: bool) -> NetworkDisabledGuard {
+        NETWORK_DISABLED_OVERRIDE.with(|c| c.set(Some(value)));
+        NetworkDisabledGuard
+    }
+
+    pub struct NetworkDisabledGuard;
+
+    impl Drop for NetworkDisabledGuard {
+        fn drop(&mut self) {
+            NETWORK_DISABLED_OVERRIDE.with(|c| c.set(None));
+        }
+    }
 
     /// In-memory HttpTransport: pops one scripted response per request and
     /// records every request. Panics if a request arrives with no scripted
     /// response left — an unexpected request is a test failure.
-    struct FakeTransport {
+    pub struct FakeTransport {
         responses: Mutex<VecDeque<ScriptedResult>>,
         requests: Mutex<Vec<(String, Option<String>)>>,
     }
 
     impl FakeTransport {
-        fn new(responses: Vec<ScriptedResult>) -> Arc<Self> {
+        pub fn new(responses: Vec<ScriptedResult>) -> Arc<Self> {
             Arc::new(Self {
                 responses: Mutex::new(responses.into()),
                 requests: Mutex::new(Vec::new()),
             })
         }
 
-        fn push(&self, response: ScriptedResult) {
+        pub fn push(&self, response: ScriptedResult) {
             self.responses.lock().unwrap().push_back(response);
         }
 
-        fn requests(&self) -> Vec<(String, Option<String>)> {
+        pub fn requests(&self) -> Vec<(String, Option<String>)> {
             self.requests.lock().unwrap().clone()
         }
     }
@@ -606,11 +751,21 @@ mod tests {
                 .expect("unexpected HTTP request in test (no scripted response left)");
             next.map(|r| TransportResponse {
                 status: r.status,
-                last_modified: r.last_modified.map(String::from),
-                body: Box::new(Cursor::new(r.body.as_bytes().to_vec())),
+                last_modified: r.last_modified,
+                body: Box::new(Cursor::new(r.body.into_bytes())),
             })
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::testing::{FakeTransport, connection_error, ok};
+    use super::*;
+    use chrono::Duration;
+    use tempfile::tempdir;
+
+    const URL: &str = "https://example.com/test.txt";
 
     #[test]
     fn test_download_new_file() {
@@ -851,5 +1006,152 @@ mod tests {
             std::fs::read_to_string(&new_path).unwrap(),
             "redownloaded content"
         );
+    }
+
+    #[test]
+    fn test_fetch_fresh_makes_no_request() {
+        let transport = FakeTransport::new(vec![ok(200, "content", None)]);
+        let temp_dir = tempdir().unwrap();
+        let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
+        let path = downloader.get(URL).unwrap();
+
+        // The empty script means any request would panic
+        let offline = FakeTransport::new(vec![]);
+        let downloader = Downloader::with_transport(temp_dir.path(), offline);
+        match downloader.fetch(URL, false).unwrap() {
+            FetchOutcome::UpToDate(p) => assert_eq!(p, path),
+            _ => panic!("expected UpToDate"),
+        }
+    }
+
+    #[test]
+    fn test_fetch_stages_new_download_until_commit() {
+        let transport = FakeTransport::new(vec![ok(200, "staged", None)]);
+        let temp_dir = tempdir().unwrap();
+        let downloader = Downloader::with_transport(temp_dir.path(), transport);
+
+        let pending = match downloader.fetch(URL, false).unwrap() {
+            FetchOutcome::Pending(p) => p,
+            _ => panic!("expected Pending"),
+        };
+        assert!(!pending.was_present);
+
+        // Nothing is visible before commit
+        assert!(downloader.local_path(URL).is_none());
+        assert!(downloader.metadata().read().unwrap().files.is_empty());
+
+        let path = downloader.commit(pending).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "staged");
+        assert_eq!(downloader.local_path(URL), Some(path));
+    }
+
+    #[test]
+    fn test_dropped_pending_download_leaves_no_trace() {
+        let transport = FakeTransport::new(vec![ok(200, "discarded", None)]);
+        let temp_dir = tempdir().unwrap();
+        let downloader = Downloader::with_transport(temp_dir.path(), transport);
+
+        match downloader.fetch(URL, false).unwrap() {
+            FetchOutcome::Pending(pending) => drop(pending),
+            _ => panic!("expected Pending"),
+        }
+
+        assert!(downloader.local_path(URL).is_none());
+        assert!(downloader.metadata().read().unwrap().files.is_empty());
+        // The temp file itself is cleaned up
+        let leftovers: Vec<_> = std::fs::read_dir(temp_dir.path()).unwrap().collect();
+        assert!(leftovers.is_empty(), "leftover files: {leftovers:?}");
+    }
+
+    #[test]
+    fn test_fetch_revalidates_304_and_bumps_check_time() {
+        let transport = FakeTransport::new(vec![ok(200, "content", None)]);
+        let temp_dir = tempdir().unwrap();
+        let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
+        downloader.get(URL).unwrap();
+        downloader.force_stale(URL);
+
+        transport.push(ok(304, "", None));
+        match downloader.fetch(URL, false).unwrap() {
+            FetchOutcome::UpToDate(_) => {}
+            _ => panic!("expected UpToDate"),
+        }
+        // The check time was bumped: another fetch makes no request (the
+        // exhausted script would panic on one).
+        match downloader.fetch(URL, false).unwrap() {
+            FetchOutcome::UpToDate(_) => {}
+            _ => panic!("expected UpToDate"),
+        }
+    }
+
+    #[test]
+    fn test_fetch_stages_changed_content_as_present() {
+        let transport = FakeTransport::new(vec![ok(200, "v1", None)]);
+        let temp_dir = tempdir().unwrap();
+        let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
+        let path = downloader.get(URL).unwrap();
+        downloader.force_stale(URL);
+
+        transport.push(ok(200, "v2", None));
+        let pending = match downloader.fetch(URL, false).unwrap() {
+            FetchOutcome::Pending(p) => p,
+            _ => panic!("expected Pending"),
+        };
+        assert!(pending.was_present);
+        // Old content still served until commit
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "v1");
+        downloader.commit(pending).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "v2");
+    }
+
+    #[test]
+    fn test_no_network_blocks_cold_fetch_without_requests() {
+        let _guard = testing::override_network_disabled(true);
+        let transport = FakeTransport::new(vec![]);
+        let temp_dir = tempdir().unwrap();
+        let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
+
+        let err = downloader.fetch(URL, false).unwrap_err();
+        assert!(err.downcast_ref::<NetworkDisabledError>().is_some());
+
+        // get() fails fast too: no retries, no requests
+        let err = downloader.get(URL).unwrap_err();
+        assert!(err.downcast_ref::<NetworkDisabledError>().is_some());
+        assert!(transport.requests().is_empty());
+    }
+
+    #[test]
+    fn test_no_network_serves_stale_cache_instantly() {
+        let transport = FakeTransport::new(vec![ok(200, "cached", None)]);
+        let temp_dir = tempdir().unwrap();
+        let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
+        let path = downloader.get(URL).unwrap();
+        downloader.force_stale(URL);
+
+        let _guard = testing::override_network_disabled(true);
+        let cached = downloader.get(URL).unwrap();
+        assert_eq!(path, cached);
+        assert_eq!(transport.requests().len(), 1); // only the initial download
+    }
+
+    #[test]
+    fn test_network_disabled_parsing() {
+        for (value, expected) in [
+            (Some("1"), true),
+            (Some("true"), true),
+            (Some("yes"), true),
+            (Some("0"), false),
+            (Some("false"), false),
+            (Some("FALSE"), false),
+            (Some(""), false),
+            (Some("  "), false),
+            (None, false),
+        ] {
+            assert_eq!(
+                parse_network_disabled(value),
+                expected,
+                "NO_NETWORK={value:?}"
+            );
+        }
     }
 }

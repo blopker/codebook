@@ -104,6 +104,24 @@ pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> L
 
     let codebook = Codebook::new(config.clone());
 
+    // The lint run is one-shot, so unlike the LSP it blocks on downloads.
+    // Individual failures degrade to checking with whatever is available —
+    // but with no primary dictionary at all, every check noops, and
+    // reporting that as a clean run would be a false green in CI.
+    let warmup = codebook.warm_dictionaries();
+    if warmup.network_disabled {
+        eprintln!("NO_NETWORK set; checking with cached dictionaries only");
+    }
+    for (id, e) in &warmup.failures {
+        err!("could not download dictionary '{id}': {e} (checking with cached/available dictionaries)");
+    }
+    if !warmup.primary_available {
+        err!(
+            "no configured dictionary is available (downloads failed, or the cache is empty with NO_NETWORK set); cannot check spelling"
+        );
+        return LintResult::Failure;
+    }
+
     // Canonicalize the root once here rather than once per file.
     let root_canonical = root.canonicalize().ok();
 

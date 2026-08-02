@@ -2,7 +2,11 @@ import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
 import fs from "node:fs";
 import path from "node:path";
 import { LSPTestClient } from "./client";
-import { getLanguageFromFileName } from "./utils";
+import { getLanguageFromFileName, waitForDiagnostics } from "./utils";
+
+// Generous per-test budget: on a cold cache the server downloads
+// dictionaries in the background and re-publishes when they land.
+const TEST_TIMEOUT = 35000;
 
 let languageClient: LSPTestClient;
 
@@ -24,156 +28,112 @@ afterEach(async () => {
   languageClient.removeAllListeners();
 });
 
-test("should provide diagnostics for text", async () => {
-  await new Promise<void>((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      reject(new Error("Timeout waiting for diagnostics for text"));
-    }, 5000);
-
-    try {
-      languageClient.once("textDocument/publishDiagnostics", (params) => {
-        try {
-          console.log("Received diagnostics:", params);
-          expect(params).toBeDefined();
-          expect(params.diagnostics.length).toBeGreaterThan(0);
-          clearTimeout(timeoutId);
-          resolve();
-        } catch (error) {
-          clearTimeout(timeoutId);
-          reject(error);
-        }
-      });
-
-      languageClient.sendNotification("textDocument/didOpen", {
-        textDocument: {
-          uri: "file:///test.txt",
-          languageId: "plaintext",
-          version: 1,
-          text: "Hello, Wolrd!",
-        },
-      });
-    } catch (error) {
-      clearTimeout(timeoutId);
-      reject(error);
-    }
-  });
-});
-
-test("should provide diagnostics for code", async () => {
-  await new Promise<void>((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      reject(new Error("Timeout waiting for diagnostics for code"));
-    }, 5000);
-
-    try {
-      languageClient.once("textDocument/publishDiagnostics", (params) => {
-        try {
-          console.log("Received diagnostics:", params);
-          expect(params).toBeDefined();
-          expect(params.diagnostics.length).toBeGreaterThan(0);
-          clearTimeout(timeoutId);
-          resolve();
-        } catch (error) {
-          clearTimeout(timeoutId);
-          reject(error);
-        }
-      });
-
-      languageClient.sendNotification("textDocument/didOpen", {
-        textDocument: {
-          uri: "file:///test.rs",
-          languageId: "rust",
-          version: 1,
-          text: 'fn main() { println!("Hello, Wolrd!"); }',
-        },
-      });
-    } catch (error) {
-      clearTimeout(timeoutId);
-      reject(error);
-    }
-  });
-});
-
-test("should only highlight word in code", async () => {
-  await new Promise<void>((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      reject(new Error("Timeout waiting for diagnostics for python"));
-    }, 5000);
-
-    try {
-      languageClient.once("textDocument/publishDiagnostics", (params) => {
-        try {
-          // console.log("Received diagnostics:", params);
-          expect(params).toBeDefined();
-          expect(params.diagnostics.length).toBeGreaterThan(0);
-          clearTimeout(timeoutId);
-          resolve();
-        } catch (error) {
-          clearTimeout(timeoutId);
-          reject(error);
-        }
-      });
-
-      languageClient.sendNotification("textDocument/didOpen", {
-        textDocument: {
-          uri: "file:///example.py",
-          languageId: "python",
-          version: 1,
-          text: `# Example Pthon fie
-          def main():
-              print("Hello, Wolrd!")
-
-          if __name__ == "__main__":
-              main()
-          `,
-        },
-      });
-    } catch (error) {
-      clearTimeout(timeoutId);
-      reject(error);
-    }
-  });
-});
-
-test("should provide diagnostics for all example files", async () => {
-  const exampleDir = path.join(__dirname, "../examples");
-  const files = fs.readdirSync(exampleDir);
-
-  for (const file of files) {
-    const filePath = path.join(exampleDir, file);
-    const content = fs.readFileSync(filePath, { encoding: "utf8" });
-
-    await new Promise<void>((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        reject(new Error(`Timeout waiting for diagnostics for ${file}`));
-      }, 5000);
-
-      try {
-        languageClient.once("textDocument/publishDiagnostics", (params) => {
-          try {
-            console.log(`Received diagnostics for ${file}:`, params);
-            expect(params).toBeDefined();
-            expect(params.diagnostics.length).toBeGreaterThan(0);
-            clearTimeout(timeoutId);
-            resolve();
-          } catch (error) {
-            clearTimeout(timeoutId);
-            reject(error);
-          }
-        });
-        console.log(`Sending didOpen notification for ${file}`);
-        languageClient.sendNotification("textDocument/didOpen", {
-          textDocument: {
-            uri: `file:///${file}`,
-            languageId: getLanguageFromFileName(file),
-            version: 1,
-            text: content,
-          },
-        });
-      } catch (error) {
-        clearTimeout(timeoutId);
-        reject(error);
-      }
+test(
+  "should provide diagnostics for text",
+  async () => {
+    const diagnostics = waitForDiagnostics(languageClient, {
+      uri: "file:///test.txt",
+      nonEmpty: true,
     });
-  }
-});
+
+    languageClient.sendNotification("textDocument/didOpen", {
+      textDocument: {
+        uri: "file:///test.txt",
+        languageId: "plaintext",
+        version: 1,
+        text: "Hello, Wolrd!",
+      },
+    });
+
+    const params = await diagnostics;
+    console.log("Received diagnostics:", params);
+    expect(params.diagnostics.length).toBeGreaterThan(0);
+  },
+  TEST_TIMEOUT,
+);
+
+test(
+  "should provide diagnostics for code",
+  async () => {
+    const diagnostics = waitForDiagnostics(languageClient, {
+      uri: "file:///test.rs",
+      nonEmpty: true,
+    });
+
+    languageClient.sendNotification("textDocument/didOpen", {
+      textDocument: {
+        uri: "file:///test.rs",
+        languageId: "rust",
+        version: 1,
+        text: 'fn main() { println!("Hello, Wolrd!"); }',
+      },
+    });
+
+    const params = await diagnostics;
+    console.log("Received diagnostics:", params);
+    expect(params.diagnostics.length).toBeGreaterThan(0);
+  },
+  TEST_TIMEOUT,
+);
+
+test(
+  "should only highlight word in code",
+  async () => {
+    const diagnostics = waitForDiagnostics(languageClient, {
+      uri: "file:///example.py",
+      nonEmpty: true,
+    });
+
+    languageClient.sendNotification("textDocument/didOpen", {
+      textDocument: {
+        uri: "file:///example.py",
+        languageId: "python",
+        version: 1,
+        text: `# Example Pthon fie
+        def main():
+            print("Hello, Wolrd!")
+
+        if __name__ == "__main__":
+            main()
+        `,
+      },
+    });
+
+    const params = await diagnostics;
+    expect(params.diagnostics.length).toBeGreaterThan(0);
+  },
+  TEST_TIMEOUT,
+);
+
+test(
+  "should provide diagnostics for all example files",
+  async () => {
+    const exampleDir = path.join(__dirname, "../examples");
+    const files = fs.readdirSync(exampleDir);
+
+    for (const file of files) {
+      const filePath = path.join(exampleDir, file);
+      const content = fs.readFileSync(filePath, { encoding: "utf8" });
+
+      const diagnostics = waitForDiagnostics(languageClient, {
+        uri: `file:///${file}`,
+        nonEmpty: true,
+      });
+
+      console.log(`Sending didOpen notification for ${file}`);
+      languageClient.sendNotification("textDocument/didOpen", {
+        textDocument: {
+          uri: `file:///${file}`,
+          languageId: getLanguageFromFileName(file),
+          version: 1,
+          text: content,
+        },
+      });
+
+      const params = await diagnostics;
+      console.log(`Received diagnostics for ${file}:`, params);
+      expect(params.diagnostics.length).toBeGreaterThan(0);
+    }
+  },
+  TEST_TIMEOUT * 2,
+);

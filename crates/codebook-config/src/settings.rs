@@ -492,6 +492,21 @@ impl ConfigSettings {
         }
     }
 
+    /// Every dictionary ID this config can resolve to for any file: the base
+    /// ids plus each override block's `dictionaries` and `extra_dictionaries`.
+    /// Sorted and deduped. Used to prefetch dictionaries before a matching
+    /// file is ever opened.
+    pub fn all_dictionary_ids(&self) -> Vec<String> {
+        let mut ids = self.dictionary_ids();
+        for block in &self.overrides {
+            ids.extend(block.dictionaries.iter().flatten().cloned());
+            ids.extend(block.extra_dictionaries.iter().flatten().cloned());
+        }
+        ids.sort();
+        ids.dedup();
+        ids
+    }
+
     /// Determine whether a path should be included based on the configured glob patterns.
     pub fn should_include_path(&self, path: &Path) -> bool {
         if self.include_paths.is_empty() {
@@ -1284,6 +1299,42 @@ mod tests {
         let resolved = settings.resolve_for_path(Path::new("docs/de/guide.md"));
         assert_eq!(resolved.dictionaries, vec!["de"]);
         assert_eq!(resolved.words, vec!["codebook"]);
+    }
+
+    #[test]
+    fn test_all_dictionary_ids_unions_base_and_overrides() {
+        let settings = ConfigSettings {
+            dictionaries: vec!["en_us".to_string(), "es".to_string()],
+            overrides: vec![
+                OverrideBlock {
+                    paths: vec![glob("docs/**")],
+                    dictionaries: Some(vec!["de".to_string(), "en_us".to_string()]),
+                    ..OverrideBlock::default_for_test()
+                },
+                OverrideBlock {
+                    paths: vec![glob("**/*.md")],
+                    extra_dictionaries: Some(vec!["fr".to_string()]),
+                    ..OverrideBlock::default_for_test()
+                },
+            ],
+            ..Default::default()
+        };
+
+        assert_eq!(settings.all_dictionary_ids(), ["de", "en_us", "es", "fr"]);
+    }
+
+    #[test]
+    fn test_all_dictionary_ids_includes_implicit_default() {
+        let settings = ConfigSettings {
+            overrides: vec![OverrideBlock {
+                paths: vec![glob("**/*.md")],
+                extra_dictionaries: Some(vec!["es".to_string()]),
+                ..OverrideBlock::default_for_test()
+            }],
+            ..Default::default()
+        };
+
+        assert_eq!(settings.all_dictionary_ids(), ["en_us", "es"]);
     }
 
     #[test]

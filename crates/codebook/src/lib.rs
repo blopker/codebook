@@ -17,6 +17,18 @@ use dictionary::Dictionary;
 use log::debug;
 use parser::WordLocation;
 
+pub use codebook_downloader::network_disabled;
+pub use dictionaries::manager::{EnsureError, EnsureOutcome};
+
+/// Result of a blocking [`Codebook::warm_dictionaries`] pass.
+pub struct WarmupReport {
+    /// NO_NETWORK was set; nothing was fetched.
+    pub network_disabled: bool,
+    pub failures: Vec<(String, EnsureError)>,
+    /// See [`Codebook::primary_dictionary_available`].
+    pub primary_available: bool,
+}
+
 pub struct Codebook {
     config: Arc<dyn CodebookConfig>,
     manager: DictionaryManager,
@@ -41,6 +53,75 @@ impl Codebook {
         let manager =
             DictionaryManager::with_local_dir(&config.cache_dir().to_path_buf(), dictionary_dir);
         Self { config, manager }
+    }
+
+    /// Create a Codebook from a preconstructed manager. Tests use this with
+    /// `DictionaryManager::with_transport` to exercise download flows
+    /// without sockets.
+    pub fn with_manager(config: Arc<dyn CodebookConfig>, manager: DictionaryManager) -> Self {
+        Self { config, manager }
+    }
+
+    /// Blocking: download or revalidate one dictionary. Used by the LSP's
+    /// background prefetch worker and the CLI's synchronous warmup — never on
+    /// the spell-check path.
+    pub fn ensure_dictionary(&self, id: &str) -> Result<EnsureOutcome, EnsureError> {
+        self.manager.ensure_dictionary(id)
+    }
+
+    /// True when at least one configured dictionary that can serve as a
+    /// primary (natural-language) dictionary is loadable. When this is
+    /// false every check noops, so one-shot callers like the CLI should
+    /// treat it as a failure rather than report a clean run.
+    pub fn primary_dictionary_available(&self) -> bool {
+        self.any_primary_available(&self.config.all_dictionary_ids())
+    }
+
+    /// The cold-cache noop rule, in one place: some primary-capable
+    /// configured dictionary must be loadable. A configuration with no
+    /// primary-capable id at all is taken at face value — any loadable
+    /// configured dictionary counts.
+    fn any_primary_available(&self, ids: &[String]) -> bool {
+        let has_primary_capable = ids.iter().any(|id| self.manager.is_primary_capable(id));
+        ids.iter().any(|id| {
+            (!has_primary_capable || self.manager.is_primary_capable(id))
+                && self.manager.get_dictionary(id).is_some()
+        })
+    }
+
+    /// Every dictionary id worth prefetching: any id the config can resolve
+    /// to (including per-path overrides) plus every downloadable
+    /// per-language word list (they're small, and a file of that language
+    /// may first be opened while offline). The defaults need no separate
+    /// mention: DEFAULT_DICTIONARIES are all text repos, and the implicit
+    /// en_us is part of the config's ids.
+    pub fn prefetch_dictionary_ids(&self) -> Vec<String> {
+        let mut ids = self.config.all_dictionary_ids();
+        ids.extend(dictionaries::repo::text_dictionary_ids().map(str::to_string));
+        ids.sort();
+        ids.dedup();
+        ids
+    }
+
+    /// Blocking: download or revalidate every prefetchable dictionary, for
+    /// one-shot callers (the lint CLI, the dev binary) that have no
+    /// background worker. Reporting severity is the caller's business;
+    /// `primary_available == false` means every check will noop.
+    pub fn warm_dictionaries(&self) -> WarmupReport {
+        let network_disabled = network_disabled();
+        let mut failures = Vec::new();
+        if !network_disabled {
+            for id in self.prefetch_dictionary_ids() {
+                if let Err(e) = self.ensure_dictionary(&id) {
+                    failures.push((id, e));
+                }
+            }
+        }
+        WarmupReport {
+            network_disabled,
+            failures,
+            primary_available: self.primary_dictionary_available(),
+        }
     }
 
     /// Get WordLocations for a block of text.
@@ -83,8 +164,11 @@ impl Codebook {
         );
 
         // Load dictionaries for all languages encountered (using resolved settings if any)
-        let dictionaries =
-            self.get_dictionaries_for_languages(&languages_found, resolved.as_deref());
+        let Some(dictionaries) =
+            self.get_dictionaries_for_languages(&languages_found, resolved.as_deref())
+        else {
+            return Vec::new();
+        };
 
         // Check words against dictionaries
         checker::check_words(
@@ -111,15 +195,26 @@ impl Codebook {
 
     /// Gather dictionaries for all languages encountered in a file.
     /// If `resolved` is Some, its dictionary list is used in place of the base config's.
+    ///
+    /// Returns None when the noop rule fails (see `any_primary_available`) —
+    /// e.g. a cold cache before the background download lands. Checking with
+    /// only the supplementary word lists (the embedded `codebook` list is
+    /// always present) would flag nearly every word, so callers must noop
+    /// instead.
     fn get_dictionaries_for_languages(
         &self,
         languages: &HashSet<queries::LanguageType>,
         resolved: Option<&ConfigSettings>,
-    ) -> Vec<Arc<dyn Dictionary>> {
+    ) -> Option<Vec<Arc<dyn Dictionary>>> {
         let mut dictionary_ids = match resolved {
             Some(settings) => settings.dictionary_ids(),
             None => self.config.get_dictionary_ids(),
         };
+
+        if !self.any_primary_available(&dictionary_ids) {
+            debug!("No configured primary dictionary available yet; skipping check");
+            return None;
+        }
 
         for lang in languages {
             dictionary_ids.extend(lang.dictionary_ids());
@@ -137,7 +232,7 @@ impl Codebook {
                 dictionaries.push(d);
             }
         }
-        dictionaries
+        Some(dictionaries)
     }
 
     /// Spell check a file on disk, detecting the language from its path.
@@ -153,7 +248,7 @@ impl Codebook {
     /// the word makes it correct.
     pub fn get_suggestions(&self, word: &str) -> Option<Vec<String>> {
         let max_results = 5;
-        let dictionaries = self.get_dictionaries_for_languages(&HashSet::new(), None);
+        let dictionaries = self.get_dictionaries_for_languages(&HashSet::new(), None)?;
         if dictionaries.is_empty() || dictionaries.iter().any(|dict| dict.check(word)) {
             return None;
         }
@@ -186,6 +281,110 @@ fn collect_round_robin<T: Clone + PartialEq>(sources: &[Vec<T>], max_count: usiz
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A cold cache must noop rather than check against only the
+    /// supplementary word lists — that would flag nearly every word.
+    #[test]
+    fn test_cold_cache_noops_until_configured_dictionary_arrives() {
+        use codebook_downloader::testing::{FakeTransport, ok};
+
+        let transport = FakeTransport::new(vec![]);
+        let cache_dir = tempfile::tempdir().unwrap();
+        let manager = dictionaries::manager::DictionaryManager::with_transport(
+            &cache_dir.path().to_path_buf(),
+            None,
+            transport.clone(),
+        );
+        let config = Arc::new(codebook_config::CodebookConfigMemory::default());
+        let codebook = Codebook::with_manager(config, manager);
+
+        // en_us (the implicit default) isn't downloaded: no diagnostics, no
+        // suggestions, no network (the empty script panics on any request).
+        assert!(codebook.spell_check("mispeled wrods", None, None).is_empty());
+        assert!(codebook.get_suggestions("mispeled").is_none());
+
+        // Once the configured dictionary lands, checking resumes.
+        transport.push(ok(200, "SET UTF-8\n", None));
+        transport.push(ok(200, "1\nhello\n", None));
+        assert_eq!(
+            codebook.ensure_dictionary("en_us").unwrap(),
+            EnsureOutcome::NewHunspellPair
+        );
+        let results = codebook.spell_check("hello wrold", None, None);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].word, "wrold");
+    }
+
+    fn codebook_with_config(
+        settings: codebook_config::ConfigSettings,
+        cache_dir: &std::path::Path,
+        transport: Arc<codebook_downloader::testing::FakeTransport>,
+    ) -> Codebook {
+        let manager = dictionaries::manager::DictionaryManager::with_transport(
+            &cache_dir.to_path_buf(),
+            None,
+            transport,
+        );
+        let config = Arc::new(codebook_config::CodebookConfigMemory::new(settings));
+        Codebook::with_manager(config, manager)
+    }
+
+    /// Supplementary word lists (e.g. folded in via an override's
+    /// extra_dictionaries) must not satisfy the cold-cache noop rule; only a
+    /// primary-capable dictionary does.
+    #[test]
+    fn test_supplementary_dictionary_does_not_satisfy_noop_rule() {
+        use codebook_downloader::testing::{FakeTransport, ok};
+
+        let settings = codebook_config::ConfigSettings {
+            dictionaries: vec!["en_us".to_string(), "software_terms".to_string()],
+            ..Default::default()
+        };
+        let transport = FakeTransport::new(vec![ok(200, "hello\n", None)]);
+        let cache_dir = tempfile::tempdir().unwrap();
+        let codebook = codebook_with_config(settings, cache_dir.path(), transport.clone());
+
+        // Only the word list has landed: still noop
+        assert_eq!(
+            codebook.ensure_dictionary("software_terms").unwrap(),
+            EnsureOutcome::Refreshed
+        );
+        assert!(!codebook.primary_dictionary_available());
+        assert!(codebook.spell_check("hello wrold", None, None).is_empty());
+
+        // The Hunspell dictionary lands: checking resumes
+        transport.push(ok(200, "SET UTF-8\n", None));
+        transport.push(ok(200, "1\nhello\n", None));
+        assert_eq!(
+            codebook.ensure_dictionary("en_us").unwrap(),
+            EnsureOutcome::NewHunspellPair
+        );
+        assert!(codebook.primary_dictionary_available());
+        let results = codebook.spell_check("hello wrold", None, None);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].word, "wrold");
+    }
+
+    /// A config with no primary-capable id at all is taken at face value:
+    /// its word lists alone enable checking.
+    #[test]
+    fn test_config_with_only_word_lists_still_checks() {
+        use codebook_downloader::testing::{FakeTransport, ok};
+
+        let settings = codebook_config::ConfigSettings {
+            dictionaries: vec!["software_terms".to_string()],
+            ..Default::default()
+        };
+        let transport = FakeTransport::new(vec![ok(200, "hello\n", None)]);
+        let cache_dir = tempfile::tempdir().unwrap();
+        let codebook = codebook_with_config(settings, cache_dir.path(), transport.clone());
+
+        codebook.ensure_dictionary("software_terms").unwrap();
+        assert!(codebook.primary_dictionary_available());
+        let results = codebook.spell_check("hello qzwx", None, None);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].word, "qzwx");
+    }
 
     #[test]
     fn test_collect_round_robin_basic() {
