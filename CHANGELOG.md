@@ -2,6 +2,12 @@
 
 Important user-facing changes. See commit logs for more details.
 
+[0.3.43]
+
+- Dictionary downloads no longer block spell checking: they happen in the background, and open files re-check automatically once they finish (#300)
+- Better offline support: cached dictionaries work without a network connection, and `NO_NETWORK=1` disables downloads entirely
+- Update dependencies
+
 [0.3.42]
 
 - Elixir: don't spell-check the left side of non-binding binary operators (e.g. `numbr1` in `resalt = numbr1 + numbr2` was flagged as if it were a definition); only `=` and `<-` bind variables
