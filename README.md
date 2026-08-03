@@ -289,7 +289,7 @@ The block below shows all options at their default values. Comments show example
 # Dictionaries to use for spell checking.
 # Example: ["en_us", "en_gb"]
 # Available dictionaries:
-#  - English: "en_us", "en_gb"
+#  - English: "en_us", "en_gb", "en_gb_ize"
 #  - Czech: "cs"
 #  - German: "de", "de_at", "de_ch"
 #  - Dutch: "nl_nl"
