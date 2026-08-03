@@ -267,6 +267,13 @@ pub struct ConfigSettings {
     )]
     pub ignore_patterns: Vec<Regex>,
 
+    /// Whether to use local (project) configuration
+    #[serde(
+        default = "default_use_local",
+        skip_serializing_if = "is_default_use_local"
+    )]
+    pub use_local: bool,
+
     /// Whether to use global configuration
     #[serde(
         default = "default_use_global",
@@ -305,6 +312,14 @@ fn is_default_use_global(value: &bool) -> bool {
     *value == default_use_global()
 }
 
+fn default_use_local() -> bool {
+    true
+}
+
+fn is_default_use_local(value: &bool) -> bool {
+    *value == default_use_local()
+}
+
 fn default_min_word_length() -> usize {
     3
 }
@@ -319,6 +334,7 @@ impl Default for ConfigSettings {
             ignore_paths: Vec::new(),
             ignore_patterns: Vec::new(),
             use_global: true,
+            use_local: true,
             min_word_length: None,
             include_tags: Vec::new(),
             exclude_tags: Vec::new(),
