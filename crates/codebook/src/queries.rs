@@ -37,6 +37,7 @@ pub enum LanguageType {
     VHDL,
     YAML,
     Zig,
+    Hcl,
 }
 
 impl FromStr for LanguageType {
@@ -312,6 +313,13 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         query: include_str!("queries/vhdl.scm"),
         extensions: &["vhd", "vhdl"],
     },
+    LanguageSetting {
+        type_: LanguageType::Hcl,
+        ids: &["hcl", "terraform"],
+        dictionary_ids: &["hcl"],
+        query: include_str!("queries/hcl.scm"),
+        extensions: &["tf", "tfvars"],
+    },
 ];
 
 #[derive(Debug)]
@@ -360,6 +368,7 @@ impl LanguageSetting {
             LanguageType::VHDL => Some(tree_sitter_vhdl::LANGUAGE.into()),
             LanguageType::YAML => Some(tree_sitter_yaml::LANGUAGE.into()),
             LanguageType::Zig => Some(tree_sitter_zig::LANGUAGE.into()),
+            LanguageType::Hcl => Some(tree_sitter_hcl::LANGUAGE.into()),
         }
     }
 }

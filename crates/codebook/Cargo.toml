@@ -58,6 +58,7 @@ codebook-tree-sitter-typst.workspace = true
 tree-sitter-yaml.workspace = true
 tree-sitter-zig.workspace = true
 tree-sitter-c-sharp.workspace = true
+tree-sitter-hcl.workspace = true
 tree-sitter.workspace = true
 unicase.workspace = true
 unicode-script.workspace = true

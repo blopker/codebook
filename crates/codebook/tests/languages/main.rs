@@ -11,6 +11,7 @@ mod test_erlang;
 mod test_files;
 mod test_go;
 mod test_haskell;
+mod test_hcl;
 mod test_java;
 mod test_javascript;
 mod test_just;
