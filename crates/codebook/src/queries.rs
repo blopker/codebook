@@ -21,6 +21,7 @@ pub enum LanguageType {
     Latex,
     Lua,
     Markdown,
+    Nix,
     OCaml,
     Odin,
     Php,
@@ -235,6 +236,13 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         extensions: &["md", "markdown"],
     },
     LanguageSetting {
+        type_: LanguageType::Nix,
+        ids: &["nix"],
+        dictionary_ids: &[],
+        query: include_str!("queries/nix.scm"),
+        extensions: &["nix"],
+    },
+    LanguageSetting {
         type_: LanguageType::Bash,
         ids: &[
             "bash",
@@ -344,6 +352,7 @@ impl LanguageSetting {
             LanguageType::Latex => Some(codebook_tree_sitter_latex::LANGUAGE.into()),
             LanguageType::Lua => Some(tree_sitter_lua::LANGUAGE.into()),
             LanguageType::Markdown => Some(tree_sitter_md::LANGUAGE.into()),
+            LanguageType::Nix => Some(tree_sitter_nix::LANGUAGE.into()),
             LanguageType::OCaml => Some(tree_sitter_ocaml::LANGUAGE_OCAML.into()),
             LanguageType::Odin => Some(tree_sitter_odin_codebook::LANGUAGE.into()),
             LanguageType::Php => Some(tree_sitter_php::LANGUAGE_PHP.into()),

@@ -17,6 +17,7 @@ mod test_just;
 mod test_latex;
 mod test_lua;
 mod test_markdown;
+mod test_nix;
 mod test_ocaml;
 mod test_odin;
 mod test_php;
