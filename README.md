@@ -12,6 +12,8 @@
     <a href="https://github.com/blopker/codebook/issues">Report Bug</a>
     ·
     <a href="https://github.com/blopker/codebook/issues">Request Feature</a>
+    ·
+    <a href="https://github.com/blopker/codebook-zed">Zed Extension Source</a>
   </p>
 </div>
 
