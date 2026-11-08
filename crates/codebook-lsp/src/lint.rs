@@ -113,7 +113,9 @@ pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> L
         eprintln!("NO_NETWORK set; checking with cached dictionaries only");
     }
     for (id, e) in &warmup.failures {
-        err!("could not download dictionary '{id}': {e} (checking with cached/available dictionaries)");
+        err!(
+            "could not download dictionary '{id}': {e} (checking with cached/available dictionaries)"
+        );
     }
     if !warmup.primary_available {
         err!(

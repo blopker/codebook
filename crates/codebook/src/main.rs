@@ -127,12 +127,15 @@ fn fetch_fixtures(dir: &Path) {
         .cache_dir()
         .to_path_buf();
     let downloader = Downloader::new(&cache_dir);
-    let fetch = |url: &str, target: &Path| match downloader.get(url) {
-        Ok(path) => {
+    let fetch = |url: &str, target: &Path| {
+        if let Err(e) = downloader.sync(&[url]) {
+            eprintln!("Failed to fetch {url}: {e}");
+        }
+        // Falls back to a cached copy when the refresh failed
+        if let Some(path) = downloader.local_path(url) {
             std::fs::copy(&path, target).unwrap();
             println!("Fetched {}", target.display());
         }
-        Err(e) => eprintln!("Failed to fetch {url}: {e}"),
     };
 
     for id in ids {

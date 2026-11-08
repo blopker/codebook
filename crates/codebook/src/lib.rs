@@ -17,14 +17,13 @@ use dictionary::Dictionary;
 use log::debug;
 use parser::WordLocation;
 
-pub use codebook_downloader::network_disabled;
-pub use dictionaries::manager::{EnsureError, EnsureOutcome};
+pub use codebook_downloader::{FetchError, network_disabled};
 
 /// Result of a blocking [`Codebook::warm_dictionaries`] pass.
 pub struct WarmupReport {
     /// NO_NETWORK was set; nothing was fetched.
     pub network_disabled: bool,
-    pub failures: Vec<(String, EnsureError)>,
+    pub failures: Vec<(String, FetchError)>,
     /// See [`Codebook::primary_dictionary_available`].
     pub primary_available: bool,
 }
@@ -62,10 +61,10 @@ impl Codebook {
         Self { config, manager }
     }
 
-    /// Blocking: download or revalidate one dictionary. Used by the LSP's
-    /// background prefetch worker and the CLI's synchronous warmup — never on
-    /// the spell-check path.
-    pub fn ensure_dictionary(&self, id: &str) -> Result<EnsureOutcome, EnsureError> {
+    /// Blocking: download or revalidate one dictionary, returning whether
+    /// anything on disk changed. Used by the LSP's background prefetch worker
+    /// and the CLI's synchronous warmup — never on the spell-check path.
+    pub fn ensure_dictionary(&self, id: &str) -> Result<bool, FetchError> {
         self.manager.ensure_dictionary(id)
     }
 
@@ -300,16 +299,17 @@ mod tests {
 
         // en_us (the implicit default) isn't downloaded: no diagnostics, no
         // suggestions, no network (the empty script panics on any request).
-        assert!(codebook.spell_check("mispeled wrods", None, None).is_empty());
+        assert!(
+            codebook
+                .spell_check("mispeled wrods", None, None)
+                .is_empty()
+        );
         assert!(codebook.get_suggestions("mispeled").is_none());
 
         // Once the configured dictionary lands, checking resumes.
         transport.push(ok(200, "SET UTF-8\n", None));
         transport.push(ok(200, "1\nhello\n", None));
-        assert_eq!(
-            codebook.ensure_dictionary("en_us").unwrap(),
-            EnsureOutcome::NewHunspellPair
-        );
+        assert!(codebook.ensure_dictionary("en_us").unwrap());
         let results = codebook.spell_check("hello wrold", None, None);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].word, "wrold");
@@ -345,20 +345,14 @@ mod tests {
         let codebook = codebook_with_config(settings, cache_dir.path(), transport.clone());
 
         // Only the word list has landed: still noop
-        assert_eq!(
-            codebook.ensure_dictionary("software_terms").unwrap(),
-            EnsureOutcome::Refreshed
-        );
+        assert!(codebook.ensure_dictionary("software_terms").unwrap());
         assert!(!codebook.primary_dictionary_available());
         assert!(codebook.spell_check("hello wrold", None, None).is_empty());
 
         // The Hunspell dictionary lands: checking resumes
         transport.push(ok(200, "SET UTF-8\n", None));
         transport.push(ok(200, "1\nhello\n", None));
-        assert_eq!(
-            codebook.ensure_dictionary("en_us").unwrap(),
-            EnsureOutcome::NewHunspellPair
-        );
+        assert!(codebook.ensure_dictionary("en_us").unwrap());
         assert!(codebook.primary_dictionary_available());
         let results = codebook.spell_check("hello wrold", None, None);
         assert_eq!(results.len(), 1);
