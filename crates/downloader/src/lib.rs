@@ -400,11 +400,16 @@ impl Downloader {
     ///
     /// When every file is on disk and within the revalidation window, no
     /// request is made. Otherwise *every* file in the group is (re)fetched,
-    /// and new content is committed only once all fetches succeeded. Files
-    /// that belong together (a Hunspell aff/dic pair) thus move between
-    /// upstream generations in lockstep: a failure part-way leaves the old
-    /// set in place, and one file's revalidation clock lapsing can't apply
-    /// an upstream update to just that file.
+    /// and new content is staged only once all fetches succeeded. Files that
+    /// belong together (a Hunspell aff/dic pair) thus move between upstream
+    /// generations in lockstep: a fetch failure leaves the old set in place,
+    /// and one file's revalidation clock lapsing can't apply an upstream
+    /// update to just that file.
+    ///
+    /// Committing is sequential, so a disk error part-way through can leave
+    /// some files committed and others not. The next sync heals that: the
+    /// uncommitted file's revalidation clock is still old, which makes the
+    /// whole group stale again.
     pub fn sync(&self, urls: &[&str]) -> Result<bool, FetchError> {
         if urls.iter().all(|url| self.is_fresh(url)) {
             return Ok(false);
@@ -500,10 +505,11 @@ impl Downloader {
                     }))
                 }
             }
-            status => {
-                let _ = self.update_check_time(url);
-                Err(anyhow::anyhow!("Unexpected status code: {status}"))
-            }
+            status if (400..500).contains(&status) => Err(anyhow::Error::new(PermanentHttpError {
+                status,
+                url: url.to_string(),
+            })),
+            status => Err(anyhow::anyhow!("Unexpected status code: {status}")),
         }
     }
 
@@ -902,6 +908,42 @@ mod tests {
         transport.push(connection_error());
 
         assert!(downloader.sync(&[URL]).is_err());
+        assert_eq!(read_local(&downloader, URL), "original");
+    }
+
+    #[test]
+    fn test_revalidation_server_error_is_retried() {
+        let transport = FakeTransport::new(vec![ok(200, "v1", None)]);
+        let temp_dir = tempdir().unwrap();
+        let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
+        downloader.sync(&[URL]).unwrap();
+        downloader.force_stale(URL);
+
+        transport.push(ok(500, "", None));
+        assert!(!downloader.sync(&[URL]).unwrap_err().permanent);
+
+        // A failed revalidation must not reset the revalidation clock, so the
+        // next sync goes back to the server instead of trusting a two-week
+        // window around stale content.
+        transport.push(ok(200, "v2", None));
+        assert!(downloader.sync(&[URL]).unwrap());
+        assert_eq!(transport.requests().len(), 3);
+        assert_eq!(read_local(&downloader, URL), "v2");
+    }
+
+    #[test]
+    fn test_revalidation_404_is_permanent() {
+        let transport = FakeTransport::new(vec![ok(200, "original", None)]);
+        let temp_dir = tempdir().unwrap();
+        let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
+        downloader.sync(&[URL]).unwrap();
+        downloader.force_stale(URL);
+
+        transport.push(ok(404, "", None));
+        let err = downloader.sync(&[URL]).unwrap_err();
+
+        // The server answered definitively: retrying this process can't help.
+        assert!(err.permanent);
         assert_eq!(read_local(&downloader, URL), "original");
     }
 

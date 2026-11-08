@@ -386,8 +386,8 @@ mod tests {
         manager.ensure_dictionary("en_us").unwrap();
 
         // Only aff's revalidation clock lapses (as if dic's last check
-        // failed), while upstream has updated BOTH halves. The fresh dic
-        // must be force-revalidated so the pair can't commit one-sided.
+        // failed), while upstream has updated BOTH halves. Any stale member
+        // makes sync refetch the whole group, so the pair moves together.
         manager.downloader.force_stale(&aff_url);
         transport.push(ok(200, "SET UTF-8\nTRY abc\n", None));
         transport.push(ok(200, "1\nworld\n", None));
