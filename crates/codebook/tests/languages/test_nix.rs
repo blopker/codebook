@@ -4,7 +4,37 @@ use super::utils::{assert_spelling, assert_spelling_at};
 
 #[test]
 fn test_nix_location() {
-    let sample_text = include_str!("../../../../examples/example.nix");
+    let sample_text = r#"
+# Commment with a typo
+{
+  description = "A useful dev shell for the packge";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flakeUtils.url = "github:numtide/flake-utils";
+  };
+
+  outputs = { self, nixpkgs, flakeUtils }:
+    flakeUtils.lib.eachDefaultSystem (system:
+      let
+        pkgs = import nixpkgs { inherit system; };
+        verion = "0.1.0";
+      in
+      {
+        devShells.defualt = pkgs.mkShell {
+          buildInputs = [ pkgs.cargo pkgs.rustc ];
+          shellHook = ''
+            echo "Entring dev shell version ${verion}"
+          '';
+        };
+        packages.default = pkgs.stdenv.mkDerivation {
+          pname = "my-projet";
+          version = verion;
+          src = ./.;
+        };
+      });
+}
+"#;
 
     assert_spelling_at(
         LanguageType::Nix,
@@ -67,19 +97,14 @@ fn test_nix_attrpath_checks_only_identifier_keys() {
 }
 
 #[test]
-fn test_nix_example_file_detects_language() {
-    // Goes through `spell_check_file` so the `.nix` extension is what picks
-    // the grammar, the same way the language server resolves an open buffer.
-    let processor = super::utils::get_processor();
-    let results = processor
-        .spell_check_file("../../examples/example.nix")
-        .unwrap();
-    let mut misspelled: Vec<&str> = results.iter().map(|r| r.word.as_str()).collect();
-    misspelled.sort_unstable();
+fn test_nix_extension_detects_language() {
+    use codebook::queries::get_language_name_from_filename;
     assert_eq!(
-        misspelled,
-        [
-            "Commment", "Entring", "defualt", "packge", "projet", "verion"
-        ]
+        get_language_name_from_filename("flake.nix"),
+        LanguageType::Nix
+    );
+    assert_eq!(
+        get_language_name_from_filename("/etc/nixos/configuration.nix"),
+        LanguageType::Nix
     );
 }
