@@ -109,3 +109,22 @@ locals {
         &["cidrsubnet", "coalescelist"],
     );
 }
+
+#[test]
+fn test_hcl_language_detection() {
+    use codebook::queries::get_language_name_from_filename;
+    use std::str::FromStr;
+
+    // Editors send their language name as the id; Zed lowercases its
+    // "Terraform Vars" language for .tfvars files.
+    for id in ["hcl", "terraform", "terraform vars"] {
+        assert_eq!(LanguageType::from_str(id), Ok(LanguageType::Hcl), "{id}");
+    }
+    for file in ["main.tf", "prod.tfvars", "main.tofu", "config.hcl"] {
+        assert_eq!(
+            get_language_name_from_filename(file),
+            LanguageType::Hcl,
+            "{file}"
+        );
+    }
+}

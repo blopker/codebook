@@ -323,10 +323,10 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::Hcl,
-        ids: &["hcl", "terraform"],
+        ids: &["hcl", "terraform", "terraform vars"],
         dictionary_ids: &["terraform"],
         query: include_str!("queries/hcl.scm"),
-        extensions: &["tf", "tfvars"],
+        extensions: &["tf", "tfvars", "tofu", "hcl"],
     },
 ];
 
