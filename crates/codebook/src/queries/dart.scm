@@ -1,4 +1,8 @@
-(comment) @comment
+; Doc comments (`///`, `/** */`) parse as their own `documentation_comment`
+; node rather than as `comment`, so both kinds are needed to cover every
+; comment form. Capturing the whole `documentation_comment` also covers the
+; `documentation_block_comment` it wraps.
+[(comment) (documentation_comment)] @comment
 
 ; Types
 (class_declaration name: (identifier) @identifier.type)
@@ -12,9 +16,9 @@
 (setter_signature name: (identifier) @identifier.function)
 
 ; Variables (local)
-(initialized_variable_definition name: (identifier) @identifier.variable)
+(initialized_variable_declaration name: (identifier) @identifier.variable)
 (static_final_declaration name: (identifier) @identifier.variable)
-(enum_constant name: (identifier) @identifier.constant)
+(enum_entry name: (identifier) @identifier.constant)
 
 ; Fields (class/mixin instance variables)
 (initialized_identifier (identifier) @identifier.field)

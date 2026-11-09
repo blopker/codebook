@@ -157,7 +157,8 @@ fn fetch_fixtures(dir: &Path) {
                     fetch(&url, &dir.join(format!("{id}.txt")));
                 }
             }
-            None => eprintln!("No repo entry for dictionary '{id}', skipping"),
+            // Most language ids name no downloadable word list
+            None => {}
         }
     }
 }
