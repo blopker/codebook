@@ -12,6 +12,8 @@
     <a href="https://github.com/blopker/codebook/issues">Report Bug</a>
     ·
     <a href="https://github.com/blopker/codebook/issues">Request Feature</a>
+    ·
+    <a href="https://github.com/blopker/codebook-zed">Zed Extension Source</a>
   </p>
 </div>
 
@@ -69,7 +71,7 @@ Codebook uses a hierarchical configuration system with global (user-level) and p
 
 ✅ **Good to go:** C, Go, Java, JavaScript, Lua, Markdown, Odin, Plain Text, Python, Ruby, Rust, TOML, TypeScript, Zig
 
-⚠️ **Supported, needs more testing** (help us improve!): Astro, Bash, C#, C++, CSS, Dart, Elixir, Erlang, Haskell, HTML, Just, LaTeX, Nix, OCaml, PHP, Svelte, Swift, Typst, VHDL, Vue, YAML
+⚠️ **Supported, needs more testing** (help us improve!): Astro, Bash, C#, C++, CSS, Dart, Elixir, Erlang, Haskell, HCL/Terraform, HTML, Just, LaTeX, Nix, OCaml, PHP, Svelte, Swift, Typst, VHDL, Vue, YAML
 
 If Codebook is not marking issues you think it should, please file a GitHub issue!
 

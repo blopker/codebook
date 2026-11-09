@@ -127,12 +127,22 @@ fn fetch_fixtures(dir: &Path) {
         .cache_dir()
         .to_path_buf();
     let downloader = Downloader::new(&cache_dir);
-    let fetch = |url: &str, target: &Path| match downloader.get(url) {
-        Ok(path) => {
-            std::fs::copy(&path, target).unwrap();
-            println!("Fetched {}", target.display());
+    let fetch = |url: &str, target: &Path| {
+        let result = sync_with_retries(&downloader, url);
+        let target_name = target.display();
+        // A cached copy is good enough to run the tests with
+        match (result, downloader.local_path(url)) {
+            (Ok(_), Some(path)) => {
+                std::fs::copy(&path, target).unwrap();
+                println!("Fetched {target_name}");
+            }
+            (Err(e), Some(path)) => {
+                std::fs::copy(&path, target).unwrap();
+                eprintln!("Using cached {target_name} ({e})");
+            }
+            (Err(e), None) => eprintln!("Failed to fetch {url}, skipped {target_name}: {e}"),
+            (Ok(_), None) => eprintln!("Synced {url} but it vanished, skipped {target_name}"),
         }
-        Err(e) => eprintln!("Failed to fetch {url}: {e}"),
     };
 
     for id in ids {
@@ -147,7 +157,28 @@ fn fetch_fixtures(dir: &Path) {
                     fetch(&url, &dir.join(format!("{id}.txt")));
                 }
             }
-            None => eprintln!("No repo entry for dictionary '{id}', skipping"),
+            // Most language ids name no downloadable word list
+            None => {}
+        }
+    }
+}
+
+/// `sync` makes a single attempt, so transient failures are retried here,
+/// backing off 1s then 2s. A permanent failure (4xx, NO_NETWORK) returns
+/// immediately.
+fn sync_with_retries(
+    downloader: &codebook_downloader::Downloader,
+    url: &str,
+) -> Result<bool, codebook_downloader::FetchError> {
+    const ATTEMPTS: u32 = 3;
+    let mut attempt = 0;
+    loop {
+        match downloader.sync(&[url]) {
+            Err(e) if !e.permanent && attempt + 1 < ATTEMPTS => {
+                std::thread::sleep(Duration::from_secs(1 << attempt));
+                attempt += 1;
+            }
+            result => return result,
         }
     }
 }

@@ -16,6 +16,7 @@ export const SUPPORTED_LANGUAGES = [
   "latex",
   "lua",
   "markdown",
+  "nix",
   "odin",
   "php",
   "plaintext",

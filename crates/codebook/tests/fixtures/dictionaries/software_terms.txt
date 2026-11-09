@@ -60,6 +60,7 @@ ECDSA
 ECMA
 EOL
 EOLs
+EPSS
 EPYC
 ESMTPS
 ESNEXT
@@ -76,6 +77,8 @@ FaaS
 Frenet
 GCM
 GDPR
+GHSA
+GHSAs
 GLAPI
 GPIO
 GUIs
@@ -102,6 +105,8 @@ Jekyllrb
 Jetifier
 Joyent
 Jupyter
+KEV
+KEVs
 Kerberos
 KeyCloak
 Knuth
@@ -128,6 +133,7 @@ Mahalanobis
 MediaWiki
 MemDB
 Mendeley
+Merkle
 Mongo
 Moore's
 NDA
@@ -136,6 +142,7 @@ NEWDECIMAL
 NIST
 NOSQL
 NOTFOUND
+NVD
 Narrowable
 Narrowables
 Neuralink
@@ -154,6 +161,7 @@ ORM
 OSA
 OSINT
 OSTIF
+OSV
 OWASP
 OleDLL
 OpenID
@@ -167,6 +175,8 @@ POJO
 POJOs
 POSIX
 PSP
+PURL
+PURLs
 Paludis
 Panner
 Paxos
@@ -201,11 +211,13 @@ SIMD
 SLA
 SLI
 SLO
+SLSA
 SPDX
 SQL
 SQRL
 SSP
 SSRF
+SSVC
 SaaS
 Serret
 SigV4
@@ -268,6 +280,7 @@ Wishart
 WordPress
 XMLRPC
 XSRF
+XSS
 Xcode
 Xenial
 Xproto
@@ -505,6 +518,7 @@ basePtr
 basedir
 baseimage
 basename
+basenames
 baseurl
 bashrc
 basic
@@ -657,6 +671,7 @@ cheffile
 chefignore
 childNode
 childpath
+ciphertext
 class
 classPath
 classdef
@@ -747,6 +762,7 @@ const
 consts
 containerName
 convolver
+cooldown
 coord
 coords
 copypaste
@@ -758,6 +774,7 @@ cos
 covariance
 cpp
 cpuinfo
+crawlable
 critical
 crlf
 cronjob
@@ -1149,6 +1166,7 @@ envs
 envvar
 envvars
 eqeqeq
+errno
 error
 errorCode
 errorLog
@@ -1170,6 +1188,7 @@ evolvability
 executables
 exherbo
 expect
+exploitability
 export
 expr
 exprs
@@ -1338,6 +1357,7 @@ hardcoded
 hardcodes
 hardcoding
 hash
+hashability
 hashable
 hashables
 hashbang
@@ -1398,6 +1418,7 @@ id
 idempotence
 idempotency
 idempotent
+idempotently
 ident
 identicon
 ideographic
@@ -1735,6 +1756,7 @@ messageIds
 messageList
 meta
 metadata
+metaprogramming
 microbenchmarking
 micromatch
 microservice
@@ -1743,6 +1765,7 @@ middleware
 middlewares
 migratable
 migratables
+millis
 mime
 mimetype
 minMaxInfo
@@ -2035,6 +2058,7 @@ polyline
 polylines
 popup
 positionals
+posix-errno
 postCondition
 postback
 postinstall
@@ -2082,6 +2106,8 @@ prefills
 preformatted
 preinstall
 preinstalled
+preinstalling
+preinstalls
 preload
 preloaded
 preloading
@@ -2416,6 +2442,7 @@ sLen
 sUser
 samaba
 sameSite
+sandboxing
 sbin
 scala
 scalability
@@ -2677,6 +2704,7 @@ taggable
 tailorability
 tan
 tarFile
+teardown
 telegraf
 tempdir
 tempdirs
@@ -2988,6 +3016,7 @@ unregistered
 unregistering
 unregisters
 unrendered
+unrepresentable
 unrestrict
 unroute
 unsampled
@@ -3008,6 +3037,7 @@ unset
 unsetting
 unshallow
 unshare
+unshareable
 unsort
 unsortable
 unsorted
@@ -3020,6 +3050,7 @@ unstructured
 unstyle
 unstyled
 unstyles
+unsubclassable
 unsubscriptable
 unsubstituted
 unswappable
@@ -3174,6 +3205,7 @@ workFolder
 workflow
 workgroup
 workspace
+worktree
 worldGen
 writeDir
 writeFile

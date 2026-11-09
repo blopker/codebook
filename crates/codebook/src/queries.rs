@@ -15,6 +15,7 @@ pub enum LanguageType {
     Go,
     HTML,
     Haskell,
+    Hcl,
     Java,
     Javascript,
     Just,
@@ -320,6 +321,13 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         query: include_str!("queries/vhdl.scm"),
         extensions: &["vhd", "vhdl"],
     },
+    LanguageSetting {
+        type_: LanguageType::Hcl,
+        ids: &["hcl", "terraform"],
+        dictionary_ids: &["terraform"],
+        query: include_str!("queries/hcl.scm"),
+        extensions: &["tf", "tfvars"],
+    },
 ];
 
 #[derive(Debug)]
@@ -346,6 +354,7 @@ impl LanguageSetting {
             LanguageType::Go => Some(tree_sitter_go::LANGUAGE.into()),
             LanguageType::HTML => Some(tree_sitter_html::LANGUAGE.into()),
             LanguageType::Haskell => Some(tree_sitter_haskell::LANGUAGE.into()),
+            LanguageType::Hcl => Some(tree_sitter_hcl::LANGUAGE.into()),
             LanguageType::Java => Some(tree_sitter_java::LANGUAGE.into()),
             LanguageType::Javascript => Some(tree_sitter_javascript::LANGUAGE.into()),
             LanguageType::Just => Some(codebook_tree_sitter_just::LANGUAGE.into()),

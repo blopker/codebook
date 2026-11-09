@@ -1,30 +1,35 @@
+; Comments
 (comment) @comment
 
-; Strings
-(string_expression) @string
-(indented_string_expression (string_fragment) @string.heredoc) 
-[(path_expression) (hpath_expression) (spath_expression)] @string.special
-(uri_expression) @string.special
+; Strings. Only the literal fragments: `${ ... }` interpolations hold
+; expressions, and capturing the whole string would overlap the identifier
+; captures inside them.
+(string_expression (string_fragment) @string)
+(indented_string_expression (string_fragment) @string.heredoc)
 
-; Parameters
-(function_expression 
-    universal: (identifier) @identifier.parameter)
-(formal 
-    name: (identifier) @identifier.parameter)
+; Paths and URIs
+[
+  (path_expression)
+  (hpath_expression)
+  (spath_expression)
+  (uri_expression)
+] @string.special
 
-; Fields
-(inherit 
-    attrs: (inherited_attrs attr: (identifier) @identifier.field))
-(inherit_from 
-    attrs: (inherited_attrs attr: (identifier) @identifier.field))
+; Function parameters, including the `{ a, b }` destructuring form
+(function_expression
+  universal: (identifier) @identifier.parameter)
 
-; Constants, let binds are immutable, don't fall into variables category
-(binding 
-    attrpath: (attrpath (identifier)) @identifier.constant)
+(formal
+  name: (identifier) @identifier.parameter)
 
-; Function
-(apply_expression 
-    function: [
-        (variable_expression (identifier)) @identifier.function 
-        (select_expression 
-            attrpath: (attrpath attr: (identifier) @identifier.function .))])
+; `inherit foo;` / `inherit (expr) foo;` name bindings the file itself spells out
+(inherit
+  attrs: (inherited_attrs attr: (identifier) @identifier.field))
+
+(inherit_from
+  attrs: (inherited_attrs attr: (identifier) @identifier.field))
+
+; Attribute bindings are Nix's definition site: attrset keys, `let` bindings,
+; and the `foo = args: body` form that names functions.
+(binding
+  attrpath: (attrpath attr: (identifier) @identifier.constant))

@@ -3,17 +3,15 @@
 //! The spell-check path never downloads (`get_dictionary` is disk-only), so
 //! this worker greedily fetches every dictionary the config can resolve to —
 //! plus all per-language word lists — on its own thread, retrying transient
-//! failures with exponential backoff. When a Hunspell pair that previously
-//! couldn't load lands on disk, it emits an event so the LSP can re-check
-//! open documents; refreshes and text word lists are picked up by the next
-//! natural check instead.
+//! failures with exponential backoff. When a pass changes any dictionary on
+//! disk, it emits an event so the LSP can re-check open documents.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::mpsc::{RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
 
-use codebook::{Codebook, EnsureOutcome};
+use codebook::Codebook;
 use log::{debug, info, warn};
 
 /// How long the worker waits between passes when nothing is awaiting retry.
@@ -25,9 +23,8 @@ const IDLE_REWALK: Duration = Duration::from_secs(6 * 3600);
 const INITIAL_RETRY_DELAY: Duration = Duration::from_secs(30);
 const MAX_RETRY_DELAY: Duration = Duration::from_secs(3600);
 
-// Both channels carry unit messages: an event means "a dictionary that
-// previously couldn't load is now available" (the listener re-checks open
-// documents); a command means "kick: re-enumerate ids and retry transient
+// Both channels carry unit messages: an event means "dictionaries on disk
+// changed" (the listener re-checks open documents); a command means "kick: re-enumerate ids and retry transient
 // failures now" (config changed).
 
 pub struct PrefetchHandle {
@@ -57,8 +54,8 @@ pub fn spawn(
         .spawn(move || {
             let mut backoff = Backoff::default();
             loop {
-                let new_pair = run_pass(codebook.as_ref(), &mut backoff, Instant::now());
-                if new_pair && events.send(()).is_err() {
+                let changed = run_pass(codebook.as_ref(), &mut backoff, Instant::now());
+                if changed && events.send(()).is_err() {
                     break;
                 }
                 let wait = backoff
@@ -78,22 +75,20 @@ pub fn spawn(
 
 /// One walk over the wanted ids: fetch whatever isn't backing off, record
 /// failures. Ids are re-enumerated each call so config changes are picked
-/// up. Returns true when a previously unloadable Hunspell pair landed — the
-/// recheck policy (only new pairs warrant one) lives here, in the layer
-/// that owns rechecking.
+/// up. Returns true when any dictionary changed on disk.
 fn run_pass(codebook: &Codebook, backoff: &mut Backoff, now: Instant) -> bool {
-    let mut new_pair_downloaded = false;
+    let mut changed = false;
     for id in codebook.prefetch_dictionary_ids() {
         if !backoff.ready(&id, now) {
             continue;
         }
         match codebook.ensure_dictionary(&id) {
-            Ok(EnsureOutcome::NewHunspellPair) => {
-                info!("Dictionary '{id}' downloaded");
+            Ok(true) => {
+                info!("Dictionary '{id}' updated");
                 backoff.clear(&id);
-                new_pair_downloaded = true;
+                changed = true;
             }
-            Ok(_) => backoff.clear(&id),
+            Ok(false) => backoff.clear(&id),
             Err(e) if e.permanent => {
                 warn!("Dictionary '{id}' does not exist upstream, not retrying: {e}");
                 backoff.mark_permanent(&id);
@@ -110,7 +105,7 @@ fn run_pass(codebook: &Codebook, backoff: &mut Backoff, now: Instant) -> bool {
             }
         }
     }
-    new_pair_downloaded
+    changed
 }
 
 /// Per-dictionary retry state. Every method takes `now` instead of reading a
@@ -146,7 +141,8 @@ impl Backoff {
     fn record_failure(&mut self, id: &str, now: Instant) -> Duration {
         let attempts = self.transient.get(id).map(|(a, _)| a + 1).unwrap_or(0);
         let delay = Self::delay_for(attempts);
-        self.transient.insert(id.to_string(), (attempts, now + delay));
+        self.transient
+            .insert(id.to_string(), (attempts, now + delay));
         delay
     }
 
@@ -175,13 +171,13 @@ impl Backoff {
 mod tests {
     use super::*;
     use codebook::dictionaries::manager::DictionaryManager;
+    use codebook::dictionaries::repo::{DictionaryRepo, TextRepo, get_repo};
     use codebook_config::CodebookConfigMemory;
     use codebook_downloader::testing::{FakeTransport, ScriptedResult, connection_error, ok};
     use tempfile::TempDir;
 
     /// A Codebook over a scripted transport. With the default (memory)
-    /// config, the prefetch set is en_us plus the downloadable text lists:
-    /// 6 text requests + 2 for the en_us aff/dic pair = 8 for a full pass.
+    /// config, the prefetch set is en_us plus every text list in the repo.
     fn codebook_with(script: Vec<ScriptedResult>) -> (Codebook, Arc<FakeTransport>, TempDir) {
         let transport = FakeTransport::new(script);
         let cache_dir = TempDir::new().unwrap();
@@ -202,78 +198,101 @@ mod tests {
         (0..n).map(|_| ok(200, "word\n", None)).collect()
     }
 
+    /// Requests one full pass makes over the default prefetch set. A
+    /// downloadable text list is one request and a Hunspell pair two; embedded
+    /// lists make none. When every request fails, a pair stops after its
+    /// first file, so `failing` counts one per pair.
+    fn pass_requests(failing: bool) -> usize {
+        let (codebook, _transport, _cache) = codebook_with(Vec::new());
+        codebook
+            .prefetch_dictionary_ids()
+            .iter()
+            .map(|id| match get_repo(id) {
+                Some(DictionaryRepo::Hunspell(_)) if failing => 1,
+                Some(DictionaryRepo::Hunspell(_)) => 2,
+                Some(DictionaryRepo::Text(TextRepo { url: Some(_), .. })) => 1,
+                _ => 0,
+            })
+            .sum()
+    }
+
     #[test]
-    fn test_full_pass_downloads_everything_and_reports_new_pair() {
-        let (codebook, transport, _cache) = codebook_with(all_ok(8));
+    fn test_full_pass_downloads_everything_and_reports_change() {
+        let full = pass_requests(false);
+        let (codebook, transport, _cache) = codebook_with(all_ok(full));
         let mut backoff = Backoff::default();
 
         assert!(run_pass(&codebook, &mut backoff, Instant::now()));
-        assert_eq!(transport.requests().len(), 8);
+        assert_eq!(transport.requests().len(), full);
 
         // Everything fresh: a second pass makes no requests (empty script
         // would panic) and reports nothing new.
         assert!(!run_pass(&codebook, &mut backoff, Instant::now()));
-        assert_eq!(transport.requests().len(), 8);
+        assert_eq!(transport.requests().len(), full);
     }
 
     #[test]
     fn test_permanent_failures_are_never_retried() {
-        // Every fetch 404s: 6 text lists + 1 for en_us (aff fails first)
-        let script = (0..7).map(|_| ok(404, "", None)).collect();
+        let failing = pass_requests(true);
+        let script = (0..failing).map(|_| ok(404, "", None)).collect();
         let (codebook, transport, _cache) = codebook_with(script);
         let mut backoff = Backoff::default();
 
         assert!(!run_pass(&codebook, &mut backoff, Instant::now()));
-        assert_eq!(transport.requests().len(), 7);
+        assert_eq!(transport.requests().len(), failing);
 
         // No retries — not even after a kick-style reset
         backoff.reset_transient();
         run_pass(&codebook, &mut backoff, Instant::now());
-        assert_eq!(transport.requests().len(), 7);
+        assert_eq!(transport.requests().len(), failing);
         assert!(backoff.next_retry_delay(Instant::now()).is_none());
     }
 
     #[test]
     fn test_transient_failures_back_off_and_recover() {
-        let script = (0..7).map(|_| connection_error()).collect();
+        let failing = pass_requests(true);
+        let script = (0..failing).map(|_| connection_error()).collect();
         let (codebook, transport, _cache) = codebook_with(script);
         let mut backoff = Backoff::default();
         let now = Instant::now();
 
         assert!(!run_pass(&codebook, &mut backoff, now));
-        assert_eq!(transport.requests().len(), 7);
+        assert_eq!(transport.requests().len(), failing);
         assert_eq!(backoff.next_retry_delay(now), Some(INITIAL_RETRY_DELAY));
 
         // Still backing off: nothing is attempted
         run_pass(&codebook, &mut backoff, now);
-        assert_eq!(transport.requests().len(), 7);
+        assert_eq!(transport.requests().len(), failing);
 
         // After the delay elapses, the ids are retried and succeed
-        for _ in 0..8 {
+        let full = pass_requests(false);
+        for _ in 0..full {
             transport.push(ok(200, "word\n", None));
         }
         let later = now + INITIAL_RETRY_DELAY;
         assert!(run_pass(&codebook, &mut backoff, later));
-        assert_eq!(transport.requests().len(), 15);
+        assert_eq!(transport.requests().len(), failing + full);
     }
 
     #[test]
     fn test_kick_resets_transient_backoff() {
-        let script = (0..7).map(|_| connection_error()).collect();
+        let failing = pass_requests(true);
+        let script = (0..failing).map(|_| connection_error()).collect();
         let (codebook, transport, _cache) = codebook_with(script);
         let mut backoff = Backoff::default();
         let now = Instant::now();
 
         run_pass(&codebook, &mut backoff, now);
-        assert_eq!(transport.requests().len(), 7);
+        assert_eq!(transport.requests().len(), failing);
 
         // A kick clears the backoff so the very next pass retries
         backoff.reset_transient();
-        for _ in 0..8 {
+        let full = pass_requests(false);
+        for _ in 0..full {
             transport.push(ok(200, "word\n", None));
         }
         assert!(run_pass(&codebook, &mut backoff, now));
-        assert_eq!(transport.requests().len(), 15);
+        assert_eq!(transport.requests().len(), failing + full);
     }
 
     #[test]
@@ -310,8 +329,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_spawned_worker_emits_event_for_new_pair() {
-        let (codebook, _transport, _cache) = codebook_with(all_ok(8));
+    async fn test_spawned_worker_emits_event_on_change() {
+        let (codebook, _transport, _cache) = codebook_with(all_ok(pass_requests(false)));
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
         let handle = spawn(Arc::new(codebook), tx);

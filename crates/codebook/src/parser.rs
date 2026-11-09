@@ -325,7 +325,7 @@ fn extract_recursive<'a>(
         let mut injection_content: Option<tree_sitter::Node> = None;
         let mut injection_language_text: Option<&str> = None;
 
-        for capture in match_.captures {
+        for capture in match_.captures() {
             let tag = &compiled.capture_names[capture.index as usize];
             if tag == "injection.content" {
                 injection_content = Some(capture.node);
@@ -362,7 +362,7 @@ fn extract_recursive<'a>(
         }
 
         // Second pass: handle text captures and static injections
-        for capture in match_.captures {
+        for capture in match_.captures() {
             let tag = &compiled.capture_names[capture.index as usize];
             let node = capture.node;
             let node_start = node.start_byte() + start_byte;

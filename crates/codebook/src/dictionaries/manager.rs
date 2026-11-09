@@ -12,56 +12,9 @@ use super::{
     repo::{DictionaryRepo, HunspellRepo, TextRepo, get_repo},
     transliteration::TransliteratingDictionary,
 };
-use codebook_downloader::{Downloader, FetchOutcome, PendingDownload, PermanentHttpError};
+use codebook_downloader::{Downloader, FetchError};
 use dictionary::{Dictionary, HunspellDictionary};
 use log::{debug, error, info};
-
-/// Result of a blocking [`DictionaryManager::ensure_dictionary`] call.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EnsureOutcome {
-    /// Nothing to fetch: the id has no repo entry, or the dictionary is
-    /// embedded in the binary / provided by the local override directory.
-    Unavailable,
-    /// Already on disk and within the revalidation window.
-    Fresh,
-    /// Downloaded a Hunspell pair that wasn't loadable before. (Which
-    /// outcomes trigger re-checking open documents is the LSP worker's
-    /// policy, not this crate's.)
-    NewHunspellPair,
-    /// Committed new content: a refreshed Hunspell pair or a text word list
-    /// (new or updated).
-    Refreshed,
-}
-
-/// A dictionary fetch failure. Permanent failures are not worth retrying
-/// this process: the server definitively answered 4xx, or NO_NETWORK is set.
-/// (Hand-written impls: thiserror can't derive over an `anyhow::Error`
-/// source field.)
-#[derive(Debug)]
-pub struct EnsureError {
-    pub permanent: bool,
-    pub source: anyhow::Error,
-}
-
-impl EnsureError {
-    fn from_download(source: anyhow::Error) -> Self {
-        Self {
-            permanent: source.downcast_ref::<PermanentHttpError>().is_some()
-                || source
-                    .downcast_ref::<codebook_downloader::NetworkDisabledError>()
-                    .is_some(),
-            source,
-        }
-    }
-}
-
-impl std::fmt::Display for EnsureError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.source)
-    }
-}
-
-impl std::error::Error for EnsureError {}
 
 /// A user-provided dictionary in the local override directory.
 enum LocalOverride {
@@ -128,20 +81,32 @@ impl DictionaryManager {
         self.local_override(id).is_some() || super::repo::is_hunspell(id)
     }
 
-    /// Blocking: download or revalidate the dictionary's files. Multi-file
-    /// (aff/dic) downloads are staged first and committed all-or-nothing, so
-    /// a failure part-way can't leave a mismatched pair on disk. Never called
-    /// on the spell-check path — the LSP's background prefetch worker and the
-    /// CLI's synchronous warmup use it.
-    pub fn ensure_dictionary(&self, id: &str) -> Result<EnsureOutcome, EnsureError> {
+    /// Blocking: download or revalidate the dictionary's files, returning
+    /// whether anything on disk changed. A Hunspell aff/dic pair syncs as one
+    /// unit, so it can't end up mismatched. Embedded, local-override, and
+    /// unknown ids have nothing to fetch. Never called on the spell-check
+    /// path — the LSP's background prefetch worker and the CLI's synchronous
+    /// warmup use it.
+    pub fn ensure_dictionary(&self, id: &str) -> Result<bool, FetchError> {
         if self.local_override(id).is_some() {
-            return Ok(EnsureOutcome::Unavailable);
+            return Ok(false);
         }
-        match get_repo(id) {
-            Some(DictionaryRepo::Hunspell(r)) => self.ensure_hunspell(id, &r),
-            Some(DictionaryRepo::Text(r)) => self.ensure_text(id, &r),
-            None => Ok(EnsureOutcome::Unavailable),
+        let changed = match get_repo(id) {
+            Some(DictionaryRepo::Hunspell(r)) => {
+                self.downloader.sync(&[&r.aff_url, &r.dict_url])?
+            }
+            Some(DictionaryRepo::Text(TextRepo {
+                url: Some(url),
+                text: None,
+                ..
+            })) => self.downloader.sync(&[&url])?,
+            _ => false,
+        };
+        if changed {
+            // Drop any dictionary loaded from the old files
+            self.invalidate(id);
         }
+        Ok(changed)
     }
 
     /// The single home of the local-override file convention:
@@ -155,75 +120,6 @@ impl DictionaryManager {
         let aff = dir.join(format!("{id}.aff"));
         let dic = dir.join(format!("{id}.dic"));
         (aff.is_file() && dic.is_file()).then_some(LocalOverride::Hunspell { aff, dic })
-    }
-
-    fn ensure_hunspell(&self, id: &str, repo: &HunspellRepo) -> Result<EnsureOutcome, EnsureError> {
-        let was_loadable = self.downloader.local_path(&repo.aff_url).is_some()
-            && self.downloader.local_path(&repo.dict_url).is_some();
-
-        // Stage both files before committing either, so a fetch failure
-        // part-way can't leave a mismatched pair on disk.
-        let mut aff = self.fetch(&repo.aff_url, false)?;
-        let mut dic = self.fetch(&repo.dict_url, false)?;
-
-        // The pair must move between generations together. When only one
-        // half changed, the other's revalidation clock may simply have
-        // diverged (e.g. its last check failed) — force-revalidate it so an
-        // upstream update of both files can't be applied one-sided.
-        let aff_pending = matches!(aff, FetchOutcome::Pending(_));
-        let dic_pending = matches!(dic, FetchOutcome::Pending(_));
-        if aff_pending && !dic_pending {
-            dic = self.fetch(&repo.dict_url, true)?;
-        } else if dic_pending && !aff_pending {
-            aff = self.fetch(&repo.aff_url, true)?;
-        }
-
-        let committed = matches!(aff, FetchOutcome::Pending(_))
-            || matches!(dic, FetchOutcome::Pending(_));
-        for outcome in [aff, dic] {
-            if let FetchOutcome::Pending(pending) = outcome {
-                self.commit(pending)?;
-            }
-        }
-        if !committed {
-            return Ok(EnsureOutcome::Fresh);
-        }
-        // The files changed; drop any dictionary loaded from the old ones.
-        self.invalidate(id);
-        Ok(if was_loadable {
-            EnsureOutcome::Refreshed
-        } else {
-            EnsureOutcome::NewHunspellPair
-        })
-    }
-
-    fn ensure_text(&self, id: &str, repo: &TextRepo) -> Result<EnsureOutcome, EnsureError> {
-        if repo.text.is_some() {
-            return Ok(EnsureOutcome::Unavailable);
-        }
-        let Some(url) = repo.url.as_ref() else {
-            return Ok(EnsureOutcome::Unavailable);
-        };
-        match self.fetch(url, false)? {
-            FetchOutcome::Pending(pending) => {
-                self.commit(pending)?;
-                self.invalidate(id);
-                Ok(EnsureOutcome::Refreshed)
-            }
-            FetchOutcome::UpToDate(_) => Ok(EnsureOutcome::Fresh),
-        }
-    }
-
-    fn fetch(&self, url: &str, force: bool) -> Result<FetchOutcome, EnsureError> {
-        self.downloader
-            .fetch(url, force)
-            .map_err(EnsureError::from_download)
-    }
-
-    fn commit(&self, pending: PendingDownload) -> Result<PathBuf, EnsureError> {
-        self.downloader
-            .commit(pending)
-            .map_err(EnsureError::from_download)
     }
 
     /// Resolve a dictionary from memory, the local override directory, the
@@ -309,7 +205,12 @@ impl DictionaryManager {
     /// Once per id per process, so a cold cache is diagnosable without
     /// logging on every check.
     fn log_not_available(&self, id: &str) {
-        if self.not_available_logged.lock().unwrap().insert(id.to_string()) {
+        if self
+            .not_available_logged
+            .lock()
+            .unwrap()
+            .insert(id.to_string())
+        {
             info!(
                 "Dictionary '{id}' is not available locally yet; checks skip it until a background download completes"
             );
@@ -410,8 +311,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let manager = manager_with(transport.clone(), dir.path());
 
-        let outcome = manager.ensure_dictionary("en_us").unwrap();
-        assert_eq!(outcome, EnsureOutcome::NewHunspellPair);
+        assert!(manager.ensure_dictionary("en_us").unwrap());
         let requests = transport.requests();
         assert_eq!(requests[0].0, aff_url);
         assert_eq!(requests[1].0, dic_url);
@@ -420,11 +320,8 @@ mod tests {
         let dict = manager.get_dictionary("en_us").expect("dictionary loads");
         assert!(dict.check("hello"));
 
-        // A second ensure within the revalidation window is a no-op
-        assert_eq!(
-            manager.ensure_dictionary("en_us").unwrap(),
-            EnsureOutcome::Fresh
-        );
+        // A second ensure within the revalidation window changes nothing
+        assert!(!manager.ensure_dictionary("en_us").unwrap());
     }
 
     #[test]
@@ -440,13 +337,11 @@ mod tests {
         assert!(manager.downloader.local_path(&aff_url).is_none());
         assert!(manager.downloader.local_path(&dic_url).is_none());
 
-        // A retry still reports a NEW pair, proving nothing was on disk
+        // A retry downloads the full pair
         transport.push(ok(200, AFF, None));
         transport.push(ok(200, DIC, None));
-        assert_eq!(
-            manager.ensure_dictionary("en_us").unwrap(),
-            EnsureOutcome::NewHunspellPair
-        );
+        assert!(manager.ensure_dictionary("en_us").unwrap());
+        assert!(manager.get_dictionary("en_us").is_some());
     }
 
     #[test]
@@ -467,10 +362,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let manager = manager_with(transport.clone(), dir.path());
 
-        assert_eq!(
-            manager.ensure_dictionary("rust").unwrap(),
-            EnsureOutcome::Refreshed
-        );
+        assert!(manager.ensure_dictionary("rust").unwrap());
         let dict = manager.get_dictionary("rust").unwrap();
         assert!(dict.check("hello"));
         assert!(!dict.check("world"));
@@ -479,10 +371,7 @@ mod tests {
         // must be dropped so the next get sees the new word list.
         manager.downloader.force_stale(&url);
         transport.push(ok(200, "world\n", None));
-        assert_eq!(
-            manager.ensure_dictionary("rust").unwrap(),
-            EnsureOutcome::Refreshed
-        );
+        assert!(manager.ensure_dictionary("rust").unwrap());
         let dict = manager.get_dictionary("rust").unwrap();
         assert!(dict.check("world"));
         assert!(!dict.check("hello"));
@@ -497,18 +386,17 @@ mod tests {
         manager.ensure_dictionary("en_us").unwrap();
 
         // Only aff's revalidation clock lapses (as if dic's last check
-        // failed), while upstream has updated BOTH halves. The fresh dic
-        // must be force-revalidated so the pair can't commit one-sided.
+        // failed), while upstream has updated BOTH halves. Any stale member
+        // makes sync refetch the whole group, so the pair moves together.
         manager.downloader.force_stale(&aff_url);
         transport.push(ok(200, "SET UTF-8\nTRY abc\n", None));
         transport.push(ok(200, "1\nworld\n", None));
-        assert_eq!(
-            manager.ensure_dictionary("en_us").unwrap(),
-            EnsureOutcome::Refreshed
-        );
+        assert!(manager.ensure_dictionary("en_us").unwrap());
 
-        let aff = std::fs::read_to_string(manager.downloader.local_path(&aff_url).unwrap()).unwrap();
-        let dic = std::fs::read_to_string(manager.downloader.local_path(&dic_url).unwrap()).unwrap();
+        let aff =
+            std::fs::read_to_string(manager.downloader.local_path(&aff_url).unwrap()).unwrap();
+        let dic =
+            std::fs::read_to_string(manager.downloader.local_path(&dic_url).unwrap()).unwrap();
         assert!(aff.contains("TRY"));
         assert!(dic.contains("world"));
         assert_eq!(transport.requests().len(), 4);
@@ -520,14 +408,8 @@ mod tests {
         let dir = tempdir().unwrap();
         let manager = manager_with(transport.clone(), dir.path());
 
-        assert_eq!(
-            manager.ensure_dictionary("codebook").unwrap(),
-            EnsureOutcome::Unavailable
-        );
-        assert_eq!(
-            manager.ensure_dictionary("no_such_dictionary").unwrap(),
-            EnsureOutcome::Unavailable
-        );
+        assert!(!manager.ensure_dictionary("codebook").unwrap());
+        assert!(!manager.ensure_dictionary("no_such_dictionary").unwrap());
         assert!(transport.requests().is_empty());
     }
 
@@ -543,10 +425,7 @@ mod tests {
             transport.clone(),
         );
 
-        assert_eq!(
-            manager.ensure_dictionary("en_us").unwrap(),
-            EnsureOutcome::Unavailable
-        );
+        assert!(!manager.ensure_dictionary("en_us").unwrap());
         assert!(transport.requests().is_empty());
     }
 }
