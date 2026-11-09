@@ -35,6 +35,7 @@ function getLanguageFromFileName(fileName: string): string {
     'yaml': 'yaml',
     'yml': 'yaml',
     'md': 'markdown',
+    'nix': 'nix',
 
     // Shell Scripts
     'sh': 'shell',

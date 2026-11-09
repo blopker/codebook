@@ -199,7 +199,10 @@ attr
 attribute
 attributeerror
 attributes
+attrname
+attrpath
 attrs
+attrset
 au
 audio
 audit
@@ -1266,6 +1269,17 @@ feature
 featured
 feedback
 fetch
+fetchcargo
+fetchcrate
+fetchgit
+fetchhg
+fetchnpmdeps
+fetchnugetdeps
+fetchpatch
+fetchsvn
+fetchtree
+fetchurl
+fetchzip
 ff
 fff
 ffffff
@@ -2237,6 +2251,8 @@ nifs
 nim
 nio
 nix
+nixos
+nixpkgs
 njcongleton
 no
 noarp
@@ -2482,6 +2498,7 @@ pascal
 pass
 passed
 passthrough
+passthru
 password
 pat
 patch
@@ -2550,6 +2567,7 @@ pixels
 pk
 pkey
 pkg
+pkgs
 pki
 pkix
 pktinfo
@@ -2572,6 +2590,7 @@ plugins
 plus
 pm
 pmtudisc
+pname
 png
 po
 pod
@@ -3206,6 +3225,7 @@ statistics
 stats
 status
 std
+stdenv
 stderr
 stdin
 stdlib
