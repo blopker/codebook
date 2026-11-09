@@ -174,3 +174,22 @@ fn test_markdown_no_duplicate_spans() {
         &[("tyypo", &[0]), ("quoet", &[0])],
     );
 }
+
+#[test]
+fn test_markdown_tables() {
+    let sample_text = r#"Some correct text here.
+
+| hyeder | **bould** |
+| :----: | --------- |
+| taipo  | `coode`   |
+
+More correct text here.
+"#;
+
+    assert_spelling(
+        LanguageType::Markdown,
+        sample_text,
+        &["hyeder", "bould", "taipo", "coode"],
+        &[],
+    );
+}
