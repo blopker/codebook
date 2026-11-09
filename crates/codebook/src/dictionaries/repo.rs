@@ -230,6 +230,10 @@ static TEXT_DICTIONARIES: LazyLock<Vec<TextRepo>> = LazyLock::new(|| {
             "csharp",
             "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/csharp/dict/csharp.txt",
         ),
+        TextRepo::new(
+            "terraform",
+            "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/refs/heads/main/dictionaries/terraform/dict/terraform.txt",
+        ),
     ]
 });
 

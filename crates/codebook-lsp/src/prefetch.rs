@@ -171,13 +171,13 @@ impl Backoff {
 mod tests {
     use super::*;
     use codebook::dictionaries::manager::DictionaryManager;
+    use codebook::dictionaries::repo::{DictionaryRepo, TextRepo, get_repo};
     use codebook_config::CodebookConfigMemory;
     use codebook_downloader::testing::{FakeTransport, ScriptedResult, connection_error, ok};
     use tempfile::TempDir;
 
     /// A Codebook over a scripted transport. With the default (memory)
-    /// config, the prefetch set is en_us plus the downloadable text lists:
-    /// 6 text requests + 2 for the en_us aff/dic pair = 8 for a full pass.
+    /// config, the prefetch set is en_us plus every text list in the repo.
     fn codebook_with(script: Vec<ScriptedResult>) -> (Codebook, Arc<FakeTransport>, TempDir) {
         let transport = FakeTransport::new(script);
         let cache_dir = TempDir::new().unwrap();
@@ -198,78 +198,101 @@ mod tests {
         (0..n).map(|_| ok(200, "word\n", None)).collect()
     }
 
+    /// Requests one full pass makes over the default prefetch set. A
+    /// downloadable text list is one request and a Hunspell pair two; embedded
+    /// lists make none. When every request fails, a pair stops after its
+    /// first file, so `failing` counts one per pair.
+    fn pass_requests(failing: bool) -> usize {
+        let (codebook, _transport, _cache) = codebook_with(Vec::new());
+        codebook
+            .prefetch_dictionary_ids()
+            .iter()
+            .map(|id| match get_repo(id) {
+                Some(DictionaryRepo::Hunspell(_)) if failing => 1,
+                Some(DictionaryRepo::Hunspell(_)) => 2,
+                Some(DictionaryRepo::Text(TextRepo { url: Some(_), .. })) => 1,
+                _ => 0,
+            })
+            .sum()
+    }
+
     #[test]
     fn test_full_pass_downloads_everything_and_reports_change() {
-        let (codebook, transport, _cache) = codebook_with(all_ok(8));
+        let full = pass_requests(false);
+        let (codebook, transport, _cache) = codebook_with(all_ok(full));
         let mut backoff = Backoff::default();
 
         assert!(run_pass(&codebook, &mut backoff, Instant::now()));
-        assert_eq!(transport.requests().len(), 8);
+        assert_eq!(transport.requests().len(), full);
 
         // Everything fresh: a second pass makes no requests (empty script
         // would panic) and reports nothing new.
         assert!(!run_pass(&codebook, &mut backoff, Instant::now()));
-        assert_eq!(transport.requests().len(), 8);
+        assert_eq!(transport.requests().len(), full);
     }
 
     #[test]
     fn test_permanent_failures_are_never_retried() {
-        // Every fetch 404s: 6 text lists + 1 for en_us (aff fails first)
-        let script = (0..7).map(|_| ok(404, "", None)).collect();
+        let failing = pass_requests(true);
+        let script = (0..failing).map(|_| ok(404, "", None)).collect();
         let (codebook, transport, _cache) = codebook_with(script);
         let mut backoff = Backoff::default();
 
         assert!(!run_pass(&codebook, &mut backoff, Instant::now()));
-        assert_eq!(transport.requests().len(), 7);
+        assert_eq!(transport.requests().len(), failing);
 
         // No retries — not even after a kick-style reset
         backoff.reset_transient();
         run_pass(&codebook, &mut backoff, Instant::now());
-        assert_eq!(transport.requests().len(), 7);
+        assert_eq!(transport.requests().len(), failing);
         assert!(backoff.next_retry_delay(Instant::now()).is_none());
     }
 
     #[test]
     fn test_transient_failures_back_off_and_recover() {
-        let script = (0..7).map(|_| connection_error()).collect();
+        let failing = pass_requests(true);
+        let script = (0..failing).map(|_| connection_error()).collect();
         let (codebook, transport, _cache) = codebook_with(script);
         let mut backoff = Backoff::default();
         let now = Instant::now();
 
         assert!(!run_pass(&codebook, &mut backoff, now));
-        assert_eq!(transport.requests().len(), 7);
+        assert_eq!(transport.requests().len(), failing);
         assert_eq!(backoff.next_retry_delay(now), Some(INITIAL_RETRY_DELAY));
 
         // Still backing off: nothing is attempted
         run_pass(&codebook, &mut backoff, now);
-        assert_eq!(transport.requests().len(), 7);
+        assert_eq!(transport.requests().len(), failing);
 
         // After the delay elapses, the ids are retried and succeed
-        for _ in 0..8 {
+        let full = pass_requests(false);
+        for _ in 0..full {
             transport.push(ok(200, "word\n", None));
         }
         let later = now + INITIAL_RETRY_DELAY;
         assert!(run_pass(&codebook, &mut backoff, later));
-        assert_eq!(transport.requests().len(), 15);
+        assert_eq!(transport.requests().len(), failing + full);
     }
 
     #[test]
     fn test_kick_resets_transient_backoff() {
-        let script = (0..7).map(|_| connection_error()).collect();
+        let failing = pass_requests(true);
+        let script = (0..failing).map(|_| connection_error()).collect();
         let (codebook, transport, _cache) = codebook_with(script);
         let mut backoff = Backoff::default();
         let now = Instant::now();
 
         run_pass(&codebook, &mut backoff, now);
-        assert_eq!(transport.requests().len(), 7);
+        assert_eq!(transport.requests().len(), failing);
 
         // A kick clears the backoff so the very next pass retries
         backoff.reset_transient();
-        for _ in 0..8 {
+        let full = pass_requests(false);
+        for _ in 0..full {
             transport.push(ok(200, "word\n", None));
         }
         assert!(run_pass(&codebook, &mut backoff, now));
-        assert_eq!(transport.requests().len(), 15);
+        assert_eq!(transport.requests().len(), failing + full);
     }
 
     #[test]
@@ -307,7 +330,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_spawned_worker_emits_event_on_change() {
-        let (codebook, _transport, _cache) = codebook_with(all_ok(8));
+        let (codebook, _transport, _cache) = codebook_with(all_ok(pass_requests(false)));
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
         let handle = spawn(Arc::new(codebook), tx);
