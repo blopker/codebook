@@ -92,3 +92,20 @@ locals {
         &["misspeled_reference"],
     );
 }
+
+#[test]
+fn test_hcl_terraform_dictionary() {
+    let sample_text = r#"
+# Split the range with cidrsubnet, then coalescelist the userdta.
+locals {
+    subnet = "10.0.0.0/16"
+}
+"#;
+
+    assert_spelling(
+        LanguageType::Hcl,
+        sample_text,
+        &["userdta"],
+        &["cidrsubnet", "coalescelist"],
+    );
+}
