@@ -947,7 +947,6 @@ ErrAmbigContext
 ErrInvalidUTF8
 ErrNotPollable
 ErrSlashAmbig
-Errno
 Errorf
 Ethiopic
 EvBatch
@@ -4757,6 +4756,7 @@ eq
 equal
 err
 errcheck
+errno
 error
 errors
 escape

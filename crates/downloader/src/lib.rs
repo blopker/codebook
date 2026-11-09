@@ -19,14 +19,40 @@ use tempfile::NamedTempFile;
 const METADATA_FILE: &str = "_metadata.json";
 const TWO_WEEKS: u64 = 14 * 24 * 3600;
 
-/// A definitive HTTP client-error response (4xx, e.g. 404). The server
-/// answered; retrying won't change the result. Downloads fail fast on these,
-/// and callers can back off much longer than for transient failures.
-/// Retrieve via `err.downcast_ref::<PermanentHttpError>()`.
+/// A failed [`Downloader::sync`]. `permanent` means retrying this process
+/// won't help: the server definitively answered 4xx (e.g. 404), or
+/// NO_NETWORK is set. Anything else (connection errors, 5xx, disk errors) is
+/// transient, and retry policy is the caller's business.
 #[derive(Debug)]
-pub struct PermanentHttpError {
-    pub status: u16,
-    pub url: String,
+pub struct FetchError {
+    pub permanent: bool,
+    pub source: anyhow::Error,
+}
+
+impl From<anyhow::Error> for FetchError {
+    fn from(source: anyhow::Error) -> Self {
+        Self {
+            permanent: source.downcast_ref::<PermanentHttpError>().is_some()
+                || source.downcast_ref::<NetworkDisabledError>().is_some(),
+            source,
+        }
+    }
+}
+
+impl std::fmt::Display for FetchError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.source)
+    }
+}
+
+impl std::error::Error for FetchError {}
+
+/// A definitive HTTP client-error response (4xx, e.g. 404). The server
+/// answered; retrying won't change the result.
+#[derive(Debug)]
+struct PermanentHttpError {
+    status: u16,
+    url: String,
 }
 
 impl std::fmt::Display for PermanentHttpError {
@@ -44,7 +70,7 @@ impl std::error::Error for PermanentHttpError {}
 /// Returned when `NO_NETWORK` is set: the request was refused before any
 /// socket was opened. Cached files still serve; only fetching is disabled.
 #[derive(Debug)]
-pub struct NetworkDisabledError;
+struct NetworkDisabledError;
 
 impl std::fmt::Display for NetworkDisabledError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -220,22 +246,18 @@ struct FileEntry {
     content_hash: String,
 }
 
-/// Result of a single-attempt [`Downloader::fetch`].
-#[derive(Debug)]
-pub enum FetchOutcome {
-    /// The local copy is current: it was within the revalidation window, or
-    /// revalidation confirmed it (304 / unchanged content hash).
-    UpToDate(PathBuf),
-    /// New content staged in a temp file — not visible until [`Downloader::commit`].
+/// Result of a single network attempt for one URL.
+enum FetchOutcome {
+    /// Revalidation confirmed the local copy (304 / unchanged content hash).
+    UpToDate,
+    /// New content staged in a temp file — not visible until committed.
     Pending(PendingDownload),
 }
 
-/// A downloaded file staged in a temp location. Commit with
-/// [`Downloader::commit`]; dropping it discards the download with no disk or
-/// metadata changes, which lets callers stage multi-file downloads and commit
-/// all-or-nothing.
-#[derive(Debug)]
-pub struct PendingDownload {
+/// A downloaded file staged in a temp location. Dropping it discards the
+/// download with no disk or metadata changes, which is what makes
+/// [`Downloader::sync`] all-or-nothing.
+struct PendingDownload {
     url: String,
     temp_file: NamedTempFile,
     last_modified: Option<DateTime<Utc>>,
@@ -373,28 +395,57 @@ impl Downloader {
         path.exists().then_some(path)
     }
 
-    /// One network attempt, no retries or sleeps. Entries within the
-    /// revalidation window return `UpToDate` without any request, unless
-    /// `force` revalidates (conditional GET) regardless — callers of
-    /// multi-file downloads use that to keep file generations in lockstep:
-    /// when one file changed upstream, the others must be re-checked
-    /// regardless of their own revalidation clocks.
-    pub fn fetch(&self, url: &str, force: bool) -> Result<FetchOutcome> {
+    /// Bring a group of URLs up to date as one unit, in a single attempt (no
+    /// retries or sleeps). Returns whether any file's content changed.
+    ///
+    /// When every file is on disk and within the revalidation window, no
+    /// request is made. Otherwise *every* file in the group is (re)fetched,
+    /// and new content is staged only once all fetches succeeded. Files that
+    /// belong together (a Hunspell aff/dic pair) thus move between upstream
+    /// generations in lockstep: a fetch failure leaves the old set in place,
+    /// and one file's revalidation clock lapsing can't apply an upstream
+    /// update to just that file.
+    ///
+    /// Committing is sequential, so a disk error part-way through can leave
+    /// some files committed and others not. The next sync heals that: the
+    /// uncommitted file's revalidation clock is still old, which makes the
+    /// whole group stale again.
+    pub fn sync(&self, urls: &[&str]) -> Result<bool, FetchError> {
+        if urls.iter().all(|url| self.is_fresh(url)) {
+            return Ok(false);
+        }
+        let mut pending = Vec::new();
+        for url in urls {
+            if let FetchOutcome::Pending(p) = self.fetch(url)? {
+                pending.push(p);
+            }
+        }
+        let changed = !pending.is_empty();
+        for p in pending {
+            self.commit(p)?;
+        }
+        Ok(changed)
+    }
+
+    /// On disk and within the revalidation window.
+    fn is_fresh(&self, url: &str) -> bool {
+        let metadata = self.metadata().read().unwrap();
+        metadata.files.get(url).is_some_and(|entry| {
+            entry.path.exists()
+                && entry.last_checked.timestamp() + TWO_WEEKS as i64 > Utc::now().timestamp()
+        })
+    }
+
+    /// One network attempt: a conditional GET when a local copy exists,
+    /// otherwise a full download.
+    fn fetch(&self, url: &str) -> Result<FetchOutcome> {
         let entry = {
             let metadata = self.metadata().read().unwrap();
             metadata.files.get(url).cloned()
         };
 
         match entry {
-            Some(entry) if entry.path.exists() => {
-                let needs_update = force
-                    || entry.last_checked.timestamp() + TWO_WEEKS as i64 <= Utc::now().timestamp();
-                if needs_update {
-                    self.revalidate(url, &entry)
-                } else {
-                    Ok(FetchOutcome::UpToDate(entry.path))
-                }
-            }
+            Some(entry) if entry.path.exists() => self.revalidate(url, &entry),
             Some(entry) => {
                 self.purge_stale_entry(url, &entry.path);
                 self.stage_download(url)
@@ -405,7 +456,7 @@ impl Downloader {
 
     /// Persist a staged download: rename the temp file into place and update
     /// metadata.
-    pub fn commit(&self, pending: PendingDownload) -> Result<PathBuf> {
+    fn commit(&self, pending: PendingDownload) -> Result<PathBuf> {
         let PendingDownload {
             url,
             temp_file,
@@ -420,63 +471,6 @@ impl Downloader {
         }
     }
 
-    /// Blocking fetch: cached path when fresh, otherwise download-and-commit.
-    /// Transient failures on a new download are retried with short sleeps;
-    /// when a cached copy exists, any failure falls back to it immediately.
-    /// Paths that must never block on the network use
-    /// [`Self::local_path`]/[`Self::fetch`] instead — the only production
-    /// caller left here is the dev binary's fixture fetcher.
-    pub fn get(&self, url: &str) -> Result<PathBuf> {
-        self.get_with_retries(url).or_else(|e| {
-            // Fall back to a cached copy when one exists on disk (e.g.
-            // offline revalidation, or NO_NETWORK with a warm cache).
-            match self.local_path(url) {
-                Some(path) => {
-                    log::error!("Failed to update, using cached version: {e}");
-                    Ok(path)
-                }
-                None => Err(e),
-            }
-        })
-    }
-
-    fn get_with_retries(&self, url: &str) -> Result<PathBuf> {
-        let max_retries = 2;
-        let mut last_err = None;
-        for attempt in 0..=max_retries {
-            if attempt > 0 {
-                std::thread::sleep(std::time::Duration::from_millis(500 * attempt as u64));
-            }
-            let result = self.fetch(url, false).and_then(|outcome| match outcome {
-                FetchOutcome::UpToDate(path) => Ok(path),
-                FetchOutcome::Pending(pending) => self.commit(pending),
-            });
-            match result {
-                Ok(path) => return Ok(path),
-                Err(e) => {
-                    if e.downcast_ref::<PermanentHttpError>().is_some() {
-                        log::warn!("Not retrying download for {url}: {e}");
-                        return Err(e);
-                    }
-                    if e.downcast_ref::<NetworkDisabledError>().is_some()
-                        || self.local_path(url).is_some()
-                    {
-                        // No point retrying: either the network is off, or a
-                        // cached copy exists for the caller to fall back to.
-                        return Err(e);
-                    }
-                    log::warn!(
-                        "Download attempt {}/{} failed for {url}: {e}",
-                        attempt + 1,
-                        max_retries + 1
-                    );
-                    last_err = Some(e);
-                }
-            }
-        }
-        Err(last_err.unwrap())
-    }
-
     /// Conditional GET for an entry past the revalidation window.
     fn revalidate(&self, url: &str, entry: &FileEntry) -> Result<FetchOutcome> {
         if network_disabled() {
@@ -488,13 +482,19 @@ impl Downloader {
         let response = self.transport.get(url, if_modified_since.as_deref())?;
 
         match response.status {
-            304 => Ok(FetchOutcome::UpToDate(self.update_check_time(url)?)),
+            304 => {
+                self.update_check_time(url)?;
+                Ok(FetchOutcome::UpToDate)
+            }
             200 => {
                 let last_modified = parse_last_modified(response.last_modified.as_deref());
                 let temp_file = self.download_to_temp(response.body)?;
                 let content_hash = compute_file_hash(temp_file.path())?;
                 if content_hash == entry.content_hash {
-                    Ok(FetchOutcome::UpToDate(self.update_check_time(url)?))
+                    {
+                        self.update_check_time(url)?;
+                        Ok(FetchOutcome::UpToDate)
+                    }
                 } else {
                     Ok(FetchOutcome::Pending(PendingDownload {
                         url: url.to_string(),
@@ -505,10 +505,11 @@ impl Downloader {
                     }))
                 }
             }
-            status => {
-                let _ = self.update_check_time(url);
-                Err(anyhow::anyhow!("Unexpected status code: {status}"))
-            }
+            status if (400..500).contains(&status) => Err(anyhow::Error::new(PermanentHttpError {
+                status,
+                url: url.to_string(),
+            })),
+            status => Err(anyhow::anyhow!("Unexpected status code: {status}")),
         }
     }
 
@@ -610,19 +611,14 @@ impl Downloader {
         Ok(new_path)
     }
 
-    fn update_check_time(&self, url: &str) -> Result<PathBuf> {
-        let path: PathBuf;
-        {
-            let mut metadata = self.metadata().write().unwrap();
-            let entry = metadata
-                .files
-                .get_mut(url)
-                .ok_or_else(|| anyhow::anyhow!("No cache entry for {url}"))?;
-            entry.last_checked = Utc::now();
-            path = entry.path.clone();
-            self.persist_metadata(&mut metadata)?;
-        }
-        Ok(path)
+    fn update_check_time(&self, url: &str) -> Result<()> {
+        let mut metadata = self.metadata().write().unwrap();
+        let entry = metadata
+            .files
+            .get_mut(url)
+            .ok_or_else(|| anyhow::anyhow!("No cache entry for {url}"))?;
+        entry.last_checked = Utc::now();
+        self.persist_metadata(&mut metadata)
     }
 }
 
@@ -766,6 +762,11 @@ mod tests {
     use tempfile::tempdir;
 
     const URL: &str = "https://example.com/test.txt";
+    const URL_B: &str = "https://example.com/test_b.txt";
+
+    fn read_local(downloader: &Downloader, url: &str) -> String {
+        std::fs::read_to_string(downloader.local_path(url).unwrap()).unwrap()
+    }
 
     #[test]
     fn test_download_new_file() {
@@ -779,11 +780,10 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
 
-        let path = downloader.get(URL).unwrap();
+        assert!(downloader.sync(&[URL]).unwrap());
 
         assert_eq!(transport.requests().len(), 1);
-        assert!(path.exists());
-        assert_eq!(std::fs::read_to_string(path).unwrap(), "test content");
+        assert_eq!(read_local(&downloader, URL), "test content");
         let metadata = downloader.metadata().read().unwrap();
         let entry = metadata.files.get(URL).unwrap();
         assert_eq!(entry.content_hash, compute_file_hash(&entry.path).unwrap());
@@ -795,61 +795,58 @@ mod tests {
     fn test_network_guard_blocks_real_transport() {
         let temp_dir = tempdir().unwrap();
         let downloader = Downloader::new(temp_dir.path());
-        let _ = downloader.get("https://example.invalid/dict.txt");
+        let _ = downloader.sync(&["https://example.invalid/dict.txt"]);
     }
 
     #[test]
-    fn test_404_fails_fast_without_retries() {
+    fn test_404_is_permanent() {
         let transport = FakeTransport::new(vec![ok(404, "", None)]);
         let temp_dir = tempdir().unwrap();
         let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
 
-        let err = downloader.get(URL).unwrap_err();
+        let err = downloader.sync(&[URL]).unwrap_err();
 
-        // A definitive 4xx must not be retried, and must be identifiable
+        assert!(err.permanent);
         assert_eq!(transport.requests().len(), 1);
-        let permanent = err
-            .downcast_ref::<PermanentHttpError>()
-            .expect("4xx should downcast to PermanentHttpError");
-        assert_eq!(permanent.status, 404);
+        assert!(downloader.local_path(URL).is_none());
     }
 
     #[test]
-    fn test_server_error_is_retried() {
-        let transport = FakeTransport::new(vec![
-            ok(500, "", None),
-            ok(500, "", None),
-            ok(500, "", None),
-        ]);
+    fn test_server_error_is_transient() {
+        let transport = FakeTransport::new(vec![ok(500, "", None)]);
         let temp_dir = tempdir().unwrap();
         let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
 
-        let err = downloader.get(URL).unwrap_err();
+        let err = downloader.sync(&[URL]).unwrap_err();
 
-        // Transient 5xx keeps the retry behavior and is not "permanent"
-        assert_eq!(transport.requests().len(), 3);
-        assert!(err.downcast_ref::<PermanentHttpError>().is_none());
+        // One attempt only: retry policy belongs to the caller
+        assert!(!err.permanent);
+        assert_eq!(transport.requests().len(), 1);
     }
 
     #[test]
-    fn test_returns_cached_file_within_two_weeks_without_request() {
+    fn test_connection_error_is_transient() {
+        let transport = FakeTransport::new(vec![connection_error()]);
+        let temp_dir = tempdir().unwrap();
+        let downloader = Downloader::with_transport(temp_dir.path(), transport);
+
+        assert!(!downloader.sync(&[URL]).unwrap_err().permanent);
+    }
+
+    #[test]
+    fn test_fresh_cache_makes_no_request() {
         let transport = FakeTransport::new(vec![ok(200, "cached content", None)]);
         let temp_dir = tempdir().unwrap();
         let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
-        let path = downloader.get(URL).unwrap();
-        assert_eq!(transport.requests().len(), 1);
+        downloader.sync(&[URL]).unwrap();
 
         // A fresh instance re-reads metadata from disk; the entry is recent,
-        // so no request may happen (the fake would panic on one).
+        // so no request may happen (the empty script would panic on one).
         let offline_transport = FakeTransport::new(vec![]);
         let downloader = Downloader::with_transport(temp_dir.path(), offline_transport.clone());
-        let cached_path = downloader.get(URL).unwrap();
+        assert!(!downloader.sync(&[URL]).unwrap());
 
-        assert_eq!(path, cached_path);
-        assert_eq!(
-            std::fs::read_to_string(cached_path).unwrap(),
-            "cached content"
-        );
+        assert_eq!(read_local(&downloader, URL), "cached content");
         assert!(offline_transport.requests().is_empty());
     }
 
@@ -859,21 +856,17 @@ mod tests {
         let transport = FakeTransport::new(vec![ok(200, "v1", Some(initial_last_modified))]);
         let temp_dir = tempdir().unwrap();
         let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
-        let path_v1 = downloader.get(URL).unwrap();
+        downloader.sync(&[URL]).unwrap();
+        let path_v1 = downloader.local_path(URL).unwrap();
 
-        // Get stored metadata and age the entry past the revalidation window
         let stored_last_modified = {
             let metadata = downloader.metadata().read().unwrap();
             metadata.files[URL].last_modified
         };
-        {
-            let mut metadata = downloader.metadata().write().unwrap();
-            let entry = metadata.files.get_mut(URL).unwrap();
-            entry.last_checked = stored_last_modified.unwrap() - Duration::weeks(3);
-        }
+        downloader.force_stale(URL);
 
         transport.push(ok(200, "v2", Some("Fri, 23 Oct 2020 07:28:00 GMT")));
-        let path_v2 = downloader.get(URL).unwrap();
+        assert!(downloader.sync(&[URL]).unwrap());
 
         // The revalidation request must carry If-Modified-Since
         let requests = transport.requests();
@@ -882,16 +875,29 @@ mod tests {
             requests[1].1.as_deref(),
             Some(stored_last_modified.unwrap().to_rfc2822().as_str())
         );
-        assert_eq!(path_v1, path_v2);
-        assert_eq!(std::fs::read_to_string(path_v2).unwrap(), "v2");
+        assert_eq!(downloader.local_path(URL).unwrap(), path_v1);
+        assert_eq!(read_local(&downloader, URL), "v2");
     }
 
     #[test]
-    fn test_uses_stale_file_when_update_fails() {
+    fn test_unchanged_content_is_not_a_change() {
+        let transport = FakeTransport::new(vec![ok(200, "same", None)]);
+        let temp_dir = tempdir().unwrap();
+        let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
+        downloader.sync(&[URL]).unwrap();
+        downloader.force_stale(URL);
+
+        // 200 with identical content (server ignored If-Modified-Since)
+        transport.push(ok(200, "same", None));
+        assert!(!downloader.sync(&[URL]).unwrap());
+    }
+
+    #[test]
+    fn test_keeps_stale_file_when_update_fails() {
         let transport = FakeTransport::new(vec![ok(200, "original", None)]);
         let temp_dir = tempdir().unwrap();
         let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
-        let original_path = downloader.get(URL).unwrap();
+        downloader.sync(&[URL]).unwrap();
 
         // Age the entry, then go "offline"
         {
@@ -901,22 +907,44 @@ mod tests {
         }
         transport.push(connection_error());
 
-        let cached_path = downloader.get(URL).unwrap();
-        assert_eq!(original_path, cached_path);
-        assert_eq!(std::fs::read_to_string(cached_path).unwrap(), "original");
+        assert!(downloader.sync(&[URL]).is_err());
+        assert_eq!(read_local(&downloader, URL), "original");
     }
 
     #[test]
-    fn test_doesnt_check_within_two_weeks() {
-        let transport = FakeTransport::new(vec![ok(200, "content", None)]);
+    fn test_revalidation_server_error_is_retried() {
+        let transport = FakeTransport::new(vec![ok(200, "v1", None)]);
         let temp_dir = tempdir().unwrap();
         let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
+        downloader.sync(&[URL]).unwrap();
+        downloader.force_stale(URL);
 
-        downloader.get(URL).unwrap();
-        downloader.get(URL).unwrap();
+        transport.push(ok(500, "", None));
+        assert!(!downloader.sync(&[URL]).unwrap_err().permanent);
 
-        // The second get must be served from cache without a request
-        assert_eq!(transport.requests().len(), 1);
+        // A failed revalidation must not reset the revalidation clock, so the
+        // next sync goes back to the server instead of trusting a two-week
+        // window around stale content.
+        transport.push(ok(200, "v2", None));
+        assert!(downloader.sync(&[URL]).unwrap());
+        assert_eq!(transport.requests().len(), 3);
+        assert_eq!(read_local(&downloader, URL), "v2");
+    }
+
+    #[test]
+    fn test_revalidation_404_is_permanent() {
+        let transport = FakeTransport::new(vec![ok(200, "original", None)]);
+        let temp_dir = tempdir().unwrap();
+        let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
+        downloader.sync(&[URL]).unwrap();
+        downloader.force_stale(URL);
+
+        transport.push(ok(404, "", None));
+        let err = downloader.sync(&[URL]).unwrap_err();
+
+        // The server answered definitively: retrying this process can't help.
+        assert!(err.permanent);
+        assert_eq!(read_local(&downloader, URL), "original");
     }
 
     #[test]
@@ -925,19 +953,12 @@ mod tests {
         let transport = FakeTransport::new(vec![ok(200, "content", Some(last_modified))]);
         let temp_dir = tempdir().unwrap();
         let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
-        let original_path = downloader.get(URL).unwrap();
-
-        // Age the entry past the revalidation window
-        {
-            let mut metadata = downloader.metadata().write().unwrap();
-            let entry = metadata.files.get_mut(URL).unwrap();
-            entry.last_checked = DateTime::parse_from_rfc2822(last_modified)
-                .unwrap()
-                .with_timezone(&Utc);
-        }
+        downloader.sync(&[URL]).unwrap();
+        let original_path = downloader.local_path(URL).unwrap();
+        downloader.force_stale(URL);
 
         transport.push(ok(304, "", None));
-        let cached_path = downloader.get(URL).unwrap();
+        assert!(!downloader.sync(&[URL]).unwrap());
 
         let requests = transport.requests();
         assert_eq!(requests.len(), 2);
@@ -945,10 +966,11 @@ mod tests {
             requests[1].1.as_deref(),
             Some("Wed, 21 Oct 2020 07:28:00 +0000")
         );
-        assert_eq!(original_path, cached_path);
-        let metadata = downloader.metadata().read().unwrap();
-        let entry = metadata.files.get(URL).unwrap();
-        assert!(entry.last_checked > Utc::now() - Duration::seconds(1));
+        assert_eq!(downloader.local_path(URL).unwrap(), original_path);
+
+        // The check time was bumped: another sync makes no request (the
+        // exhausted script would panic on one).
+        assert!(!downloader.sync(&[URL]).unwrap());
     }
 
     #[test]
@@ -966,8 +988,8 @@ mod tests {
         let downloader_b = Downloader::with_transport(temp_dir.path(), transport_b);
         let _ = downloader_b.metadata();
 
-        downloader_a.get(url_a).unwrap();
-        downloader_b.get(url_b).unwrap();
+        downloader_a.sync(&[url_a]).unwrap();
+        downloader_b.sync(&[url_b]).unwrap();
 
         // B's persist must not have erased A's entry from disk
         let disk = Downloader::load_metadata(&temp_dir.path().join(METADATA_FILE));
@@ -991,146 +1013,94 @@ mod tests {
         let transport = FakeTransport::new(vec![ok(200, "content", None)]);
         let temp_dir = tempdir().unwrap();
         let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
-        let path = downloader.get(URL).unwrap();
+        downloader.sync(&[URL]).unwrap();
+        let path = downloader.local_path(URL).unwrap();
 
         // Simulate file deletion but keep metadata
         std::fs::remove_file(&path).unwrap();
-        assert!(!path.exists());
+        assert!(downloader.local_path(URL).is_none());
 
         transport.push(ok(200, "redownloaded content", None));
-        let new_path = downloader.get(URL).unwrap();
+        assert!(downloader.sync(&[URL]).unwrap());
 
         assert_eq!(transport.requests().len(), 2);
-        assert!(new_path.exists());
-        assert_eq!(
-            std::fs::read_to_string(&new_path).unwrap(),
-            "redownloaded content"
-        );
+        assert_eq!(read_local(&downloader, URL), "redownloaded content");
     }
 
     #[test]
-    fn test_fetch_fresh_makes_no_request() {
-        let transport = FakeTransport::new(vec![ok(200, "content", None)]);
+    fn test_group_commits_all_or_nothing() {
+        let transport = FakeTransport::new(vec![ok(200, "a", None), ok(500, "", None)]);
         let temp_dir = tempdir().unwrap();
         let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
-        let path = downloader.get(URL).unwrap();
 
-        // The empty script means any request would panic
-        let offline = FakeTransport::new(vec![]);
-        let downloader = Downloader::with_transport(temp_dir.path(), offline);
-        match downloader.fetch(URL, false).unwrap() {
-            FetchOutcome::UpToDate(p) => assert_eq!(p, path),
-            _ => panic!("expected UpToDate"),
-        }
-    }
+        assert!(downloader.sync(&[URL, URL_B]).is_err());
 
-    #[test]
-    fn test_fetch_stages_new_download_until_commit() {
-        let transport = FakeTransport::new(vec![ok(200, "staged", None)]);
-        let temp_dir = tempdir().unwrap();
-        let downloader = Downloader::with_transport(temp_dir.path(), transport);
-
-        let pending = match downloader.fetch(URL, false).unwrap() {
-            FetchOutcome::Pending(p) => p,
-            _ => panic!("expected Pending"),
-        };
-        assert!(!pending.was_present);
-
-        // Nothing is visible before commit
+        // The first file downloaded but must not have been committed
         assert!(downloader.local_path(URL).is_none());
+        assert!(downloader.local_path(URL_B).is_none());
         assert!(downloader.metadata().read().unwrap().files.is_empty());
-
-        let path = downloader.commit(pending).unwrap();
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "staged");
-        assert_eq!(downloader.local_path(URL), Some(path));
-    }
-
-    #[test]
-    fn test_dropped_pending_download_leaves_no_trace() {
-        let transport = FakeTransport::new(vec![ok(200, "discarded", None)]);
-        let temp_dir = tempdir().unwrap();
-        let downloader = Downloader::with_transport(temp_dir.path(), transport);
-
-        match downloader.fetch(URL, false).unwrap() {
-            FetchOutcome::Pending(pending) => drop(pending),
-            _ => panic!("expected Pending"),
-        }
-
-        assert!(downloader.local_path(URL).is_none());
-        assert!(downloader.metadata().read().unwrap().files.is_empty());
-        // The temp file itself is cleaned up
-        let leftovers: Vec<_> = std::fs::read_dir(temp_dir.path()).unwrap().collect();
+        // Its temp file was cleaned up too
+        let leftovers: Vec<_> = std::fs::read_dir(temp_dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .filter(|name| name != METADATA_FILE)
+            .collect();
         assert!(leftovers.is_empty(), "leftover files: {leftovers:?}");
     }
 
     #[test]
-    fn test_fetch_revalidates_304_and_bumps_check_time() {
-        let transport = FakeTransport::new(vec![ok(200, "content", None)]);
+    fn test_group_revalidates_together() {
+        let transport = FakeTransport::new(vec![ok(200, "a1", None), ok(200, "b1", None)]);
         let temp_dir = tempdir().unwrap();
         let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
-        downloader.get(URL).unwrap();
-        downloader.force_stale(URL);
+        downloader.sync(&[URL, URL_B]).unwrap();
 
-        transport.push(ok(304, "", None));
-        match downloader.fetch(URL, false).unwrap() {
-            FetchOutcome::UpToDate(_) => {}
-            _ => panic!("expected UpToDate"),
-        }
-        // The check time was bumped: another fetch makes no request (the
-        // exhausted script would panic on one).
-        match downloader.fetch(URL, false).unwrap() {
-            FetchOutcome::UpToDate(_) => {}
-            _ => panic!("expected UpToDate"),
-        }
+        // Only A's revalidation clock lapses (as if B's last check failed),
+        // while upstream has updated BOTH files. B must be revalidated too
+        // so the group can't move to the new generation one-sided.
+        downloader.force_stale(URL);
+        transport.push(ok(200, "a2", None));
+        transport.push(ok(200, "b2", None));
+        assert!(downloader.sync(&[URL, URL_B]).unwrap());
+
+        assert_eq!(transport.requests().len(), 4);
+        assert_eq!(read_local(&downloader, URL), "a2");
+        assert_eq!(read_local(&downloader, URL_B), "b2");
     }
 
     #[test]
-    fn test_fetch_stages_changed_content_as_present() {
-        let transport = FakeTransport::new(vec![ok(200, "v1", None)]);
+    fn test_group_fresh_makes_no_request() {
+        let transport = FakeTransport::new(vec![ok(200, "a", None), ok(200, "b", None)]);
         let temp_dir = tempdir().unwrap();
         let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
-        let path = downloader.get(URL).unwrap();
-        downloader.force_stale(URL);
-
-        transport.push(ok(200, "v2", None));
-        let pending = match downloader.fetch(URL, false).unwrap() {
-            FetchOutcome::Pending(p) => p,
-            _ => panic!("expected Pending"),
-        };
-        assert!(pending.was_present);
-        // Old content still served until commit
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "v1");
-        downloader.commit(pending).unwrap();
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "v2");
+        assert!(downloader.sync(&[URL, URL_B]).unwrap());
+        assert!(!downloader.sync(&[URL, URL_B]).unwrap());
+        assert_eq!(transport.requests().len(), 2);
     }
 
     #[test]
-    fn test_no_network_blocks_cold_fetch_without_requests() {
+    fn test_no_network_blocks_cold_sync_without_requests() {
         let _guard = testing::override_network_disabled(true);
         let transport = FakeTransport::new(vec![]);
         let temp_dir = tempdir().unwrap();
         let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
 
-        let err = downloader.fetch(URL, false).unwrap_err();
-        assert!(err.downcast_ref::<NetworkDisabledError>().is_some());
-
-        // get() fails fast too: no retries, no requests
-        let err = downloader.get(URL).unwrap_err();
-        assert!(err.downcast_ref::<NetworkDisabledError>().is_some());
+        let err = downloader.sync(&[URL]).unwrap_err();
+        assert!(err.permanent);
         assert!(transport.requests().is_empty());
     }
 
     #[test]
-    fn test_no_network_serves_stale_cache_instantly() {
+    fn test_no_network_keeps_stale_cache() {
         let transport = FakeTransport::new(vec![ok(200, "cached", None)]);
         let temp_dir = tempdir().unwrap();
         let downloader = Downloader::with_transport(temp_dir.path(), transport.clone());
-        let path = downloader.get(URL).unwrap();
+        downloader.sync(&[URL]).unwrap();
         downloader.force_stale(URL);
 
         let _guard = testing::override_network_disabled(true);
-        let cached = downloader.get(URL).unwrap();
-        assert_eq!(path, cached);
+        assert!(downloader.sync(&[URL]).unwrap_err().permanent);
+        assert_eq!(read_local(&downloader, URL), "cached");
         assert_eq!(transport.requests().len(), 1); // only the initial download
     }
 
