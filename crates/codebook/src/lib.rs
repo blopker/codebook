@@ -11,7 +11,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
 
-use codebook_config::{CodebookConfig, ConfigSettings};
+use codebook_config::CodebookConfig;
 use dictionaries::{dictionary, manager::DictionaryManager};
 use dictionary::Dictionary;
 use log::debug;
@@ -73,7 +73,7 @@ impl Codebook {
     /// false every check noops, so one-shot callers like the CLI should
     /// treat it as a failure rather than report a clean run.
     pub fn primary_dictionary_available(&self) -> bool {
-        self.any_primary_available(&self.config.all_dictionary_ids())
+        self.any_primary_available(&self.config.snapshot().all_dictionary_ids())
     }
 
     /// The cold-cache noop rule, in one place: some primary-capable
@@ -95,7 +95,7 @@ impl Codebook {
     /// mention: DEFAULT_DICTIONARIES are all text repos, and the implicit
     /// en_us is part of the config's ids.
     pub fn prefetch_dictionary_ids(&self) -> Vec<String> {
-        let mut ids = self.config.all_dictionary_ids();
+        let mut ids = self.config.snapshot().all_dictionary_ids();
         ids.extend(dictionaries::repo::text_dictionary_ids().map(str::to_string));
         ids.sort();
         ids.dedup();
@@ -131,54 +131,43 @@ impl Codebook {
         language: Option<queries::LanguageType>,
         file_path: Option<&str>,
     ) -> Vec<parser::WordLocation> {
-        // ignore_paths and include_paths are evaluated BEFORE overrides
-        if let Some(file_path) = file_path {
-            if self.config.should_ignore_path(Path::new(file_path)) {
-                return Vec::new();
+        let settings = match file_path.map(Path::new) {
+            Some(path) => {
+                // ignore_paths and include_paths are evaluated BEFORE overrides
+                let base = self.config.snapshot();
+                if base.should_ignore_path(path) || !base.should_include_path(path) {
+                    return Vec::new();
+                }
+                // Resolve from the same snapshot so a concurrent reload can't
+                // split the path checks and the per-file settings.
+                base.resolve_for_path(path).map(Arc::new).unwrap_or(base)
             }
-            if !self.config.should_include_path(Path::new(file_path)) {
-                return Vec::new();
-            }
-        }
-
-        // Resolve per-file settings (applies matching overrides)
-        let resolved = file_path.and_then(|fp| self.config.resolve_for_file(Path::new(fp)));
+            None => self.config.snapshot(),
+        };
 
         let language = self.resolve_language(language, file_path);
 
         // Combine default and user skip patterns
         let mut all_patterns = get_default_skip_patterns().clone();
-        if let Some(ref settings) = resolved {
-            all_patterns.extend(settings.ignore_patterns.iter().cloned());
-        } else {
-            all_patterns.extend(self.config.get_ignore_patterns());
-        }
+        all_patterns.extend(settings.ignore_patterns.iter().cloned());
 
         // Extract all words, recursively following injections
         let (candidates, languages_found) = parser::extract_all_words(
             text,
             language,
-            &|tag| match resolved {
-                Some(ref settings) => settings.should_check_tag(tag),
-                None => self.config.should_check_tag(tag),
-            },
+            &|tag| settings.should_check_tag(tag),
             &all_patterns,
         );
 
-        // Load dictionaries for all languages encountered (using resolved settings if any)
+        // Load dictionaries for all languages encountered
         let Some(dictionaries) =
-            self.get_dictionaries_for_languages(&languages_found, resolved.as_deref())
+            self.get_dictionaries_for_languages(&languages_found, settings.dictionary_ids())
         else {
             return Vec::new();
         };
 
         // Check words against dictionaries
-        checker::check_words(
-            &candidates,
-            &dictionaries,
-            self.config.as_ref(),
-            resolved.as_deref(),
-        )
+        checker::check_words(&candidates, &dictionaries, &settings)
     }
 
     fn resolve_language(
@@ -195,8 +184,8 @@ impl Codebook {
         }
     }
 
-    /// Gather dictionaries for all languages encountered in a file.
-    /// If `resolved` is Some, its dictionary list is used in place of the base config's.
+    /// Gather the configured dictionaries (`dictionary_ids`) plus those for
+    /// all languages encountered in a file.
     ///
     /// Returns None when the noop rule fails (see `any_primary_available`) —
     /// e.g. a cold cache before the background download lands. Checking with
@@ -206,13 +195,8 @@ impl Codebook {
     fn get_dictionaries_for_languages(
         &self,
         languages: &HashSet<queries::LanguageType>,
-        resolved: Option<&ConfigSettings>,
+        mut dictionary_ids: Vec<String>,
     ) -> Option<Vec<Arc<dyn Dictionary>>> {
-        let mut dictionary_ids = match resolved {
-            Some(settings) => settings.dictionary_ids(),
-            None => self.config.get_dictionary_ids(),
-        };
-
         if !self.any_primary_available(&dictionary_ids) {
             debug!("No configured primary dictionary available yet; skipping check");
             return None;
@@ -250,7 +234,10 @@ impl Codebook {
     /// the word makes it correct.
     pub fn get_suggestions(&self, word: &str) -> Option<Vec<String>> {
         let max_results = 5;
-        let dictionaries = self.get_dictionaries_for_languages(&HashSet::new(), None)?;
+        let dictionaries = self.get_dictionaries_for_languages(
+            &HashSet::new(),
+            self.config.snapshot().dictionary_ids(),
+        )?;
         if dictionaries.is_empty() || dictionaries.iter().any(|dict| dict.check(word)) {
             return None;
         }

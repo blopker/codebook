@@ -6,7 +6,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = CodebookConfigFile::load(None)?;
 
     // Use the configuration
-    println!("Loaded dictionaries: {:?}", config.get_dictionary_ids());
+    let config = config.snapshot();
+    println!("Loaded dictionaries: {:?}", config.dictionary_ids());
 
     // Check if a path should be ignored
     let should_ignore = config.should_ignore_path(Path::new("target/debug/build"));

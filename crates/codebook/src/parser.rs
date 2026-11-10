@@ -6,7 +6,7 @@ use regex::Regex;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
-use std::sync::{LazyLock, Mutex};
+use std::sync::{LazyLock, Mutex, OnceLock};
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Node, Parser, Query, QueryCursor, QueryPredicateArg};
 use unicode_script::{Script, UnicodeScript};
@@ -45,49 +45,56 @@ struct CompiledQuery {
     rule_count: usize,
 }
 
-/// All tree-sitter queries compiled eagerly at startup. Since queries come
-/// from static `include_str!` data, they never change at runtime. Compiling
-/// them once here means bad queries panic immediately rather than hiding
-/// until a user opens that file type.
-static COMPILED_QUERIES: LazyLock<HashMap<LanguageType, CompiledQuery>> = LazyLock::new(|| {
-    let mut map = HashMap::new();
-    for setting in LANGUAGE_SETTINGS {
-        let Some(lang) = setting.language() else {
-            continue;
-        };
-        if setting.query.is_empty() {
-            continue;
-        }
-        let query = Query::new(&lang, setting.query)
-            .unwrap_or_else(|e| panic!("Failed to compile query for {:?}: {e}", setting.type_));
-        let capture_names = query
-            .capture_names()
+/// One lazily compiled query per language. Compiling every grammar's query
+/// up front costs ~200ms, almost all of it for languages the process never
+/// sees, so each is compiled the first time its language is checked. Queries
+/// come from static `include_str!` data; `test_all_queries_compile` compiles
+/// every one so a bad query fails the test suite instead of a user's session.
+static COMPILED_QUERIES: LazyLock<HashMap<LanguageType, OnceLock<CompiledQuery>>> =
+    LazyLock::new(|| {
+        LANGUAGE_SETTINGS
             .iter()
-            .map(|s| s.to_string())
-            .collect();
-        let mut rule_count = 0;
-        let ancestor_rules = (0..query.pattern_count())
-            .map(|i| {
-                let mut rules = parse_ancestor_rules(&query, &lang, i, setting.type_);
-                for rule in &mut rules {
-                    rule.id = rule_count;
-                    rule_count += 1;
-                }
-                rules
-            })
-            .collect();
-        map.insert(
-            setting.type_,
-            CompiledQuery {
-                query,
-                capture_names,
-                ancestor_rules,
-                rule_count,
-            },
-        );
+            .filter(|setting| !setting.query.is_empty() && setting.language().is_some())
+            .map(|setting| (setting.type_, OnceLock::new()))
+            .collect()
+    });
+
+/// The compiled query for a language, or None when it has no grammar/query.
+/// Panics on an invalid query or ancestor predicate.
+fn compiled_query(setting: &LanguageSetting) -> Option<&'static CompiledQuery> {
+    let cell = COMPILED_QUERIES.get(&setting.type_)?;
+    Some(cell.get_or_init(|| compile_query(setting)))
+}
+
+fn compile_query(setting: &LanguageSetting) -> CompiledQuery {
+    let lang = setting
+        .language()
+        .expect("only languages with a grammar have a query cell");
+    let query = Query::new(&lang, setting.query)
+        .unwrap_or_else(|e| panic!("Failed to compile query for {:?}: {e}", setting.type_));
+    let capture_names = query
+        .capture_names()
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    let mut rule_count = 0;
+    let ancestor_rules = (0..query.pattern_count())
+        .map(|i| {
+            let mut rules = parse_ancestor_rules(&query, &lang, i, setting.type_);
+            for rule in &mut rules {
+                rule.id = rule_count;
+                rule_count += 1;
+            }
+            rules
+        })
+        .collect();
+    CompiledQuery {
+        query,
+        capture_names,
+        ancestor_rules,
+        rule_count,
     }
-    map
-});
+}
 
 impl AncestorRule {
     /// Whether the capture passes, given whether it has a marked ancestor.
@@ -100,8 +107,8 @@ impl AncestorRule {
 /// rules from a pattern's general predicates. Other custom predicates pass
 /// through unchanged.
 /// Malformed predicates, including kind names the grammar doesn't have,
-/// panic at startup so .scm authors get an immediate error rather than a
-/// silent no-op at runtime.
+/// panic when the query is compiled so .scm authors get an immediate error
+/// (from `test_all_queries_compile`) rather than a silent no-op at runtime.
 fn parse_ancestor_rules(
     query: &Query,
     language: &tree_sitter::Language,
@@ -414,8 +421,7 @@ fn extract_recursive<'a>(
     };
 
     let root_node = tree.root_node();
-    let compiled = COMPILED_QUERIES
-        .get(&language)
+    let compiled = compiled_query(language_setting)
         .expect("Language has a LanguageSetting but no compiled query; this should not happen");
     let mut cursor = QueryCursor::new();
     let provider = region_text.as_bytes();
@@ -810,6 +816,17 @@ mod tests {
         assert!(!is_within_skip_range(8, 12, &ranges)); // starts before
         assert!(!is_within_skip_range(40, 45, &ranges)); // after the last
         assert!(!is_within_skip_range(0, 1, &[]));
+    }
+
+    #[test]
+    fn test_all_queries_compile() {
+        for setting in LANGUAGE_SETTINGS {
+            assert!(
+                compiled_query(setting).is_some(),
+                "{:?} has no compiled query",
+                setting.type_
+            );
+        }
     }
 
     fn python_query(source: &str) -> (Query, tree_sitter::Language) {

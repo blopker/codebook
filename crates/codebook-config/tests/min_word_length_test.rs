@@ -19,7 +19,7 @@ fn test_min_word_length_from_config() {
     let config = CodebookConfigFile::load(Some(temp_dir.path())).unwrap();
 
     // Verify the min_word_length is set correctly
-    assert_eq!(config.get_min_word_length(), 2);
+    assert_eq!(config.snapshot().min_word_length(), 2);
 }
 
 #[test]
@@ -38,7 +38,7 @@ fn test_min_word_length_default() {
     let config = CodebookConfigFile::load(Some(temp_dir.path())).unwrap();
 
     // Verify the default min_word_length is 3
-    assert_eq!(config.get_min_word_length(), 3);
+    assert_eq!(config.snapshot().min_word_length(), 3);
 }
 
 #[test]
@@ -74,7 +74,7 @@ fn test_min_word_length_with_global_config() {
     let config = CodebookConfigFile::load(Some(project_dir.path())).unwrap();
 
     // Project config should override global config
-    assert_eq!(config.get_min_word_length(), 2);
+    assert_eq!(config.snapshot().min_word_length(), 2);
 
     // Clean up environment variable
     unsafe {
@@ -98,7 +98,7 @@ fn test_min_word_length_zero() {
     let config = CodebookConfigFile::load(Some(temp_dir.path())).unwrap();
 
     // Verify min_word_length can be set to 0
-    assert_eq!(config.get_min_word_length(), 0);
+    assert_eq!(config.snapshot().min_word_length(), 0);
 }
 
 #[test]
@@ -117,5 +117,5 @@ fn test_min_word_length_large_value() {
     let config = CodebookConfigFile::load(Some(temp_dir.path())).unwrap();
 
     // Verify large values work correctly
-    assert_eq!(config.get_min_word_length(), 10);
+    assert_eq!(config.snapshot().min_word_length(), 10);
 }

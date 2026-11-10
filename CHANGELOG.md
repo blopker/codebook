@@ -19,6 +19,9 @@ Important user-facing changes. See commit logs for more details.
 - Code actions that update `codebook.toml` (add word, ignore file) keep its comments, formatting, and line endings, and no longer write default settings (#315)
 - VS Code: spell-check Dart, HCL/Terraform, OCaml, and Svelte files. `.tfvars` and `.mli` files are recognized by their VS Code language ids (`terraform-vars`, `ocaml.interface`) instead of being checked as plain text
 - Update dependencies
+- Faster startup: each language's grammar query is compiled the first time that language is checked instead of all of them up front, so `codebook-lsp lint` on a few files and the first check after the server starts no longer pay for every supported language
+- Large `words` and `flag_words` lists no longer slow down checking
+- Faster checking of files that contain any non-ASCII character. A commit hash written directly against non-ASCII letters (`修正はabc1234で`) is now skipped instead of having its letters checked
 
 [0.3.43]
 

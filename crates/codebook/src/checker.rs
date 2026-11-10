@@ -2,7 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::dictionaries::dictionary::Dictionary;
 use crate::parser::{TextRange, WordLocation};
-use codebook_config::{CodebookConfig, ConfigSettings};
+use codebook_config::ConfigSettings;
+use unicase::UniCase;
 
 /// A candidate word extracted from a text node, with its position
 /// in original-document byte offsets. Borrows the word text from the
@@ -14,53 +15,46 @@ pub struct WordCandidate<'a> {
     pub end_byte: usize,
 }
 
-/// Check candidate words against dictionaries and config rules.
-/// Returns WordLocations for misspelled words, grouping all locations
-/// of the same word together. When `resolved` is Some, its per-file
-/// settings take precedence over the base config for flag/allow/min-length.
+/// Check candidate words against dictionaries and the (already resolved)
+/// settings for the file. Returns WordLocations for misspelled words,
+/// grouping all locations of the same word together.
 pub fn check_words(
     candidates: &[WordCandidate<'_>],
     dictionaries: &[std::sync::Arc<dyn Dictionary>],
-    config: &dyn CodebookConfig,
-    resolved: Option<&ConfigSettings>,
+    settings: &ConfigSettings,
 ) -> Vec<WordLocation> {
-    // Group candidates by word text, deduplicating identical spans.
-    let mut word_positions: HashMap<&str, HashSet<TextRange>> = HashMap::new();
+    // Group candidates by word text.
+    let mut word_positions: HashMap<&str, Vec<TextRange>> = HashMap::new();
     for candidate in candidates {
-        let location = TextRange {
-            start_byte: candidate.start_byte,
-            end_byte: candidate.end_byte,
-        };
-        let added = word_positions
+        word_positions
             .entry(candidate.word)
             .or_default()
-            .insert(location);
-
-        debug_assert!(
-            added,
-            "Two of the same locations found. Make a better query. Word: {}, Location: {:?}",
-            candidate.word, location
-        );
+            .push(TextRange {
+                start_byte: candidate.start_byte,
+                end_byte: candidate.end_byte,
+            });
     }
 
-    let should_flag = |w: &str| match resolved {
-        Some(s) => s.should_flag_word(w),
-        None => config.should_flag_word(w),
-    };
-    let min_word_length = match resolved {
-        Some(s) => s.min_word_length(),
-        None => config.get_min_word_length(),
-    };
-    let is_allowed = |w: &str| match resolved {
-        Some(s) => s.is_allowed_word(w),
-        None => config.is_allowed_word(w),
-    };
+    // Index the word lists once so each lookup is a hash probe instead of a
+    // scan of the whole list; allowlists grow to hundreds of entries.
+    let flagged = fold_words(&settings.flag_words);
+    let allowed = fold_words(&settings.words);
+    let min_word_length = settings.min_word_length();
 
     // Check each unique word once
     let mut results = Vec::new();
-    for (word, positions) in word_positions {
-        let positions: Vec<TextRange> = positions.into_iter().collect();
-        if should_flag(word) {
+    for (word, mut positions) in word_positions {
+        // Identical spans (a query capturing the same text twice) collapse
+        // to one location.
+        let found = positions.len();
+        positions.sort_unstable();
+        positions.dedup();
+        debug_assert!(
+            positions.len() == found,
+            "Two of the same locations found. Make a better query. Word: {word}, Locations: {positions:?}"
+        );
+        let folded = UniCase::new(word);
+        if flagged.contains(&folded) {
             results.push(WordLocation::new(word.to_string(), positions));
             continue;
         }
@@ -69,7 +63,7 @@ pub fn check_words(
         if word.chars().count() < min_word_length {
             continue;
         }
-        if is_allowed(word) {
+        if allowed.contains(&folded) {
             continue;
         }
         let is_correct = dictionaries.iter().any(|dict| dict.check(word));
@@ -78,6 +72,10 @@ pub fn check_words(
         }
     }
     results
+}
+
+fn fold_words(words: &[String]) -> HashSet<UniCase<&str>> {
+    words.iter().map(|w| UniCase::new(w.as_str())).collect()
 }
 
 #[cfg(test)]
@@ -100,9 +98,9 @@ mod tests {
     #[test]
     fn test_check_words_flags_unknown() {
         let dict = Arc::new(TextDictionary::new("hello\nworld\n"));
-        let config = Arc::new(codebook_config::CodebookConfigMemory::default());
+        let settings = ConfigSettings::default();
         let candidates = make_candidates(&[("hello", 0, 5), ("wrld", 6, 10)]);
-        let results = check_words(&candidates, &[dict], config.as_ref(), None);
+        let results = check_words(&candidates, &[dict], &settings);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].word, "wrld");
     }
@@ -110,9 +108,9 @@ mod tests {
     #[test]
     fn test_check_words_groups_locations() {
         let dict = Arc::new(TextDictionary::new("hello\n"));
-        let config = Arc::new(codebook_config::CodebookConfigMemory::default());
+        let settings = ConfigSettings::default();
         let candidates = make_candidates(&[("wrld", 0, 4), ("wrld", 10, 14)]);
-        let results = check_words(&candidates, &[dict], config.as_ref(), None);
+        let results = check_words(&candidates, &[dict], &settings);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].word, "wrld");
         assert_eq!(results[0].locations.len(), 2);
@@ -121,20 +119,20 @@ mod tests {
     #[test]
     fn test_check_words_respects_min_length() {
         let dict = Arc::new(TextDictionary::new(""));
-        let config = Arc::new(codebook_config::CodebookConfigMemory::default());
+        let settings = ConfigSettings::default();
         // Default min word length is 3
         let candidates = make_candidates(&[("ab", 0, 2)]);
-        let results = check_words(&candidates, &[dict], config.as_ref(), None);
+        let results = check_words(&candidates, &[dict], &settings);
         assert!(results.is_empty(), "Short words should be skipped");
     }
 
     #[test]
     fn test_check_words_min_length_counts_chars_not_bytes() {
         let dict = Arc::new(TextDictionary::new(""));
-        let config = Arc::new(codebook_config::CodebookConfigMemory::default());
+        let settings = ConfigSettings::default();
         // "ий" is 2 chars but 4 bytes; must be skipped like a 2-char ASCII word
         let candidates = make_candidates(&[("ий", 0, 4)]);
-        let results = check_words(&candidates, &[dict], config.as_ref(), None);
+        let results = check_words(&candidates, &[dict], &settings);
         assert!(
             results.is_empty(),
             "Multi-byte short words should be skipped"
@@ -144,10 +142,10 @@ mod tests {
     #[test]
     fn test_check_words_respects_allowed_words() {
         let dict = Arc::new(TextDictionary::new(""));
-        let config = Arc::new(codebook_config::CodebookConfigMemory::default());
-        config.add_word("codebook");
+        let mut settings = ConfigSettings::default();
+        settings.insert_word("codebook");
         let candidates = make_candidates(&[("codebook", 0, 8)]);
-        let results = check_words(&candidates, &[dict], config.as_ref(), None);
+        let results = check_words(&candidates, &[dict], &settings);
         assert!(results.is_empty(), "Allowed words should not be flagged");
     }
 }

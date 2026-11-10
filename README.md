@@ -111,7 +111,13 @@ pacman -S codebook-lsp
 You can also install the Codebook LSP using Cargo:
 
 ```sh
-cargo install codebook-lsp
+cargo install --locked codebook-lsp
+```
+
+To install directly from the GitHub repository:
+
+```sh
+cargo install --locked --git https://github.com/blopker/codebook codebook-lsp
 ```
 
 ### Homebrew
@@ -120,12 +126,6 @@ You can install the Codebook LSP using Homebrew:
 
 ```sh
 brew install codebook-lsp
-```
-
-To install directly from the GitHub repository:
-
-```sh
-cargo install --git https://github.com/blopker/codebook codebook-lsp
 ```
 
 ### From source
