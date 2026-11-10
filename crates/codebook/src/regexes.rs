@@ -7,6 +7,12 @@ use std::sync::LazyLock;
 /// crate has no lookahead, so enumerate the first digit's position: either
 /// it's within the first 7 chars (exact 7-40 length bounds per position),
 /// or the token starts with 7+ letters and a digit follows.
+///
+/// The word boundaries are ASCII ones (`(?-u:\b)`). A Unicode `\b` makes the
+/// regex engine drop to its slow path for the rest of any text containing a
+/// non-ASCII character, which costs milliseconds on large files. The only
+/// difference in matches is that a hex run touching a non-ASCII letter
+/// ("修正はabc1234で") counts as a hash.
 fn git_hash_pattern() -> Regex {
     let alts: Vec<String> = (0..7)
         .map(|i| format!("[a-fA-F]{{{i}}}[0-9][0-9a-fA-F]{{{},{}}}", 6 - i, 39 - i))
@@ -14,7 +20,7 @@ fn git_hash_pattern() -> Regex {
             "[a-fA-F]{7,39}[0-9][0-9a-fA-F]{0,32}".to_string(),
         ))
         .collect();
-    Regex::new(&format!(r"\b(?:{})\b", alts.join("|"))).expect("Valid git hash regex")
+    Regex::new(&format!(r"(?-u:\b)(?:{})(?-u:\b)", alts.join("|"))).expect("Valid git hash regex")
 }
 
 static DEFAULT_SKIP_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
@@ -162,5 +168,21 @@ mod tests {
 
         // Too short
         assert!(!hash_pattern.is_match("abc123"));
+    }
+
+    #[test]
+    fn test_git_hash_pattern_next_to_non_ascii_text() {
+        let patterns = get_default_skip_patterns();
+        let hash_pattern = &patterns[7];
+        let matched = |text: &'static str| hash_pattern.find(text).map(|m| m.as_str());
+
+        // A hash written straight after or before non-ASCII letters, as in
+        // prose without spaces between words, is still a hash.
+        assert_eq!(matched("修正はabc1234で行いました"), Some("abc1234"));
+        assert_eq!(matched("abc1234é"), Some("abc1234"));
+        // ASCII word characters around a hex run still make it part of a
+        // longer word.
+        assert_eq!(matched("xabc1234"), None);
+        assert_eq!(matched("abc1234_x"), None);
     }
 }

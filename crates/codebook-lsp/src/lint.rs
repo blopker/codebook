@@ -129,6 +129,7 @@ pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> L
 
     let (resolved, mut had_failure) = resolve_paths(files, root);
 
+    let settings = config.snapshot();
     let mut seen_words: HashSet<String> = HashSet::new();
     let mut total_errors = 0;
     let mut files_with_errors: usize = 0;
@@ -139,11 +140,11 @@ pub fn run_lint(files: &[String], root: &Path, unique: bool, suggest: bool) -> L
         let relative = relative_to_root(root_canonical.as_deref(), path);
         let rel_path = Path::new(&relative);
 
-        if config.should_ignore_path(rel_path) {
+        if settings.should_ignore_path(rel_path) {
             ignored += 1;
             continue;
         }
-        if !config.should_include_path(rel_path) {
+        if !settings.should_include_path(rel_path) {
             excluded += 1;
             continue;
         }

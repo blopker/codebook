@@ -432,19 +432,23 @@ impl ConfigSettings {
         }
     }
 
-    /// Resolve the effective settings for a specific file path by applying matching overrides.
-    /// Returns a new ConfigSettings with overrides applied and the overrides list cleared.
-    pub fn resolve_for_path(&self, path: &Path) -> ConfigSettings {
-        let mut resolved = self.clone();
-        resolved.overrides = vec![]; // Resolved config has no overrides
+    /// Resolve the effective settings for a specific file path by applying
+    /// every matching override block in order. Returns None when no block
+    /// matches (the settings apply unchanged); otherwise a new ConfigSettings
+    /// with the overrides applied and the overrides list cleared.
+    pub fn resolve_for_path(&self, path: &Path) -> Option<ConfigSettings> {
+        let mut matching = self.overrides.iter().filter(|o| o.matches_path(path));
+        let first = matching.next()?;
 
-        for ovr in &self.overrides {
-            if ovr.matches_path(path) {
-                resolved.apply_override(ovr);
-            }
+        let mut resolved = ConfigSettings {
+            overrides: Vec::new(),
+            ..self.clone()
+        };
+        resolved.apply_override(first);
+        for ovr in matching {
+            resolved.apply_override(ovr);
         }
-
-        resolved
+        Some(resolved)
     }
 }
 
@@ -1202,14 +1206,14 @@ mod tests {
         assert_eq!(config.overrides.len(), 3);
 
         // Replace: the base exclude list is swapped out, not extended
-        let toml_file = config.resolve_for_path(Path::new("codebook.toml"));
+        let toml_file = config.resolve_for_path(Path::new("codebook.toml")).unwrap();
         assert_eq!(toml_file.exclude_tags, vec!["string"]);
         assert!(!toml_file.should_check_tag("string"));
         assert!(toml_file.should_check_tag("comment"));
         assert!(toml_file.should_check_tag("comment.doc"));
 
         // Replace one list, append to the other
-        let docs = config.resolve_for_path(Path::new("docs/guide.md"));
+        let docs = config.resolve_for_path(Path::new("docs/guide.md")).unwrap();
         assert_eq!(docs.include_tags, vec!["comment"]);
         assert_eq!(docs.exclude_tags, vec!["comment.doc", "comment.line"]);
         assert!(docs.should_check_tag("comment.block"));
@@ -1217,13 +1221,11 @@ mod tests {
         assert!(!docs.should_check_tag("string"));
 
         // Append to an empty list
-        let src = config.resolve_for_path(Path::new("src/main.rs"));
+        let src = config.resolve_for_path(Path::new("src/main.rs")).unwrap();
         assert_eq!(src.include_tags, vec!["string"]);
 
         // Unmatched paths keep the base settings
-        let other = config.resolve_for_path(Path::new("README.md"));
-        assert_eq!(other.exclude_tags, vec!["comment.doc"]);
-        assert!(other.should_check_tag("string"));
+        assert!(config.resolve_for_path(Path::new("README.md")).is_none());
     }
 
     #[test]
@@ -1312,9 +1314,11 @@ mod tests {
             ..Default::default()
         };
 
-        let resolved = settings.resolve_for_path(Path::new("src/main.rs"));
-        assert_eq!(resolved.words, vec!["base"]);
-        assert!(resolved.overrides.is_empty());
+        assert!(
+            settings
+                .resolve_for_path(Path::new("src/main.rs"))
+                .is_none()
+        );
     }
 
     #[test]
@@ -1329,7 +1333,7 @@ mod tests {
             ..Default::default()
         };
 
-        let resolved = settings.resolve_for_path(Path::new("README.md"));
+        let resolved = settings.resolve_for_path(Path::new("README.md")).unwrap();
         assert_eq!(resolved.words, vec!["base", "markdown"]);
         assert!(resolved.overrides.is_empty());
     }
@@ -1353,7 +1357,9 @@ mod tests {
             ..Default::default()
         };
 
-        let resolved = settings.resolve_for_path(Path::new("docs/guide.md"));
+        let resolved = settings
+            .resolve_for_path(Path::new("docs/guide.md"))
+            .unwrap();
         assert_eq!(resolved.words, vec!["base", "markdown", "documentation"]);
     }
 
@@ -1370,7 +1376,9 @@ mod tests {
             ..Default::default()
         };
 
-        let resolved = settings.resolve_for_path(Path::new("docs/de/guide.md"));
+        let resolved = settings
+            .resolve_for_path(Path::new("docs/de/guide.md"))
+            .unwrap();
         assert_eq!(resolved.dictionaries, vec!["de"]);
         assert_eq!(resolved.words, vec!["codebook"]);
     }

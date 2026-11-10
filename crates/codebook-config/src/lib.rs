@@ -7,7 +7,6 @@ pub use crate::settings::ConfigSettings;
 use crate::watched_file::WatchedFile;
 use log::debug;
 use log::info;
-use regex::Regex;
 use std::env;
 use std::fmt::Debug;
 use std::fs;
@@ -37,7 +36,12 @@ pub enum ConfigError {
     Io(#[from] io::Error),
 }
 
-/// The main trait for Codebook configuration.
+/// A source of Codebook configuration.
+///
+/// All reads go through [`snapshot`](Self::snapshot) (or
+/// [`settings_for_file`](Self::settings_for_file)): take the settings once
+/// and query the returned [`ConfigSettings`], so a whole document is checked
+/// against one consistent view of the config.
 ///
 /// The `add_*` methods only mutate in-memory settings and report whether the
 /// entry was newly added; persisting is a separate, fallible step (see
@@ -47,25 +51,21 @@ pub trait CodebookConfig: Sync + Send + Debug {
     fn add_word_global(&self, word: &str) -> bool;
     fn add_ignore(&self, file: &str) -> bool;
     fn add_include(&self, file: &str) -> bool;
-    fn get_dictionary_ids(&self) -> Vec<String>;
-    /// Every dictionary ID this config can resolve to for any file,
-    /// including per-path override blocks. Used for prefetching.
-    fn all_dictionary_ids(&self) -> Vec<String> {
-        self.get_dictionary_ids()
-    }
-    fn should_ignore_path(&self, path: &Path) -> bool;
-    fn should_include_path(&self, path: &Path) -> bool;
-    fn is_allowed_word(&self, word: &str) -> bool;
-    fn should_flag_word(&self, word: &str) -> bool;
-    fn get_ignore_patterns(&self) -> Vec<Regex>;
-    fn get_min_word_length(&self) -> usize;
-    fn should_check_tag(&self, tag: &str) -> bool;
     fn cache_dir(&self) -> &Path;
 
-    /// Resolve settings with overrides applied for a specific file path.
-    /// Returns None if no overrides match (callers should use base config methods).
-    fn resolve_for_file(&self, _relative_path: &Path) -> Option<Arc<ConfigSettings>> {
-        None
+    /// The effective settings right now. Cheap: implementations hand out a
+    /// shared pointer to settings they already hold.
+    fn snapshot(&self) -> Arc<ConfigSettings>;
+
+    /// The effective settings for one file: the snapshot with every
+    /// `[[overrides]]` block matching `relative_path` applied, or the
+    /// snapshot itself when none match.
+    fn settings_for_file(&self, relative_path: &Path) -> Arc<ConfigSettings> {
+        let snapshot = self.snapshot();
+        match snapshot.resolve_for_path(relative_path) {
+            Some(resolved) => Arc::new(resolved),
+            None => snapshot,
+        }
     }
 }
 
@@ -304,11 +304,6 @@ impl CodebookConfigFile {
         }
     }
 
-    /// Get current configuration snapshot (cheap to clone)
-    fn snapshot(&self) -> Arc<ConfigSettings> {
-        self.inner.read().unwrap().snapshot.clone()
-    }
-
     /// Reload both global and project configurations, only reading files if
     /// they've changed. Returns true when the effective settings changed.
     /// Never fails: a config that can no longer be loaded keeps its last good
@@ -466,44 +461,32 @@ impl CodebookConfigFile {
         inner.snapshot = Arc::new(effective);
     }
 
-    fn update_project_settings<F>(&self, update: F) -> bool
-    where
-        F: FnOnce(&mut ConfigSettings) -> bool,
-    {
+    /// Apply `update` to the settings of one of the two config files
+    /// (chosen by `select`), rebuilding the snapshot when it reports a change.
+    fn update_settings(
+        &self,
+        select: fn(&mut ConfigInner) -> &mut WatchedFile<ConfigSettings>,
+        update: impl FnOnce(&mut ConfigSettings) -> bool,
+    ) -> bool {
         let mut inner = self.inner.write().unwrap();
-        let mut settings = inner
-            .project_config
-            .content()
-            .cloned()
-            .unwrap_or_else(ConfigSettings::default);
+        let watched = select(&mut inner);
+        let mut settings = watched.content().cloned().unwrap_or_default();
 
         if !update(&mut settings) {
             return false;
         }
 
-        inner.project_config = inner.project_config.clone().with_content_value(settings);
+        *watched = watched.clone().with_content_value(settings);
         Self::rebuild_snapshot(&mut inner);
         true
     }
 
-    fn update_global_settings<F>(&self, update: F) -> bool
-    where
-        F: FnOnce(&mut ConfigSettings) -> bool,
-    {
-        let mut inner = self.inner.write().unwrap();
-        let mut settings = inner
-            .global_config
-            .content()
-            .cloned()
-            .unwrap_or_else(ConfigSettings::default);
+    fn update_project_settings(&self, update: impl FnOnce(&mut ConfigSettings) -> bool) -> bool {
+        self.update_settings(|inner| &mut inner.project_config, update)
+    }
 
-        if !update(&mut settings) {
-            return false;
-        }
-
-        inner.global_config = inner.global_config.clone().with_content_value(settings);
-        Self::rebuild_snapshot(&mut inner);
-        true
+    fn update_global_settings(&self, update: impl FnOnce(&mut ConfigSettings) -> bool) -> bool {
+        self.update_settings(|inner| &mut inner.global_config, update)
     }
 }
 
@@ -527,111 +510,45 @@ impl CodebookConfig for CodebookConfigFile {
         self.update_project_settings(|settings| settings.insert_include(file))
     }
 
-    /// Get dictionary IDs from effective configuration
-    fn get_dictionary_ids(&self) -> Vec<String> {
-        let snapshot = self.snapshot();
-        snapshot.dictionary_ids()
-    }
-
-    fn all_dictionary_ids(&self) -> Vec<String> {
-        self.snapshot().all_dictionary_ids()
-    }
-
-    /// Check if a path is included based on the effective configuration
-    fn should_include_path(&self, path: &Path) -> bool {
-        let snapshot = self.snapshot();
-        snapshot.should_include_path(path)
-    }
-
-    /// Check if a path should be ignored based on the effective configuration
-    fn should_ignore_path(&self, path: &Path) -> bool {
-        let snapshot = self.snapshot();
-        snapshot.should_ignore_path(path)
-    }
-
-    /// Check if a word is in the effective allowlist
-    fn is_allowed_word(&self, word: &str) -> bool {
-        let snapshot = self.snapshot();
-        snapshot.is_allowed_word(word)
-    }
-
-    /// Check if a word should be flagged according to effective configuration
-    fn should_flag_word(&self, word: &str) -> bool {
-        let snapshot = self.snapshot();
-        snapshot.should_flag_word(word)
-    }
-
-    /// Get the list of user-defined ignore patterns, compiled when the
-    /// config was parsed. Regex clones are cheap (internally Arc'd).
-    fn get_ignore_patterns(&self) -> Vec<Regex> {
-        self.snapshot().ignore_patterns.clone()
-    }
-
-    /// Get the minimum word length which should be checked
-    fn get_min_word_length(&self) -> usize {
-        self.snapshot().min_word_length()
-    }
-
-    fn should_check_tag(&self, tag: &str) -> bool {
-        self.snapshot().should_check_tag(tag)
-    }
-
     fn cache_dir(&self) -> &Path {
         &self.cache_dir
     }
 
-    /// Resolve settings with overrides applied for a specific file path.
-    fn resolve_for_file(&self, relative_path: &Path) -> Option<Arc<ConfigSettings>> {
-        let snapshot = self.snapshot();
-        if snapshot.overrides.is_empty() {
-            return None;
-        }
-        if !snapshot
-            .overrides
-            .iter()
-            .any(|o| o.matches_path(relative_path))
-        {
-            return None;
-        }
-        Some(Arc::new(snapshot.resolve_for_path(relative_path)))
+    fn snapshot(&self) -> Arc<ConfigSettings> {
+        self.inner.read().unwrap().snapshot.clone()
     }
 }
 
+/// In-memory configuration with no backing files, for tests and embedding.
 #[derive(Debug)]
 pub struct CodebookConfigMemory {
-    settings: RwLock<ConfigSettings>,
+    settings: RwLock<Arc<ConfigSettings>>,
     cache_dir: PathBuf,
 }
 
 impl Default for CodebookConfigMemory {
     fn default() -> Self {
-        Self {
-            settings: RwLock::new(ConfigSettings::default()),
-            cache_dir: helpers::default_cache_dir(),
-        }
+        Self::new(ConfigSettings::default())
     }
 }
 
 impl CodebookConfigMemory {
     pub fn new(settings: ConfigSettings) -> Self {
         Self {
-            settings: RwLock::new(settings),
+            settings: RwLock::new(Arc::new(settings)),
             cache_dir: helpers::default_cache_dir(),
         }
     }
-}
 
-impl CodebookConfigMemory {
-    /// Get current configuration snapshot (cheap to clone)
-    fn snapshot(&self) -> Arc<ConfigSettings> {
-        Arc::new(self.settings.read().unwrap().clone())
+    /// Mutate the settings, copying them only if a snapshot is still held.
+    fn update(&self, update: impl FnOnce(&mut ConfigSettings) -> bool) -> bool {
+        update(Arc::make_mut(&mut self.settings.write().unwrap()))
     }
 }
 
 impl CodebookConfig for CodebookConfigMemory {
     fn add_word(&self, word: &str) -> bool {
-        let mut settings = self.settings.write().unwrap();
-        settings.insert_word(word)
+        self.update(|settings| settings.insert_word(word))
     }
 
     fn add_word_global(&self, word: &str) -> bool {
@@ -639,58 +556,19 @@ impl CodebookConfig for CodebookConfigMemory {
     }
 
     fn add_ignore(&self, file: &str) -> bool {
-        let mut settings = self.settings.write().unwrap();
-        settings.insert_ignore(file)
+        self.update(|settings| settings.insert_ignore(file))
     }
 
     fn add_include(&self, file: &str) -> bool {
-        let mut settings = self.settings.write().unwrap();
-        settings.insert_include(file)
-    }
-
-    fn get_dictionary_ids(&self) -> Vec<String> {
-        let snapshot = self.snapshot();
-        snapshot.dictionary_ids()
-    }
-
-    fn all_dictionary_ids(&self) -> Vec<String> {
-        self.snapshot().all_dictionary_ids()
-    }
-
-    fn should_include_path(&self, path: &Path) -> bool {
-        let snapshot = self.snapshot();
-        snapshot.should_include_path(path)
-    }
-
-    fn should_ignore_path(&self, path: &Path) -> bool {
-        let snapshot = self.snapshot();
-        snapshot.should_ignore_path(path)
-    }
-
-    fn is_allowed_word(&self, word: &str) -> bool {
-        let snapshot = self.snapshot();
-        snapshot.is_allowed_word(word)
-    }
-
-    fn should_flag_word(&self, word: &str) -> bool {
-        let snapshot = self.snapshot();
-        snapshot.should_flag_word(word)
-    }
-
-    fn get_ignore_patterns(&self) -> Vec<Regex> {
-        self.settings.read().unwrap().ignore_patterns.clone()
-    }
-
-    fn get_min_word_length(&self) -> usize {
-        self.snapshot().min_word_length()
-    }
-
-    fn should_check_tag(&self, tag: &str) -> bool {
-        self.snapshot().should_check_tag(tag)
+        self.update(|settings| settings.insert_include(file))
     }
 
     fn cache_dir(&self) -> &Path {
         &self.cache_dir
+    }
+
+    fn snapshot(&self) -> Arc<ConfigSettings> {
+        self.settings.read().unwrap().clone()
     }
 }
 
@@ -778,7 +656,7 @@ mod tests {
 
         // Reload config and verify
         let loaded_config = load_from_file(ConfigType::Project, &config_path)?;
-        assert!(loaded_config.is_allowed_word("testword"));
+        assert!(loaded_config.snapshot().is_allowed_word("testword"));
 
         Ok(())
     }
@@ -804,7 +682,7 @@ mod tests {
 
         // Reload config and verify
         let loaded_config = load_from_file(ConfigType::Global, &config_path)?;
-        assert!(loaded_config.is_allowed_word("testword"));
+        assert!(loaded_config.snapshot().is_allowed_word("testword"));
 
         Ok(())
     }
@@ -830,7 +708,7 @@ mod tests {
                 .iter()
                 .any(|p| p.as_str() == "\\d{3}-\\d{2}-\\d{4}")
         );
-        let patterns = config.get_ignore_patterns();
+        let patterns = config.snapshot().ignore_patterns.clone();
         assert!(patterns.len() == 2);
         Ok(())
     }
@@ -852,7 +730,7 @@ mod tests {
         )?;
 
         let config = load_from_file(ConfigType::Project, &config_path)?;
-        assert!(config.get_ignore_patterns().len() == 1);
+        assert!(config.snapshot().ignore_patterns.len() == 1);
 
         // Update config with new pattern
         let mut file = File::create(&config_path)?;
@@ -866,7 +744,7 @@ mod tests {
 
         // Reload and verify both patterns work
         config.reload();
-        assert!(config.get_ignore_patterns().len() == 2);
+        assert!(config.snapshot().ignore_patterns.len() == 2);
 
         // Update config to remove all patterns
         let mut file = File::create(&config_path)?;
@@ -879,7 +757,7 @@ mod tests {
 
         // Reload and verify no patterns match
         config.reload();
-        assert!(config.get_ignore_patterns().is_empty());
+        assert!(config.snapshot().ignore_patterns.is_empty());
 
         Ok(())
     }
@@ -931,7 +809,7 @@ mod tests {
         env::set_current_dir(original_dir)?;
 
         let config = result?;
-        assert!(config.is_allowed_word("parentword"));
+        assert!(config.snapshot().is_allowed_word("parentword"));
         assert_eq!(
             config.project_config_path(),
             Some(temp_dir.path().canonicalize()?.join("codebook.toml"))
@@ -962,7 +840,7 @@ mod tests {
         )?;
 
         assert_eq!(config.global_config_path(), Some(override_path));
-        assert!(config.is_allowed_word("customword"));
+        assert!(config.snapshot().is_allowed_word("customword"));
         Ok(())
     }
 
@@ -990,8 +868,8 @@ mod tests {
         )?;
 
         assert_eq!(config.project_config_path(), Some(override_path));
-        assert!(config.is_allowed_word("nestedword"));
-        assert!(!config.is_allowed_word("rootword"));
+        assert!(config.snapshot().is_allowed_word("nestedword"));
+        assert!(!config.snapshot().is_allowed_word("rootword"));
         Ok(())
     }
 
@@ -1020,7 +898,7 @@ mod tests {
         assert_eq!(config.project_config_path(), Some(override_path.clone()));
         assert!(!override_path.exists());
         // Auto-discovery should NOT have loaded the root file.
-        assert!(!config.is_allowed_word("rootword"));
+        assert!(!config.snapshot().is_allowed_word("rootword"));
 
         // Adding a word and saving should create both the directory and the file
         // at the override location.
@@ -1096,16 +974,28 @@ ignore_paths = ["build/**", "target/**"]
             inner.snapshot = Arc::new(effective);
         }
 
-        assert!(config.should_ignore_path("target/debug/build".as_ref()));
-        assert!(!config.should_ignore_path("src/main.rs".as_ref()));
+        assert!(
+            config
+                .snapshot()
+                .should_ignore_path("target/debug/build".as_ref())
+        );
+        assert!(!config.snapshot().should_ignore_path("src/main.rs".as_ref()));
     }
 
     #[test]
     fn test_should_include_path() {
         // Empty include_paths: everything is included
         let config = CodebookConfigFile::default();
-        assert!(config.should_include_path("src/main.rs".as_ref()));
-        assert!(config.should_include_path("target/debug/build".as_ref()));
+        assert!(
+            config
+                .snapshot()
+                .should_include_path("src/main.rs".as_ref())
+        );
+        assert!(
+            config
+                .snapshot()
+                .should_include_path("target/debug/build".as_ref())
+        );
 
         // Non-empty include_paths: only matching paths are included
         let config = CodebookConfigFile::default();
@@ -1127,9 +1017,17 @@ ignore_paths = ["build/**", "target/**"]
             inner.snapshot = Arc::new(effective);
         }
 
-        assert!(config.should_include_path("src/main.rs".as_ref()));
-        assert!(!config.should_include_path("src/main.py".as_ref()));
-        assert!(!config.should_include_path("README.md".as_ref()));
+        assert!(
+            config
+                .snapshot()
+                .should_include_path("src/main.rs".as_ref())
+        );
+        assert!(
+            !config
+                .snapshot()
+                .should_include_path("src/main.py".as_ref())
+        );
+        assert!(!config.snapshot().should_include_path("README.md".as_ref()));
     }
 
     #[test]
@@ -1157,7 +1055,7 @@ ignore_paths = ["build/**", "target/**"]
 
         // Reload config and verify
         config.reload();
-        assert!(config.is_allowed_word("testword"));
+        assert!(config.snapshot().is_allowed_word("testword"));
 
         Ok(())
     }
@@ -1187,14 +1085,14 @@ ignore_paths = ["build/**", "target/**"]
 
         // Reload config and verify
         config.reload();
-        assert!(config.is_allowed_word("testword"));
+        assert!(config.snapshot().is_allowed_word("testword"));
 
         // Delete the config file
         fs::remove_file(&config_path)?;
 
         // Reload config and verify
         config.reload();
-        assert!(!config.is_allowed_word("testword"));
+        assert!(!config.snapshot().is_allowed_word("testword"));
 
         Ok(())
     }
@@ -1219,9 +1117,9 @@ ignore_paths = ["build/**", "target/**"]
 
         // Reload config and verify with different cases
         let loaded_config = load_from_file(ConfigType::Global, &config_path)?;
-        assert!(loaded_config.is_allowed_word("testword"));
-        assert!(loaded_config.is_allowed_word("TESTWORD"));
-        assert!(loaded_config.is_allowed_word("TestWord"));
+        assert!(loaded_config.snapshot().is_allowed_word("testword"));
+        assert!(loaded_config.snapshot().is_allowed_word("TESTWORD"));
+        assert!(loaded_config.snapshot().is_allowed_word("TestWord"));
 
         Ok(())
     }
@@ -1247,9 +1145,9 @@ ignore_paths = ["build/**", "target/**"]
 
         // Reload config and verify with different cases
         let loaded_config = load_from_file(ConfigType::Global, &config_path)?;
-        assert!(loaded_config.is_allowed_word("testword"));
-        assert!(loaded_config.is_allowed_word("TESTWORD"));
-        assert!(loaded_config.is_allowed_word("TestWord"));
+        assert!(loaded_config.snapshot().is_allowed_word("testword"));
+        assert!(loaded_config.snapshot().is_allowed_word("TESTWORD"));
+        assert!(loaded_config.snapshot().is_allowed_word("TestWord"));
 
         Ok(())
     }
@@ -1326,13 +1224,13 @@ ignore_paths = ["build/**", "target/**"]
         }
 
         // Verify merged results
-        assert!(config.is_allowed_word("globalword1")); // From global
-        assert!(config.is_allowed_word("projectword")); // From project
-        assert!(config.should_flag_word("globaltodo")); // From global
-        assert!(config.should_flag_word("projecttodo")); // From project
+        assert!(config.snapshot().is_allowed_word("globalword1")); // From global
+        assert!(config.snapshot().is_allowed_word("projectword")); // From project
+        assert!(config.snapshot().should_flag_word("globaltodo")); // From global
+        assert!(config.snapshot().should_flag_word("projecttodo")); // From project
 
         // Verify dictionaries came from global
-        let dictionaries = config.get_dictionary_ids();
+        let dictionaries = config.snapshot().dictionary_ids();
         assert_eq!(dictionaries.len(), 2);
         assert!(dictionaries.contains(&"en_us".to_string()));
         assert!(dictionaries.contains(&"fr_fr".to_string()));
@@ -1352,15 +1250,48 @@ ignore_paths = ["build/**", "target/**"]
         config.reload();
 
         // Now should only see project words
-        assert!(config.is_allowed_word("projectword")); // From project
-        assert!(!config.is_allowed_word("globalword1")); // Not used from global
-        assert!(config.should_flag_word("projecttodo")); // From project
-        assert!(!config.should_flag_word("globaltodo")); // Not used from global
+        assert!(config.snapshot().is_allowed_word("projectword")); // From project
+        assert!(!config.snapshot().is_allowed_word("globalword1")); // Not used from global
+        assert!(config.snapshot().should_flag_word("projecttodo")); // From project
+        assert!(!config.snapshot().should_flag_word("globaltodo")); // Not used from global
 
         Ok(())
     }
 
     // --- Override integration tests ---
+
+    #[test]
+    fn test_settings_for_file_applies_overrides_or_shares_snapshot() {
+        let settings: ConfigSettings = toml::from_str(
+            r#"
+            words = ["base"]
+
+            [[overrides]]
+            paths = ["**/*.md"]
+            extra_words = ["markdown"]
+            "#,
+        )
+        .unwrap();
+        let config = CodebookConfigMemory::new(settings);
+
+        // No matching override: the snapshot itself, not a copy
+        let unmatched = config.settings_for_file(Path::new("src/main.rs"));
+        assert!(Arc::ptr_eq(&unmatched, &config.snapshot()));
+
+        let matched = config.settings_for_file(Path::new("README.md"));
+        assert!(matched.is_allowed_word("base"));
+        assert!(matched.is_allowed_word("markdown"));
+        assert!(!config.snapshot().is_allowed_word("markdown"));
+    }
+
+    #[test]
+    fn test_memory_snapshot_is_unaffected_by_later_edits() {
+        let config = CodebookConfigMemory::default();
+        let before = config.snapshot();
+        assert!(config.add_word("frobnicate"));
+        assert!(!before.is_allowed_word("frobnicate"));
+        assert!(config.snapshot().is_allowed_word("frobnicate"));
+    }
 
     #[test]
     fn test_resolve_for_file_no_overrides() {
@@ -1376,7 +1307,12 @@ ignore_paths = ["build/**", "target/**"]
         }
 
         // No overrides, should return None
-        assert!(config.resolve_for_file(Path::new("src/main.rs")).is_none());
+        assert!(
+            config
+                .snapshot()
+                .resolve_for_path(Path::new("src/main.rs"))
+                .is_none()
+        );
     }
 
     #[test]
@@ -1398,14 +1334,19 @@ ignore_paths = ["build/**", "target/**"]
         let config = load_from_file(ConfigType::Project, &config_path)?;
 
         // .md file should get override
-        let resolved = config.resolve_for_file(Path::new("README.md"));
+        let resolved = config.snapshot().resolve_for_path(Path::new("README.md"));
         assert!(resolved.is_some());
         let settings = resolved.unwrap();
         assert!(settings.is_allowed_word("base"));
         assert!(settings.is_allowed_word("markdown"));
 
         // .rs file should not match
-        assert!(config.resolve_for_file(Path::new("src/main.rs")).is_none());
+        assert!(
+            config
+                .snapshot()
+                .resolve_for_path(Path::new("src/main.rs"))
+                .is_none()
+        );
 
         Ok(())
     }
@@ -1465,7 +1406,9 @@ ignore_paths = ["build/**", "target/**"]
         }
 
         // Resolve for a .md file — both overrides should apply
-        let resolved = config.resolve_for_file(Path::new("docs/guide.md"));
+        let resolved = config
+            .snapshot()
+            .resolve_for_path(Path::new("docs/guide.md"));
         assert!(resolved.is_some());
         let settings = resolved.unwrap();
         assert!(settings.is_allowed_word("globalbase"));
@@ -1530,7 +1473,7 @@ ignore_paths = ["build/**", "target/**"]
         }
 
         // With use_global = false, global overrides should be ignored
-        let resolved = config.resolve_for_file(Path::new("README.md"));
+        let resolved = config.snapshot().resolve_for_path(Path::new("README.md"));
         assert!(resolved.is_some());
         let settings = resolved.unwrap();
         assert!(settings.is_allowed_word("projectbase"));
@@ -1565,11 +1508,11 @@ ignore_paths = ["build/**", "target/**"]
 
         // Reload and verify overrides are preserved
         let reloaded = load_from_file(ConfigType::Project, &config_path)?;
-        assert!(reloaded.is_allowed_word("base"));
-        assert!(reloaded.is_allowed_word("newword"));
+        assert!(reloaded.snapshot().is_allowed_word("base"));
+        assert!(reloaded.snapshot().is_allowed_word("newword"));
 
         // Override should still work
-        let resolved = reloaded.resolve_for_file(Path::new("README.md"));
+        let resolved = reloaded.snapshot().resolve_for_path(Path::new("README.md"));
         assert!(resolved.is_some());
         assert!(resolved.unwrap().is_allowed_word("markdown"));
 
@@ -1590,7 +1533,12 @@ ignore_paths = ["build/**", "target/**"]
         let config = load_from_file(ConfigType::Project, &config_path)?;
 
         // No overrides initially
-        assert!(config.resolve_for_file(Path::new("README.md")).is_none());
+        assert!(
+            config
+                .snapshot()
+                .resolve_for_path(Path::new("README.md"))
+                .is_none()
+        );
 
         // Update config with overrides
         fs::write(
@@ -1607,7 +1555,7 @@ ignore_paths = ["build/**", "target/**"]
         config.reload();
 
         // Now overrides should apply
-        let resolved = config.resolve_for_file(Path::new("README.md"));
+        let resolved = config.snapshot().resolve_for_path(Path::new("README.md"));
         assert!(resolved.is_some());
         assert!(resolved.unwrap().is_allowed_word("markdown"));
 
@@ -1685,20 +1633,20 @@ ignore_paths = ["build/**", "target/**"]
             Some(temp_dir.path().join("global.toml")),
             None,
         )?;
-        assert!(config.is_allowed_word("frobnicate"));
+        assert!(config.snapshot().is_allowed_word("frobnicate"));
 
         // Simulate a mid-edit save of broken TOML
         fs::write(&config_path, r#"words = [invalid !!! toml"#)?;
         assert!(!config.reload(), "parse error should not count as a change");
         assert!(
-            config.is_allowed_word("frobnicate"),
+            config.snapshot().is_allowed_word("frobnicate"),
             "last good config should survive a parse error"
         );
 
         // Once the file is valid again, the reload picks it up
         fs::write(&config_path, r#"words = ["frobnicate", "fixed"]"#)?;
         assert!(config.reload());
-        assert!(config.is_allowed_word("fixed"));
+        assert!(config.snapshot().is_allowed_word("fixed"));
         Ok(())
     }
 
@@ -1719,8 +1667,8 @@ ignore_paths = ["build/**", "target/**"]
 
         // Our own save must not read back as an external change
         assert!(!config.reload());
-        assert!(config.is_allowed_word("frobnicate"));
-        assert!(config.is_allowed_word("zebra"));
+        assert!(config.snapshot().is_allowed_word("frobnicate"));
+        assert!(config.snapshot().is_allowed_word("zebra"));
         Ok(())
     }
 }
