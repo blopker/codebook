@@ -260,8 +260,8 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::OCaml,
-        ids: &["ocaml"],
-        dictionary_ids: &["ocaml"],
+        ids: &["ocaml", "ocaml.interface"],
+        dictionary_ids: &["ocaml", "ocaml.interface"],
         query: include_str!("queries/ocaml.scm"),
         extensions: &["ml", "mli"],
     },
@@ -323,7 +323,7 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::Hcl,
-        ids: &["hcl", "terraform", "terraform vars"],
+        ids: &["hcl", "terraform", "terraform vars", "terraform-vars"],
         dictionary_ids: &["terraform"],
         query: include_str!("queries/hcl.scm"),
         extensions: &["tf", "tfvars", "tofu", "hcl"],

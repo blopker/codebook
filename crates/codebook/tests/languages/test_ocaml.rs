@@ -54,3 +54,13 @@ let s = {id|some quoted textt|id}
         &[("itemms", &[0]), ("textt", &[0])],
     );
 }
+
+#[test]
+fn test_ocaml_language_ids() {
+    use std::str::FromStr;
+
+    // VS Code sends "ocaml.interface" for .mli files
+    for id in ["ocaml", "ocaml.interface"] {
+        assert_eq!(LanguageType::from_str(id), Ok(LanguageType::OCaml), "{id}");
+    }
+}

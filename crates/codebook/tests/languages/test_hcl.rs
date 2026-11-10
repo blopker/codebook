@@ -115,9 +115,9 @@ fn test_hcl_language_detection() {
     use codebook::queries::get_language_name_from_filename;
     use std::str::FromStr;
 
-    // Editors send their language name as the id; Zed lowercases its
-    // "Terraform Vars" language for .tfvars files.
-    for id in ["hcl", "terraform", "terraform vars"] {
+    // Editors send their language name as the id for .tfvars files: Zed
+    // lowercases its "Terraform Vars" language, VS Code uses "terraform-vars".
+    for id in ["hcl", "terraform", "terraform vars", "terraform-vars"] {
         assert_eq!(LanguageType::from_str(id), Ok(LanguageType::Hcl), "{id}");
     }
     for file in ["main.tf", "prod.tfvars", "main.tofu", "config.hcl"] {

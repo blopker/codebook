@@ -17,6 +17,7 @@ Important user-facing changes. See commit logs for more details.
 - Elixir and OCaml: fixed queries that captured some text twice (`#{...}` interpolation, `%d` format directives, `{id|...|id}` strings). OCaml quoted strings are tagged `string` rather than `string.heredoc`
 - Faster word extraction, especially for files with many URLs, paths, or other skipped text
 - Code actions that update `codebook.toml` (add word, ignore file) keep its comments, formatting, and line endings, and no longer write default settings (#315)
+- VS Code: spell-check Dart, HCL/Terraform, OCaml, and Svelte files. `.tfvars` and `.mli` files are recognized by their VS Code language ids (`terraform-vars`, `ocaml.interface`) instead of being checked as plain text
 - Update dependencies
 
 [0.3.43]
