@@ -59,8 +59,9 @@ let s = {id|some quoted textt|id}
 fn test_ocaml_language_ids() {
     use std::str::FromStr;
 
-    // VS Code sends "ocaml.interface" for .mli files
-    for id in ["ocaml", "ocaml.interface"] {
+    // .mli files: VS Code sends "ocaml.interface", Zed lowercases its
+    // "OCaml Interface" language
+    for id in ["ocaml", "ocaml.interface", "ocaml interface"] {
         assert_eq!(LanguageType::from_str(id), Ok(LanguageType::OCaml), "{id}");
     }
 }

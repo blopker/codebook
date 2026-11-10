@@ -2,6 +2,10 @@
 
 Important user-facing changes. See commit logs for more details.
 
+[Unreleased]
+
+- Zed: `.mli` files (the OCaml extension's "OCaml Interface" language) are spell-checked as OCaml
+
 [0.4.0]
 
 - The `codebook`, `codebook_config`, and `codebook_downloader` library crates have breaking API changes, hence the minor version bump. Install the LSP with `cargo install --locked codebook-lsp` so Cargo uses the tested dependency versions

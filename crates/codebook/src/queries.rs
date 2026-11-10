@@ -260,8 +260,8 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
     },
     LanguageSetting {
         type_: LanguageType::OCaml,
-        ids: &["ocaml", "ocaml.interface"],
-        dictionary_ids: &["ocaml", "ocaml.interface"],
+        ids: &["ocaml", "ocaml.interface", "ocaml interface"],
+        dictionary_ids: &["ocaml"],
         query: include_str!("queries/ocaml.scm"),
         extensions: &["ml", "mli"],
     },
