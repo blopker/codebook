@@ -62,6 +62,18 @@ for (const toml of tomlPaths) {
   console.log(`Updated ${toml} from ${cargoVersion} to ${newVersion}`);
 }
 
+// Point the workspace's dependencies on its own crates at the new version.
+// Without this, a minor bump (0.3.x -> 0.4.0) leaves a `version = "0.3.0"`
+// requirement that the local crates no longer satisfy.
+const workspaceCargoPath = path.join(__dirname, "..", "Cargo.toml");
+const workspaceCargo = fs.readFileSync(workspaceCargoPath, "utf-8");
+const newWorkspaceCargo = workspaceCargo.replace(
+  /^(codebook\w* = \{ path = "crates\/[^"]+", version = ")[^"]*(" \})$/gm,
+  `$1${newVersion}$2`,
+);
+fs.writeFileSync(workspaceCargoPath, newWorkspaceCargo);
+console.log(`Updated workspace dependencies to ${newVersion}`);
+
 // sleep to let the user see the changes
 await new Promise((resolve) => setTimeout(resolve, 500));
 await $`cargo update --workspace`; // update the lock file

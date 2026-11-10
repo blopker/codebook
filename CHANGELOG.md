@@ -2,8 +2,9 @@
 
 Important user-facing changes. See commit logs for more details.
 
-[Unreleased]
+[0.4.0]
 
+- The `codebook`, `codebook_config`, and `codebook_downloader` library crates have breaking API changes, hence the minor version bump. Install the LSP with `cargo install --locked codebook-lsp` so Cargo uses the tested dependency versions
 - Add Nix support (#318)
 - Add HCL/Terraform support, with a Terraform word list (#304, #305, #317)
 - Markdown: table cells are spell-checked (#302)
