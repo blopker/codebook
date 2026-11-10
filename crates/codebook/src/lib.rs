@@ -158,7 +158,10 @@ impl Codebook {
         let (candidates, languages_found) = parser::extract_all_words(
             text,
             language,
-            &|tag| self.config.should_check_tag(tag),
+            &|tag| match resolved {
+                Some(ref settings) => settings.should_check_tag(tag),
+                None => self.config.should_check_tag(tag),
+            },
             &all_patterns,
         );
 

@@ -113,3 +113,9 @@ fn test_rust_regular_impl_function_names_checked() {
     // function.
     assert_spelling_at(LanguageType::Rust, sample_text, &[("erorr", &[0, 1])]);
 }
+
+#[test]
+fn test_rust_escape_sequences_separate_words() {
+    let sample_text = r#"fn main() { println!("this\nis\tindented\u{1F600}wrold"); }"#;
+    assert_spelling_at(LanguageType::Rust, sample_text, &[("wrold", &[0])]);
+}

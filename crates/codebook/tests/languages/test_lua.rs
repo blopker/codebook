@@ -224,3 +224,21 @@ local coroutine = coroutine.create(function() end)
         &["coroutine", "require", "print"],
     );
 }
+
+#[test]
+fn test_lua_require_specifiers_are_skipped() {
+    // `require` names another module, so its argument isn't the file's own
+    // words to check. Strings passed to other functions still are.
+    let lua_code = r#"
+local http = require("socktt.htpp")
+local json = require "dkjsonn"
+print("a wrongg string")
+"#;
+    assert_spelling_at(LanguageType::Lua, lua_code, &[("wrongg", &[0])]);
+}
+
+#[test]
+fn test_lua_escape_sequences_separate_words() {
+    let lua_code = r#"print("this\nis\tindented wrold")"#;
+    assert_spelling_at(LanguageType::Lua, lua_code, &[("wrold", &[0])]);
+}

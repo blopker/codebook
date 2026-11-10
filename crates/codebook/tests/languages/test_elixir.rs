@@ -192,3 +192,15 @@ fn test_elixir_pattern_matching() {
         ],
     );
 }
+
+#[test]
+fn test_elixir_interpolation_is_captured_once() {
+    // Words inside `#{...}` belong to the interpolated code; the string's own
+    // text is checked around it.
+    let sample_text = r#"IO.puts("the vaule is #{inspect(misspeld)} and #{x} finshed")"#;
+    assert_spelling_at(
+        LanguageType::Elixir,
+        sample_text,
+        &[("finshed", &[0]), ("misspeld", &[0]), ("vaule", &[0])],
+    );
+}

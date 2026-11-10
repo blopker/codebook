@@ -59,3 +59,26 @@ fn test_typescript_location() {
         ],
     );
 }
+
+#[test]
+fn test_typescript_module_specifiers_are_skipped() {
+    // Module specifiers name other people's packages, so they aren't the
+    // file's own words to check. Ordinary strings still are.
+    let sample_text = r#"
+import foo from "somePackag";
+import "sideEfect";
+const m = await import("someProjct");
+const r = require("otherPackag");
+const t = require(`templatPackag`);
+import fs = require("badModle");
+export { foo } from "reExportd";
+export * from "allExportd";
+const s = "a wrongg string";
+console.log(require.resolve, "anothr string");
+"#;
+    assert_spelling_at(
+        LanguageType::Typescript,
+        sample_text,
+        &[("anothr", &[0]), ("wrongg", &[0])],
+    );
+}

@@ -91,8 +91,8 @@ The resuts show our aproach is efective.
 As shown in Equation~\ref{eq:enrgy}, the relatioship is clear.
     "#;
     // Exact set equality: command names (equation, label, ref, begin, end,
-    // section) can't appear in the flagged set. Label names ARE checked:
-    // "enrgy" is flagged both in \label and \ref.
+    // section) can't appear in the flagged set. Label names are checked
+    // where they're defined: "enrgy" is flagged in \label, not in \ref.
     assert_spelling_at(
         LanguageType::Latex,
         sample_text,
@@ -101,7 +101,7 @@ As shown in Equation~\ref{eq:enrgy}, the relatioship is clear.
             ("aproach", &[0]),
             ("calcuate", &[0]),
             ("efective", &[0]),
-            ("enrgy", &[0, 1]),
+            ("enrgy", &[0]),
             ("relatioship", &[0]),
             ("resuts", &[0]),
         ],
@@ -146,6 +146,91 @@ The analyss reveals paterns in the data.
             ("spel", &[1]),
             ("speling", &[0]),
             ("wrng", &[0]),
+        ],
+    );
+}
+
+#[test]
+fn test_latex_skips_markup_and_checks_prose() {
+    // Citation keys, label references, environment names, class/package
+    // options, command names, math, and macro definitions are markup, not
+    // prose. A label's definition is the user's own name, so it's checked.
+    let sample_text = r#"
+\documentclass[journal,compsoc]{IEEEtran}
+\usepackage[utf8]{inputenc}
+\DeclareMathOperator{\FDD}{FDD}
+\newcommand{\Mcal}{\mathcal{M}}
+\begin{document}
+\title{A Studdy of Things}
+\author{Name,~\IEEEmembership{Member}}
+\maketitle
+\begin{IEEEkeywords} keyword, anothr \end{IEEEkeywords}
+\section{Introductoin}
+See \cite{smithh2020} and \ref{fig:resultz} for \textbf{detials}.
+$\mathrm{abcz} \nonumber$
+\begin{equation} \mathsf{qwerty} \label{eq:enrgy} \end{equation}
+\includegraphics[width=\columnwidth]{figs/plott.pdf}
+\end{document}
+"#;
+    assert_spelling_at(
+        LanguageType::Latex,
+        sample_text,
+        &[
+            ("Studdy", &[0]),
+            ("anothr", &[0]),
+            ("Introductoin", &[0]),
+            ("detials", &[0]),
+            ("enrgy", &[0]),
+        ],
+    );
+}
+
+#[test]
+fn test_latex_checks_text_arguments_of_reference_commands() {
+    // Links, citations, and colour commands mix name-like arguments (URLs,
+    // keys, colour names) with prose ones. Only the prose is checked.
+    let sample_text = r"\href{http://example.com/pathh}{link texxt}
+\url{http://example.com/othr}
+\cite[see pagee][chap.~2]{smithh2020}
+\textcolor{redd}{colord words}
+\colorbox[rgb]{1,0,0}{boxd words}
+\item[Labell] Item text.
+";
+    assert_spelling_at(
+        LanguageType::Latex,
+        sample_text,
+        &[
+            ("Labell", &[0]),
+            ("boxd", &[0]),
+            ("colord", &[0]),
+            ("pagee", &[0]),
+            ("texxt", &[0]),
+        ],
+    );
+}
+
+#[test]
+fn test_latex_checks_environment_titles_and_text_in_math() {
+    // An environment's optional argument can be a title (prose) or a float
+    // placement; `\text{}` and `\intertext{}` hold prose even inside math.
+    let sample_text = r"\begin{theorem}[Mainn result]
+Body text.
+\end{theorem}
+\begin{figure}[htbp]
+\end{figure}
+\begin{align}
+a &= b \intertext{Betweenn the lines} c &= d
+\end{align}
+$x = 1 \text{if \textbf{boldd} and onlyy if} y$
+";
+    assert_spelling_at(
+        LanguageType::Latex,
+        sample_text,
+        &[
+            ("Betweenn", &[0]),
+            ("Mainn", &[0]),
+            ("boldd", &[0]),
+            ("onlyy", &[0]),
         ],
     );
 }

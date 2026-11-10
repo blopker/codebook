@@ -193,3 +193,11 @@ More correct text here.
         &[],
     );
 }
+
+#[test]
+fn test_markdown_code_block_escape_sequences_separate_words() {
+    // Escapes are found in the injected grammar's tree, with offsets that
+    // still point into the Markdown document.
+    let sample_text = "Some prose.\n\n```python\nprint(\"this\\nis\\tindented wrold\")\n```\n";
+    assert_spelling_at(LanguageType::Markdown, sample_text, &[("wrold", &[0])]);
+}

@@ -1,6 +1,6 @@
 use codebook::queries::LanguageType;
 
-use super::utils::assert_spelling;
+use super::utils::{assert_spelling, assert_spelling_at};
 
 #[test]
 fn test_r_simple() {
@@ -61,4 +61,10 @@ fn test_r_assign() {
         &["chiian", "leeft", "lefft", "miispell", "rihgt", "wroks"],
         &["chainn", "ingore", "lerft"],
     );
+}
+
+#[test]
+fn test_r_escape_sequences_separate_words() {
+    let sample_text = r#"x <- "this\nis\tindented wrold""#;
+    assert_spelling_at(LanguageType::R, sample_text, &[("wrold", &[0])]);
 }

@@ -3,6 +3,11 @@
 
 ; Strings
 (string) @string
+; `require` names another module, not the file's own words.
+((function_call
+    name: (identifier) @_fn
+    arguments: (arguments (string) @skip))
+  (#eq? @_fn "require"))
 
 ; Function declarations
 (function_declaration

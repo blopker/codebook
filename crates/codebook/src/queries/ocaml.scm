@@ -3,9 +3,9 @@
 
 ; Strings
 [(string) (character)] @string
-(quoted_string (quoted_string_content) @string.heredoc) @string
-(conversion_specification) @string.special
-(pretty_printing_indication) @string.special
+(quoted_string_content) @string
+; Format directives (`%d`, `@[`) inside strings aren't words.
+[(conversion_specification) (pretty_printing_indication)] @skip
 (tag) @string.special
 
 ; Identifiers

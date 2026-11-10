@@ -456,6 +456,7 @@ mod tests {
         "identifier.constant",
         "identifier.module",
         "language",
+        "skip",
     ];
 
     #[test]
@@ -477,11 +478,13 @@ mod tests {
             });
 
             for name in query.capture_names() {
-                let is_allowed = ALLOWED_TAGS.contains(name) || name.starts_with("injection.");
+                let is_allowed = ALLOWED_TAGS.contains(name)
+                    || name.starts_with("injection.")
+                    || name.starts_with('_');
                 assert!(
                     is_allowed,
                     "Language {:?} uses unknown capture tag @{name}. \
-                     Allowed tags: {ALLOWED_TAGS:?} (plus injection.* tags)",
+                     Allowed tags: {ALLOWED_TAGS:?} (plus injection.* and _-prefixed tags)",
                     language_setting.type_,
                 );
             }

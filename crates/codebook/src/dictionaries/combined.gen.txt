@@ -1466,6 +1466,7 @@ gitignore
 gitk
 gitkeep
 gitlab
+gitsubmodule
 given
 gl
 global

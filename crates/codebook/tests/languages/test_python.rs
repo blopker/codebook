@@ -242,3 +242,11 @@ def simple_wrngfunction[Wrgtemplate](wrngparam: str, correct: Wrngtype[Wrngtempl
         ],
     );
 }
+
+#[test]
+fn test_python_escape_sequences_separate_words() {
+    // `\n`/`\t` are escape_sequence nodes inside the string; their letters
+    // must not glue onto the following word ("nis", "tindented").
+    let sample_text = r#"print("this\nis\na\nmulti-line\n\tindented\nwrold")"#;
+    assert_spelling_at(LanguageType::Python, sample_text, &[("wrold", &[0])]);
+}

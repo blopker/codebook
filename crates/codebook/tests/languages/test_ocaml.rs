@@ -40,3 +40,17 @@ let () =
         ],
     );
 }
+
+#[test]
+fn test_ocaml_format_strings_and_quoted_strings_captured_once() {
+    // Format directives (`%d`, `@[`) aren't words, and a quoted string's
+    // content is captured once.
+    let sample_text = r#"let () = Printf.printf "%d itemms %s\n" 3 "x"
+let s = {id|some quoted textt|id}
+"#;
+    assert_spelling_at(
+        LanguageType::OCaml,
+        sample_text,
+        &[("itemms", &[0]), ("textt", &[0])],
+    );
+}

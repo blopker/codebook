@@ -29,17 +29,31 @@ Not every language needs every tag. HTML, for example, only uses `@comment` and 
 
 ### Custom Predicates
 
-In addition to tree-sitter's built-in predicates (`#eq?`, `#match?`, `#any-of?`, …), codebook evaluates one extra predicate:
+In addition to tree-sitter's built-in predicates (`#eq?`, `#match?`, `#any-of?`, …), codebook evaluates two extra predicates:
 
 | Predicate | Effect |
 | --- | --- |
 | `(#not-has-ancestor? @capture "kind" ["kind" …])` | Drop the capture if any ancestor of the captured node has one of the listed tree-sitter node kinds. |
+| `(#has-ancestor? @capture "kind" ["kind" …])` | Drop the capture unless some ancestor of the captured node has one of the listed kinds. |
 
 Use this to narrow a broad capture instead of enumerating every positive context. For example, Python's `(string_content)` matches every string in the file, but inside type annotations (forward references, generic arguments) it's another tool's job:
 
 ```scheme
 ((string_content) @string
   (#not-has-ancestor? @string "type"))
+```
+
+Kinds must be named node kinds; anonymous tokens (`"("`, keywords) are leaves, so they're never anyone's ancestor, and naming one panics at startup. A pattern can combine several of these, and every one must pass. `#has-ancestor?` re-admits text that a broader pattern skipped; LaTeX checks `\text{…}` inside math with one pattern that requires both a `text_mode` ancestor and a math ancestor, so it never overlaps the main prose pattern, which skips math.
+
+### Skipping Text
+
+Capture a node as `@skip` to keep every word inside it from being checked, even words another pattern captured. Use it when the text to exclude is identified by a sibling rather than an ancestor, which `#not-has-ancestor?` can't see. Captures starting with `_` are never checked; they exist only to feed predicates. JavaScript's `require("pkg")` names another package:
+
+```scheme
+((call_expression
+    function: (identifier) @_fn
+    arguments: (arguments (string) @skip))
+  (#eq? @_fn "require"))
 ```
 
 ### Injection Tags (Multi-Language Support)
