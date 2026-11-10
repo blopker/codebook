@@ -352,7 +352,7 @@ dependencies = [
 
 [[package]]
 name = "codebook"
-version = "0.3.43"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "codebook-tree-sitter-just",
@@ -407,7 +407,7 @@ dependencies = [
 
 [[package]]
 name = "codebook-lsp"
-version = "0.3.43"
+version = "0.4.0"
 dependencies = [
  "clap",
  "codebook",
@@ -456,7 +456,7 @@ dependencies = [
 
 [[package]]
 name = "codebook_config"
-version = "0.3.43"
+version = "0.4.0"
 dependencies = [
  "dirs",
  "glob",
@@ -472,7 +472,7 @@ dependencies = [
 
 [[package]]
 name = "codebook_downloader"
-version = "0.3.43"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "base16ct",
