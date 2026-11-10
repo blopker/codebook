@@ -4,6 +4,11 @@ Important user-facing changes. See commit logs for more details.
 
 [Unreleased]
 
+- Add Nix support (#318)
+- Add HCL/Terraform support, with a Terraform word list (#304, #305, #317)
+- Markdown: table cells are spell-checked (#302)
+- Dart: doc comments (`///`, `/** */`) are spell-checked
+- Dictionary updates: Hunspell `.aff`/`.dic` pairs are always updated together, and open files re-check whenever any dictionary changes on disk, not only when a missing one first downloads (#316)
 - Escape sequences in strings (`\n`, `\t`) no longer glue onto the following word, so `"line\nis"` doesn't flag `nis`, in languages whose grammar marks escapes (#306)
 - YAML: CI scripts (`run:`, `script:`, `before_script:`, `after_script:`) are checked as shell, so command names and flags aren't flagged but the script's comments and strings are. `gitsubmodule` is a known word for dependabot configs (#311)
 - JavaScript/TypeScript/Lua: module specifiers in `import`/`export … from` statements and `import()`/`require()` calls aren't spell-checked (#312)
@@ -12,6 +17,7 @@ Important user-facing changes. See commit logs for more details.
 - Elixir and OCaml: fixed queries that captured some text twice (`#{...}` interpolation, `%d` format directives, `{id|...|id}` strings). OCaml quoted strings are tagged `string` rather than `string.heredoc`
 - Faster word extraction, especially for files with many URLs, paths, or other skipped text
 - Code actions that update `codebook.toml` (add word, ignore file) keep its comments, formatting, and line endings, and no longer write default settings (#315)
+- Update dependencies
 
 [0.3.43]
 
