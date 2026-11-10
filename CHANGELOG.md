@@ -11,6 +11,7 @@ Important user-facing changes. See commit logs for more details.
 - `[[overrides]]` blocks accept `include_tags`/`exclude_tags` and their `extra_` variants (#307)
 - Elixir and OCaml: fixed queries that captured some text twice (`#{...}` interpolation, `%d` format directives, `{id|...|id}` strings). OCaml quoted strings are tagged `string` rather than `string.heredoc`
 - Faster word extraction, especially for files with many URLs, paths, or other skipped text
+- Code actions that update `codebook.toml` (add word, ignore file) keep its comments, formatting, and line endings, and no longer write default settings (#315)
 
 [0.3.43]
 
