@@ -249,3 +249,15 @@ fn test_typst_comments() {
         &[],
     );
 }
+
+#[test]
+fn test_typst_escape_sequences_separate_words() {
+    let sample_text = r#"#let x = ("this\nis\tindented wrold")
+Some text\#with an escape and a typpo.
+"#;
+    assert_spelling_at(
+        LanguageType::Typst,
+        sample_text,
+        &[("typpo", &[0]), ("wrold", &[0])],
+    );
+}

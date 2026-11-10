@@ -2,6 +2,16 @@
 
 Important user-facing changes. See commit logs for more details.
 
+[Unreleased]
+
+- Escape sequences in strings (`\n`, `\t`) no longer glue onto the following word, so `"line\nis"` doesn't flag `nis`, in languages whose grammar marks escapes (#306)
+- YAML: CI scripts (`run:`, `script:`, `before_script:`, `after_script:`) are checked as shell, so command names and flags aren't flagged but the script's comments and strings are. `gitsubmodule` is a known word for dependabot configs (#311)
+- JavaScript/TypeScript/Lua: module specifiers in `import`/`export … from` statements and `import()`/`require()` calls aren't spell-checked (#312)
+- LaTeX: command names, citation keys, `\ref` targets, environment names, class/package options, included file names, math, and macro definitions are no longer spell-checked, while titles, link text, `\text{}` in math, and other prose arguments still are. Label names are checked where they're defined (#303)
+- `[[overrides]]` blocks accept `include_tags`/`exclude_tags` and their `extra_` variants (#307)
+- Elixir and OCaml: fixed queries that captured some text twice (`#{...}` interpolation, `%d` format directives, `{id|...|id}` strings). OCaml quoted strings are tagged `string` rather than `string.heredoc`
+- Faster word extraction, especially for files with many URLs, paths, or other skipped text
+
 [0.3.43]
 
 - Dictionary downloads no longer block spell checking: they happen in the background, and open files re-check automatically once they finish (#300)

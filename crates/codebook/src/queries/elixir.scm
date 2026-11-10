@@ -1,14 +1,15 @@
 ; Playground: https://elixir-lang.org/tree-sitter-elixir/
-[
-  (string)
-  (charlist)
-] @string
+; Quoted text is captured by its `quoted_content` pieces, which sit beside
+; any `#{...}` interpolation, so interpolated code is only captured by the
+; patterns for code.
+(string (quoted_content) @string)
+(charlist (quoted_content) @string)
 [
   (atom)
-  (quoted_atom)
   (keyword)
-  (quoted_keyword)
 ] @string.special
+(quoted_atom (quoted_content) @string.special)
+(quoted_keyword (quoted_content) @string.special)
 (comment) @comment
 
 (alias) @identifier.type

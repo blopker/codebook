@@ -480,10 +480,14 @@ dictionaries = ["de"]
 | `words`                 | Replaces the resolved `words` list. |
 | `flag_words`            | Replaces the resolved `flag_words` list. |
 | `ignore_patterns`       | Replaces the resolved `ignore_patterns` list. |
+| `include_tags`          | Replaces the resolved `include_tags` list. |
+| `exclude_tags`          | Replaces the resolved `exclude_tags` list. |
 | `extra_dictionaries`    | Appends to the resolved `dictionaries` list. |
 | `extra_words`           | Appends to the resolved `words` list. |
 | `extra_flag_words`      | Appends to the resolved `flag_words` list. |
 | `extra_ignore_patterns` | Appends to the resolved `ignore_patterns` list. |
+| `extra_include_tags`    | Appends to the resolved `include_tags` list. An empty list checks every tag, so appending to one turns it into an allowlist of just these tags. |
+| `extra_exclude_tags`    | Appends to the resolved `exclude_tags` list. |
 
 Glob syntax matches `ignore_paths`: `*` (no separator), `**` (any directories), `?` (any single char), and `{a,b}` alternation. Patterns always use `/` as the path separator, like `.gitignore`. On Windows, file paths are normalized to forward slashes before matching, and backslash-style patterns (e.g. `src\\*.rs`) are not supported.
 

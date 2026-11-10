@@ -97,3 +97,9 @@ if status == "complette" || status == "partialy_compleet" {
         &["finnished"],
     );
 }
+
+#[test]
+fn test_swift_escape_sequences_separate_words() {
+    let sample_text = r#"let s = "this\nis\tindented\u{1F600}wrold""#;
+    assert_spelling_at(LanguageType::Swift, sample_text, &[("wrold", &[0])]);
+}

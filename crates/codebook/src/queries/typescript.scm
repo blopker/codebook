@@ -1,5 +1,16 @@
 (comment) @comment
 (string_fragment) @string
+; Module specifiers name other packages, not the file's own words.
+(import_statement source: (string) @skip)
+(export_statement source: (string) @skip)
+(import_require_clause source: (string) @skip)
+(call_expression
+    function: (import)
+    arguments: (arguments [(string) (template_string)] @skip))
+((call_expression
+    function: (identifier) @_fn
+    arguments: (arguments [(string) (template_string)] @skip))
+  (#eq? @_fn "require"))
 (variable_declarator
     name: (identifier) @identifier.variable)
 (object

@@ -20,12 +20,19 @@ use unicode_segmentation::UnicodeSegmentation;
 static PARSER_CACHE: LazyLock<Mutex<HashMap<LanguageType, Option<Parser>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-/// One `(#not-has-ancestor? @capture "kind" ...)` rule, pre-parsed so the
-/// hot path does no string scanning. Drops a match's capture when any
-/// ancestor of the captured node has a kind in `kinds`.
-struct NotHasAncestorRule {
+/// One `(#has-ancestor? @capture "kind" ...)` or `(#not-has-ancestor? ...)`
+/// rule, pre-parsed so the hot path compares numeric kind ids. The capture is
+/// dropped unless some ancestor of the captured node has one of the kinds
+/// (`has-ancestor?`), or when one does (`not-has-ancestor?`).
+struct AncestorRule {
+    /// Position among all of the query's rules, for per-parse caching.
+    id: usize,
     capture_index: u32,
-    kinds: Vec<String>,
+    /// True for `not-has-ancestor?`.
+    negated: bool,
+    /// Indexed by node kind id. A grammar can give several ids the same
+    /// name (aliases), so every id with a listed name is marked.
+    kinds: Vec<bool>,
 }
 
 /// Pre-compiled query for a language, with its capture names.
@@ -34,7 +41,8 @@ struct CompiledQuery {
     capture_names: Vec<String>,
     /// Indexed by `pattern_index`. Empty inner vec = no filtering for that
     /// pattern, which is the common case across all .scm files.
-    not_has_ancestor: Vec<Vec<NotHasAncestorRule>>,
+    ancestor_rules: Vec<Vec<AncestorRule>>,
+    rule_count: usize,
 }
 
 /// All tree-sitter queries compiled eagerly at startup. Since queries come
@@ -57,71 +65,167 @@ static COMPILED_QUERIES: LazyLock<HashMap<LanguageType, CompiledQuery>> = LazyLo
             .iter()
             .map(|s| s.to_string())
             .collect();
-        let not_has_ancestor = (0..query.pattern_count())
-            .map(|i| parse_not_has_ancestor(&query, i, setting.type_))
+        let mut rule_count = 0;
+        let ancestor_rules = (0..query.pattern_count())
+            .map(|i| {
+                let mut rules = parse_ancestor_rules(&query, &lang, i, setting.type_);
+                for rule in &mut rules {
+                    rule.id = rule_count;
+                    rule_count += 1;
+                }
+                rules
+            })
             .collect();
         map.insert(
             setting.type_,
             CompiledQuery {
                 query,
                 capture_names,
-                not_has_ancestor,
+                ancestor_rules,
+                rule_count,
             },
         );
     }
     map
 });
 
-/// Extract `(#not-has-ancestor? @cap "kind" ...)` rules from a pattern's
-/// general predicates. Other custom predicates pass through unchanged.
-/// Malformed predicates panic at startup so .scm authors get an immediate
-/// error rather than a silent no-op at runtime.
-fn parse_not_has_ancestor(
+impl AncestorRule {
+    /// Whether the capture passes, given whether it has a marked ancestor.
+    fn accepts(&self, has_marked_ancestor: bool) -> bool {
+        has_marked_ancestor != self.negated
+    }
+}
+
+/// Extract `(#has-ancestor? @cap "kind" ...)` and `(#not-has-ancestor? ...)`
+/// rules from a pattern's general predicates. Other custom predicates pass
+/// through unchanged.
+/// Malformed predicates, including kind names the grammar doesn't have,
+/// panic at startup so .scm authors get an immediate error rather than a
+/// silent no-op at runtime.
+fn parse_ancestor_rules(
     query: &Query,
+    language: &tree_sitter::Language,
     pattern_index: usize,
-    language: LanguageType,
-) -> Vec<NotHasAncestorRule> {
+    language_type: LanguageType,
+) -> Vec<AncestorRule> {
     let mut rules = Vec::new();
     for pred in query.general_predicates(pattern_index) {
-        if &*pred.operator != "not-has-ancestor?" {
-            continue;
-        }
+        let op = &*pred.operator;
+        let negated = match op {
+            "has-ancestor?" => false,
+            "not-has-ancestor?" => true,
+            _ => continue,
+        };
         let mut args = pred.args.iter();
         let capture_index = match args.next() {
             Some(QueryPredicateArg::Capture(i)) => *i,
             _ => panic!(
-                "{:?}: #not-has-ancestor? must take a capture as its first argument",
-                language
+                "{:?}: #{op} must take a capture as its first argument",
+                language_type
             ),
         };
-        let kinds: Vec<String> = args
+        let names: Vec<&str> = args
             .map(|a| match a {
-                QueryPredicateArg::String(s) => s.to_string(),
+                QueryPredicateArg::String(s) => &**s,
                 QueryPredicateArg::Capture(_) => panic!(
-                    "{:?}: #not-has-ancestor? takes string node kinds after the capture",
-                    language
+                    "{:?}: #{op} takes string node kinds after the capture",
+                    language_type
                 ),
             })
             .collect();
         assert!(
-            !kinds.is_empty(),
-            "{:?}: #not-has-ancestor? needs at least one node kind",
-            language
+            !names.is_empty(),
+            "{:?}: #{op} needs at least one node kind",
+            language_type
         );
-        rules.push(NotHasAncestorRule {
+        let mut kinds = vec![false; language.node_kind_count()];
+        for name in names {
+            let mut found = false;
+            for id in 0..language.node_kind_count() as u16 {
+                if language.node_kind_is_named(id) && language.node_kind_for_id(id) == Some(name) {
+                    kinds[id as usize] = true;
+                    found = true;
+                }
+            }
+            assert!(
+                found,
+                "{:?}: #{op} names unknown node kind {name:?} (only named kinds \
+                 can be ancestors; anonymous tokens like \"(\" are always leaves)",
+                language_type
+            );
+        }
+        rules.push(AncestorRule {
+            id: 0,
             capture_index,
+            negated,
             kinds,
         });
     }
     rules
 }
 
-/// Returns true if any ancestor of `node` has a kind in `kinds`.
-fn has_ancestor_kind(node: Node, kinds: &[String]) -> bool {
+/// A node whose kind an ancestor rule marks, with no marked
+/// ancestor of its own.
+struct OutermostMarked {
+    start_byte: usize,
+    end_byte: usize,
+    id: usize,
+}
+
+/// The outermost marked nodes under `root`, in document order and without
+/// overlaps. One cursor pass over the tree: `Node::parent` searches down from
+/// the root on every call, so walking up from each capture would cost
+/// depth² per capture.
+fn collect_outermost_marked(root: Node, kinds: &[bool]) -> Vec<OutermostMarked> {
+    let mut found = Vec::new();
+    let mut cursor = root.walk();
+    loop {
+        let node = cursor.node();
+        let marked = kinds.get(node.kind_id() as usize) == Some(&true);
+        // A zero-width node can't contain a capture, and captures that are
+        // empty are dropped before rules apply.
+        if marked && node.start_byte() < node.end_byte() {
+            found.push(OutermostMarked {
+                start_byte: node.start_byte(),
+                end_byte: node.end_byte(),
+                id: node.id(),
+            });
+        }
+        if !marked && cursor.goto_first_child() {
+            continue;
+        }
+        while !cursor.goto_next_sibling() {
+            if !cursor.goto_parent() {
+                return found;
+            }
+        }
+    }
+}
+
+/// Returns true if any ancestor of `node` has a kind marked in `kinds`, given
+/// that rule's outermost marked nodes.
+fn has_marked_ancestor(node: Node, outermost: &[OutermostMarked], kinds: &[bool]) -> bool {
+    let (start, end) = (node.start_byte(), node.end_byte());
+    let i = outermost.partition_point(|m| m.start_byte <= start);
+    let Some(m) = i.checked_sub(1).map(|i| &outermost[i]) else {
+        return false;
+    };
+    if end > m.end_byte || m.id == node.id() {
+        return false;
+    }
+    if (m.start_byte, m.end_byte) == (start, end) {
+        // Equal spans: `node` may be the marked node's ancestor rather than
+        // its descendant, which byte ranges can't tell apart.
+        return has_ancestor_kind(node, kinds);
+    }
+    true
+}
+
+/// Returns true if any ancestor of `node` has a kind marked in `kinds`.
+fn has_ancestor_kind(node: Node, kinds: &[bool]) -> bool {
     let mut cur = node.parent();
     while let Some(parent) = cur {
-        let kind = parent.kind();
-        if kinds.iter().any(|k| k == kind) {
+        if kinds.get(parent.kind_id() as usize) == Some(&true) {
             return true;
         }
         cur = parent.parent();
@@ -143,10 +247,12 @@ struct SkipRange {
     end_byte: usize,
 }
 
+/// `skip_ranges` must be sorted and non-overlapping (see
+/// `merge_overlapping_ranges`), so only the last range starting at or before
+/// `start` can contain the span.
 fn is_within_skip_range(start: usize, end: usize, skip_ranges: &[SkipRange]) -> bool {
-    skip_ranges
-        .iter()
-        .any(|r| start >= r.start_byte && end <= r.end_byte)
+    let i = skip_ranges.partition_point(|r| r.start_byte <= start);
+    i > 0 && end <= skip_ranges[i - 1].end_byte
 }
 
 fn find_skip_ranges(text: &str, patterns: &[Regex]) -> Vec<SkipRange> {
@@ -315,11 +421,27 @@ fn extract_recursive<'a>(
     let provider = region_text.as_bytes();
     let mut matches_query = cursor.matches(&compiled.query, root_node, provider);
 
+    // `@skip` ranges suppress any word extracted inside them, including
+    // words from languages injected there. Injected ranges belong to the
+    // injected language: this language's own captures over the same text
+    // are dropped, so a broad capture (YAML's `(block_scalar)`) can coexist
+    // with an injection of the same node. Both are applied after the loop
+    // because matches arrive in document order, so a broad capture can land
+    // before the match that covers its text.
+    let first_candidate = result.candidates.len();
+    let mut skipped_nodes: Vec<SkipRange> = Vec::new();
+    let mut injected = Injected::default();
+
+    // Each ancestor rule's outermost marked nodes in this tree,
+    // collected the first time the rule is needed.
+    let mut outermost_by_rule: Vec<Option<Vec<OutermostMarked>>> =
+        (0..compiled.rule_count).map(|_| None).collect();
+
     while let Some(match_) = matches_query.next() {
-        // Per-pattern `#not-has-ancestor?` rules. Cheap: the inner vec is
-        // empty for every pattern in every .scm except the rare ones that
-        // declare a rule, so we pay one `is_empty` check on the hot path.
-        let ancestor_rules = &compiled.not_has_ancestor[match_.pattern_index];
+        // Per-pattern ancestor rules. Cheap: the inner vec is empty for
+        // every pattern in every .scm except the rare ones that declare a
+        // rule, so we pay one `is_empty` check on the hot path.
+        let ancestor_rules = &compiled.ancestor_rules[match_.pattern_index];
 
         // First pass: look for dynamic injection pairs in this match
         let mut injection_content: Option<tree_sitter::Node> = None;
@@ -346,6 +468,7 @@ fn extract_recursive<'a>(
                     let child_end = content_node.end_byte() + start_byte;
                     if child_start < child_end {
                         result.languages.insert(child_lang);
+                        let before = result.candidates.len();
                         extract_recursive(
                             document_text,
                             child_start,
@@ -355,6 +478,7 @@ fn extract_recursive<'a>(
                             skip_ranges,
                             result,
                         );
+                        injected.record(child_start, child_end, before, result.candidates.len());
                     }
                 }
             }
@@ -372,16 +496,30 @@ fn extract_recursive<'a>(
                 continue;
             }
 
-            if tag == "language" || tag == "injection.language" {
+            // `_`-prefixed captures only feed predicates (`#eq? @_fn "require"`).
+            if tag == "language" || tag == "injection.language" || tag.starts_with('_') {
                 continue;
             }
 
-            // Apply any `#not-has-ancestor?` rules that target this capture.
+            // Apply any ancestor rules that target this capture.
             if !ancestor_rules.is_empty()
                 && ancestor_rules.iter().any(|rule| {
-                    rule.capture_index == capture.index && has_ancestor_kind(node, &rule.kinds)
+                    if rule.capture_index != capture.index {
+                        return false;
+                    }
+                    let outermost = outermost_by_rule[rule.id]
+                        .get_or_insert_with(|| collect_outermost_marked(root_node, &rule.kinds));
+                    !rule.accepts(has_marked_ancestor(node, outermost, &rule.kinds))
                 })
             {
+                continue;
+            }
+
+            if tag == "skip" {
+                skipped_nodes.push(SkipRange {
+                    start_byte: node_start,
+                    end_byte: node_end,
+                });
                 continue;
             }
 
@@ -391,6 +529,7 @@ fn extract_recursive<'a>(
                     && child_lang != LanguageType::Text
                 {
                     result.languages.insert(child_lang);
+                    let before = result.candidates.len();
                     extract_recursive(
                         document_text,
                         node_start,
@@ -400,6 +539,7 @@ fn extract_recursive<'a>(
                         skip_ranges,
                         result,
                     );
+                    injected.record(node_start, node_end, before, result.candidates.len());
                 }
                 continue;
             }
@@ -409,10 +549,128 @@ fn extract_recursive<'a>(
                 continue;
             }
 
-            let node_text = node.utf8_text(provider).unwrap();
-            extract_words_from_text(node_text, node_start, skip_ranges, &mut result.candidates);
+            extract_words_from_node(
+                node,
+                region_text,
+                start_byte,
+                skip_ranges,
+                &mut result.candidates,
+            );
         }
     }
+
+    if skipped_nodes.is_empty() && injected.regions.is_empty() {
+        return;
+    }
+    skipped_nodes.sort_by_key(|r| r.start_byte);
+    let skipped_nodes = merge_overlapping_ranges(skipped_nodes);
+    injected.regions.sort_by_key(|r| r.start_byte);
+    let injected_regions = merge_overlapping_ranges(injected.regions);
+    // `retain` visits candidates in order, so the next injected candidate
+    // span is always at `next_span`.
+    let mut next_span = 0;
+    let mut index = 0;
+    result.candidates.retain(|c| {
+        let i = index;
+        index += 1;
+        if i < first_candidate {
+            return true;
+        }
+        if is_within_skip_range(c.start_byte, c.end_byte, &skipped_nodes) {
+            return false;
+        }
+        while injected
+            .candidate_spans
+            .get(next_span)
+            .is_some_and(|s| s.end <= i)
+        {
+            next_span += 1;
+        }
+        let from_injection = injected
+            .candidate_spans
+            .get(next_span)
+            .is_some_and(|s| s.contains(&i));
+        from_injection || !is_within_skip_range(c.start_byte, c.end_byte, &injected_regions)
+    });
+}
+
+/// The regions a parse injected into other languages, and which candidates
+/// those languages produced.
+#[derive(Default)]
+struct Injected {
+    regions: Vec<SkipRange>,
+    /// Indices into the candidate list, in ascending order: each injection
+    /// appends its candidates after the previous one's.
+    candidate_spans: Vec<std::ops::Range<usize>>,
+}
+
+impl Injected {
+    fn record(&mut self, start_byte: usize, end_byte: usize, first: usize, end: usize) {
+        self.regions.push(SkipRange {
+            start_byte,
+            end_byte,
+        });
+        if first < end {
+            self.candidate_spans.push(first..end);
+        }
+    }
+}
+
+/// Node kinds that grammars use for escapes (`\n`, `\t`) nested in string
+/// content: Swift calls them `str_escaped_char` and Typst `escape`; the rest
+/// use `escape_sequence`.
+const ESCAPE_KINDS: &[&str] = &["escape_sequence", "str_escaped_char", "escape"];
+
+/// Extract words from a captured node's text, skipping escapes anywhere in
+/// its subtree (Lua nests them under `string_content`, not the string).
+/// Checking the raw text would glue an escape's letter onto the next word
+/// ("\nis" → "nis").
+fn extract_words_from_node<'a>(
+    node: tree_sitter::Node,
+    region_text: &'a str,
+    region_offset: usize,
+    skip_ranges: &[SkipRange],
+    candidates: &mut Vec<WordCandidate<'a>>,
+) {
+    let mut segment_start = node.start_byte();
+    // Most captures are leaves; only walk when there's a subtree.
+    if node.child_count() > 0 {
+        let mut cursor = node.walk();
+        let mut depth = 0usize;
+        'walk: loop {
+            let current = cursor.node();
+            let is_escape = depth > 0 && ESCAPE_KINDS.contains(&current.kind());
+            if is_escape && current.start_byte() >= segment_start {
+                let segment = &region_text[segment_start..current.start_byte()];
+                extract_words_from_text(
+                    segment,
+                    segment_start + region_offset,
+                    skip_ranges,
+                    candidates,
+                );
+                segment_start = current.end_byte();
+            }
+            if !is_escape && cursor.goto_first_child() {
+                depth += 1;
+                continue;
+            }
+            while depth > 0 {
+                if cursor.goto_next_sibling() {
+                    continue 'walk;
+                }
+                cursor.goto_parent();
+                depth -= 1;
+            }
+            break;
+        }
+    }
+    let segment = &region_text[segment_start..node.end_byte()];
+    extract_words_from_text(
+        segment,
+        segment_start + region_offset,
+        skip_ranges,
+        candidates,
+    );
 }
 
 // =============================================================================
@@ -527,6 +785,164 @@ pub fn get_word_from_string(start_utf16: usize, end_utf16: usize, text: &str) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_is_within_skip_range() {
+        let ranges = [
+            SkipRange {
+                start_byte: 0,
+                end_byte: 5,
+            },
+            SkipRange {
+                start_byte: 10,
+                end_byte: 20,
+            },
+            SkipRange {
+                start_byte: 30,
+                end_byte: 31,
+            },
+        ];
+        assert!(is_within_skip_range(0, 5, &ranges));
+        assert!(is_within_skip_range(12, 18, &ranges));
+        assert!(is_within_skip_range(10, 20, &ranges));
+        assert!(!is_within_skip_range(18, 22, &ranges)); // runs past the end
+        assert!(!is_within_skip_range(6, 9, &ranges)); // between ranges
+        assert!(!is_within_skip_range(8, 12, &ranges)); // starts before
+        assert!(!is_within_skip_range(40, 45, &ranges)); // after the last
+        assert!(!is_within_skip_range(0, 1, &[]));
+    }
+
+    fn python_query(source: &str) -> (Query, tree_sitter::Language) {
+        let lang = get_language_setting(LanguageType::Python)
+            .and_then(|s| s.language())
+            .unwrap();
+        (Query::new(&lang, source).unwrap(), lang)
+    }
+
+    #[test]
+    fn test_ancestor_rules_resolve_kind_ids() {
+        let (query, lang) = python_query(
+            r#"((string_content) @string
+                 (#not-has-ancestor? @string "type" "call")
+                 (#has-ancestor? @string "block"))"#,
+        );
+        let rules = parse_ancestor_rules(&query, &lang, 0, LanguageType::Python);
+        assert_eq!(rules.len(), 2);
+        assert!(rules[0].negated && !rules[1].negated);
+        assert!(rules[1].kinds.iter().any(|&k| k));
+        let marked: Vec<&str> = (0..rules[0].kinds.len() as u16)
+            .filter(|&id| rules[0].kinds[id as usize])
+            .filter_map(|id| lang.node_kind_for_id(id))
+            .collect();
+        assert!(!marked.is_empty());
+        assert!(marked.iter().all(|k| *k == "type" || *k == "call"));
+        assert!(marked.contains(&"type") && marked.contains(&"call"));
+    }
+
+    /// The range lookup must agree with walking the parents, for every node.
+    fn assert_marked_lookup_matches_parent_walk(
+        language: LanguageType,
+        text: &str,
+        kinds: &[&str],
+    ) {
+        let lang = get_language_setting(language)
+            .and_then(|s| s.language())
+            .unwrap();
+        let mut marks = vec![false; lang.node_kind_count()];
+        for id in 0..lang.node_kind_count() as u16 {
+            if lang
+                .node_kind_for_id(id)
+                .is_some_and(|k| kinds.contains(&k))
+            {
+                marks[id as usize] = true;
+            }
+        }
+        let mut parser = Parser::new();
+        parser.set_language(&lang).unwrap();
+        let tree = parser.parse(text, None).unwrap();
+        let outermost = collect_outermost_marked(tree.root_node(), &marks);
+        assert!(!outermost.is_empty());
+
+        let mut cursor = tree.walk();
+        let mut checked = 0;
+        loop {
+            let node = cursor.node();
+            assert_eq!(
+                has_marked_ancestor(node, &outermost, &marks),
+                has_ancestor_kind(node, &marks),
+                "{:?} at {:?}",
+                node.kind(),
+                node.byte_range()
+            );
+            checked += 1;
+            if cursor.goto_first_child() {
+                continue;
+            }
+            while !cursor.goto_next_sibling() {
+                if !cursor.goto_parent() {
+                    assert!(checked > 50);
+                    return;
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_marked_ancestor_lookup_latex() {
+        let text = r"\documentclass[11pt]{article}
+\begin{document}
+\section{Intro \textbf{bold $x^2$}}
+Text with \cite[see p.~3]{key} and $\text{math \emph{deep}}$.
+\begin{equation}\label{eq:a} E = mc^2 \end{equation}
+\href{http://x.com}{link text}
+\end{document}
+";
+        assert_marked_lookup_matches_parent_walk(
+            LanguageType::Latex,
+            text,
+            &[
+                "begin",
+                "inline_formula",
+                "citation",
+                "label_definition",
+                "displayed_equation",
+                "text",
+            ],
+        );
+    }
+
+    #[test]
+    fn test_marked_ancestor_lookup_python() {
+        let text = "def f(a: \"List[int]\", b: dict[\"K\", \"V\"]) -> \"R\":\n    x: \"T\" = \"s\"\n    return f\"{a}\"\n";
+        assert_marked_lookup_matches_parent_walk(LanguageType::Python, text, &["type", "string"]);
+    }
+
+    #[test]
+    #[should_panic(expected = "unknown node kind \"not_a_kind\"")]
+    fn test_ancestor_rules_reject_unknown_kinds() {
+        let (query, lang) =
+            python_query(r#"((string_content) @string (#not-has-ancestor? @string "not_a_kind"))"#);
+        parse_ancestor_rules(&query, &lang, 0, LanguageType::Python);
+    }
+
+    #[test]
+    fn test_escape_split_offsets_after_multibyte_text() {
+        // Byte offsets around an escape stay correct when multi-byte
+        // characters come before it.
+        let text = "x = \"äöü\\nwrold\\tnext\"\n";
+        let (words, _) = extract_all_words(text, LanguageType::Python, &|_| true, &[]);
+        let found: Vec<(&str, &str)> = words
+            .iter()
+            .map(|w| (w.word, &text[w.start_byte..w.end_byte]))
+            .collect();
+        assert!(found.iter().all(|(word, slice)| word == slice), "{found:?}");
+        let strings: Vec<&str> = found
+            .iter()
+            .map(|(w, _)| *w)
+            .filter(|w| *w != "x")
+            .collect();
+        assert_eq!(strings, ["äöü", "wrold", "next"]);
+    }
 
     #[test]
     fn test_extract_words_plain_text() {

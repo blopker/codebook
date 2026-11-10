@@ -134,6 +134,12 @@ pub struct OverrideBlock {
     )]
     pub ignore_patterns: Option<Vec<Regex>>,
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub include_tags: Option<Vec<String>>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exclude_tags: Option<Vec<String>>,
+
     // --- Append fields (append to the resolved list) ---
     #[serde(
         default,
@@ -163,6 +169,12 @@ pub struct OverrideBlock {
         skip_serializing_if = "Option::is_none"
     )]
     pub extra_ignore_patterns: Option<Vec<Regex>>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extra_include_tags: Option<Vec<String>>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extra_exclude_tags: Option<Vec<String>>,
 }
 
 fn lowercase_vec<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
@@ -222,10 +234,14 @@ impl OverrideBlock {
             || self.words.is_some()
             || self.flag_words.is_some()
             || self.ignore_patterns.is_some()
+            || self.include_tags.is_some()
+            || self.exclude_tags.is_some()
             || self.extra_dictionaries.is_some()
             || self.extra_words.is_some()
             || self.extra_flag_words.is_some()
             || self.extra_ignore_patterns.is_some()
+            || self.extra_include_tags.is_some()
+            || self.extra_exclude_tags.is_some()
     }
 }
 
@@ -388,6 +404,12 @@ impl ConfigSettings {
         if let Some(ref v) = over.ignore_patterns {
             self.ignore_patterns = v.clone();
         }
+        if let Some(ref v) = over.include_tags {
+            self.include_tags = v.clone();
+        }
+        if let Some(ref v) = over.exclude_tags {
+            self.exclude_tags = v.clone();
+        }
 
         // Append fields: extend the current list
         if let Some(ref v) = over.extra_dictionaries {
@@ -401,6 +423,12 @@ impl ConfigSettings {
         }
         if let Some(ref v) = over.extra_ignore_patterns {
             self.ignore_patterns.extend(v.clone());
+        }
+        if let Some(ref v) = over.extra_include_tags {
+            self.include_tags.extend(v.clone());
+        }
+        if let Some(ref v) = over.extra_exclude_tags {
+            self.exclude_tags.extend(v.clone());
         }
     }
 
@@ -1153,6 +1181,52 @@ mod tests {
     }
 
     #[test]
+    fn test_override_tags() {
+        let toml_str = r#"
+        exclude_tags = ["comment.doc"]
+
+        [[overrides]]
+        paths = ["codebook.toml"]
+        exclude_tags = ["string"]
+
+        [[overrides]]
+        paths = ["docs/**"]
+        include_tags = ["comment"]
+        extra_exclude_tags = ["comment.line"]
+
+        [[overrides]]
+        paths = ["src/**"]
+        extra_include_tags = ["string"]
+        "#;
+        let config: ConfigSettings = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.overrides.len(), 3);
+
+        // Replace: the base exclude list is swapped out, not extended
+        let toml_file = config.resolve_for_path(Path::new("codebook.toml"));
+        assert_eq!(toml_file.exclude_tags, vec!["string"]);
+        assert!(!toml_file.should_check_tag("string"));
+        assert!(toml_file.should_check_tag("comment"));
+        assert!(toml_file.should_check_tag("comment.doc"));
+
+        // Replace one list, append to the other
+        let docs = config.resolve_for_path(Path::new("docs/guide.md"));
+        assert_eq!(docs.include_tags, vec!["comment"]);
+        assert_eq!(docs.exclude_tags, vec!["comment.doc", "comment.line"]);
+        assert!(docs.should_check_tag("comment.block"));
+        assert!(!docs.should_check_tag("comment.line"));
+        assert!(!docs.should_check_tag("string"));
+
+        // Append to an empty list
+        let src = config.resolve_for_path(Path::new("src/main.rs"));
+        assert_eq!(src.include_tags, vec!["string"]);
+
+        // Unmatched paths keep the base settings
+        let other = config.resolve_for_path(Path::new("README.md"));
+        assert_eq!(other.exclude_tags, vec!["comment.doc"]);
+        assert!(other.should_check_tag("string"));
+    }
+
+    #[test]
     fn test_apply_override_replace() {
         let mut settings = ConfigSettings {
             words: vec!["alpha".to_string(), "beta".to_string()],
@@ -1442,10 +1516,14 @@ mod tests {
                 words: None,
                 flag_words: None,
                 ignore_patterns: None,
+                include_tags: None,
+                exclude_tags: None,
                 extra_dictionaries: None,
                 extra_words: None,
                 extra_flag_words: None,
                 extra_ignore_patterns: None,
+                extra_include_tags: None,
+                extra_exclude_tags: None,
             }
         }
     }

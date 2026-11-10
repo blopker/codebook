@@ -67,3 +67,43 @@ fn test_yaml_code() {
         ],
     );
 }
+
+#[test]
+fn test_yaml_ci_scripts_are_checked_as_shell() {
+    // CI `run:`/`script:` values are shell scripts, checked with the Bash
+    // grammar: command names and flags aren't words, but the script's
+    // comments and strings are. Dependabot ecosystem names are vocabulary.
+    let sample_yaml_code = r#"
+steps:
+  - run: |
+      # Prepair the build
+      mkdir -p "$RUNNER_TEMP/codebook"
+      chmod +x ./script.sh && sed -i 's/a/b/' file.txt
+      myprojtool --frobnicate; journalctl -u sshd | tee out.log
+      echo "Deploying the aplication"
+  - run: kubectl apply -f deploy.yaml
+build:
+  script:
+    - npx xyzzytool --quux
+  before_script:
+    - podman pull thingy
+updates:
+  - package-ecosystem: gitsubmodule
+    directory: "/"
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    note: a wrongg value
+"#;
+    assert_spelling_at(
+        LanguageType::YAML,
+        sample_yaml_code,
+        &[("Prepair", &[0]), ("aplication", &[0]), ("wrongg", &[0])],
+    );
+}
+
+#[test]
+fn test_yaml_escape_sequences_separate_words() {
+    let sample_text = r#"key: "this\nis\tindented wrold""#;
+    assert_spelling_at(LanguageType::YAML, sample_text, &[("wrold", &[0])]);
+}
