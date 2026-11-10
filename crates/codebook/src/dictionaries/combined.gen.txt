@@ -658,6 +658,7 @@ creates
 createuser
 criteria
 crl
+cron
 cross
 crt
 crypto

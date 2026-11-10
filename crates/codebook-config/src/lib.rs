@@ -1,5 +1,6 @@
 pub mod helpers;
 pub mod settings;
+mod toml_document;
 mod watched_file;
 use crate::helpers::expand_tilde;
 pub use crate::settings::ConfigSettings;
@@ -376,7 +377,7 @@ impl CodebookConfigFile {
             return Ok(());
         };
 
-        let content = toml::to_string_pretty(settings)?;
+        let content = Self::updated_file_content(path, settings)?;
         info!("Saving {label} configuration to {}", path.display());
         let write_err = |source| ConfigError::Write {
             path: path.to_path_buf(),
@@ -387,6 +388,25 @@ impl CodebookConfigFile {
         }
         fs::write(path, content).map_err(write_err)
     }
+    /// The text to write for `settings` at `path`. An existing file is edited
+    /// in place, so its comments and layout survive; otherwise (no file yet,
+    /// or one that doesn't parse) the settings are written from scratch.
+    fn updated_file_content(path: &Path, settings: &ConfigSettings) -> Result<String, ConfigError> {
+        if let Ok(existing) = fs::read_to_string(path) {
+            let in_place = toml::from_str::<ConfigSettings>(&existing)
+                .ok()
+                .and_then(|on_disk| toml_document::update_document(&existing, &on_disk, settings));
+            match in_place {
+                Some(content) => return Ok(content),
+                None => log::warn!(
+                    "Couldn't edit {} in place, so it will be rewritten without its comments and formatting",
+                    path.display()
+                ),
+            }
+        }
+        Ok(toml::to_string_pretty(settings)?)
+    }
+
     /// Clean the cache directory
     pub fn clean_cache(&self) {
         let dir_path = self.cache_dir.clone();
@@ -1010,6 +1030,48 @@ mod tests {
 
         let written = fs::read_to_string(&override_path)?;
         assert!(written.contains("newword"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_save_preserves_comments_and_layout() -> Result<(), Box<dyn std::error::Error>> {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("codebook.toml");
+        let original = r#"# Dictionaries to use for spell checking.
+dictionaries = ["en_us"]
+
+# Project specific terms dictionary.
+words = [
+  "myacronym", # an acronym
+  "zebra",
+]
+
+# Generated code
+ignore_paths = ["target/**"]
+"#;
+        fs::write(&config_path, original)?;
+        let config = load_from_file(ConfigType::Project, &config_path)?;
+
+        assert!(config.add_word("customword"));
+        assert!(config.add_ignore("build/**"));
+        config.save()?;
+
+        assert_eq!(
+            fs::read_to_string(&config_path)?,
+            r#"# Dictionaries to use for spell checking.
+dictionaries = ["en_us"]
+
+# Project specific terms dictionary.
+words = [
+  "customword",
+  "myacronym", # an acronym
+  "zebra",
+]
+
+# Generated code
+ignore_paths = ["build/**", "target/**"]
+"#
+        );
         Ok(())
     }
 
