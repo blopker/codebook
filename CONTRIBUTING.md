@@ -6,6 +6,16 @@ Thanks for your interest in improving Codebook! This document covers the most co
 
 Run tests with `make test` after cloning. Integration tests are also available with `make integration_test`, but requires BunJS to run.
 
+## Adding Missing Words
+
+If Codebook flags a common technical term (a tool name, an acronym, a well-known API name), it can be added to Codebook's built-in word lists:
+
+1. Add the word, lowercase, to the most relevant file in `word_lists/` (e.g. `js.txt` for JavaScript terms, `codebook.txt` for general software terms). Keep the file sorted.
+1. Run `make generate_word_list` (requires BunJS). This merges every list into `crates/codebook/src/dictionaries/combined.gen.txt`, which is built into Codebook and used for every language.
+1. Commit both the word list and the regenerated `combined.gen.txt`.
+
+Words specific to your own project belong in your `codebook.toml` instead.
+
 ## Adding a New Dictionary
 
 Dictionaries in Codebook are currently hardcoded in the dictionary repository file at `crates/codebook/src/dictionaries/repo.rs`.

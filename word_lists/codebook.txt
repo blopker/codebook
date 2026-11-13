@@ -7,6 +7,7 @@ bundler
 buttonless
 cdn
 checksums
+cli
 codebook
 cors
 crc
@@ -24,6 +25,7 @@ etag
 filesystem
 fixme
 formatters
+freebsd
 github
 gitlab
 gz
@@ -42,10 +44,12 @@ patcher
 pbkdf
 pc
 postgre
+ppc
 prerelease
 prerender
 pst
 redownload
+riscv
 roadmap
 rpc
 rss
