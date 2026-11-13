@@ -115,6 +115,7 @@ child
 childnodes
 children
 chunk
+cjs
 class
 classes
 classname
@@ -156,6 +157,7 @@ contains
 content
 contents
 context
+contextmenu
 continue
 control
 controller
@@ -252,6 +254,7 @@ equal
 err
 error
 errors
+esm
 ev
 event
 eventname
@@ -493,6 +496,7 @@ normal
 not
 note
 now
+npx
 null
 num
 number
@@ -560,6 +564,7 @@ placeholder
 player
 plugin
 plugins
+pnpm
 point
 points
 pop
@@ -807,6 +812,7 @@ view
 views
 visible
 void
+vscode
 want
 warn
 was

@@ -494,6 +494,7 @@ chzn
 cidr
 circle
 citool
+cjs
 class
 classes
 classic
@@ -505,6 +506,7 @@ cleanup
 clear
 clearfix
 cleartimeout
+cli
 click
 client
 cline
@@ -615,6 +617,7 @@ content
 contentcontainer
 contents
 context
+contextmenu
 continue
 contrib
 control
@@ -1164,6 +1167,7 @@ escript
 escripts
 eshell
 eshutdown
+esm
 esock
 esocktnosupport
 espipe
@@ -1381,6 +1385,7 @@ frames
 framework
 fread
 free
+freebsd
 freemium
 freetext
 freetexttable
@@ -2313,6 +2318,7 @@ nowait
 nowarn
 nowrap
 np
+npx
 nregs
 nrg
 ns
@@ -2594,6 +2600,7 @@ pm
 pmtudisc
 pname
 png
+pnpm
 po
 pod
 point
@@ -2627,6 +2634,7 @@ pot
 potus
 pow
 power
+ppc
 ppm
 pps
 ppsx
@@ -2895,6 +2903,7 @@ rgba
 rhs
 rhtml
 right
+riscv
 rkeymerge
 rkt
 rlib
@@ -3731,6 +3740,7 @@ vob
 void
 volatile
 volume
+vscode
 vsd
 vsdx
 vsix
