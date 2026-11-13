@@ -1,13 +1,12 @@
 [package]
 name = "codebook_config"
-version = "0.4.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 description = "Configuration handling for the Codebook spell checker"
-authors = ["Codebook Contributors"]
-license = "MIT"
-repository = "https://github.com/blopker/codebook"
-homepage = "https://github.com/blopker/codebook"
-documentation = "https://github.com/blopker/codebook"
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation.workspace = true
 readme = "../../README.md"
 keywords = ["configuration", "spell-checker", "settings"]
 categories = ["development-tools", "text-processing"]
