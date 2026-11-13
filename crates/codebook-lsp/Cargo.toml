@@ -1,13 +1,12 @@
 [package]
 name = "codebook-lsp"
-version = "0.4.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 description = "A code-aware spell checker with language server implementation, installable via cargo install"
-authors = ["Codebook Contributors"]
-license = "MIT"
-repository = "https://github.com/blopker/codebook"
-homepage = "https://github.com/blopker/codebook"
-documentation = "https://github.com/blopker/codebook"
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation.workspace = true
 readme = "../../README.md"
 keywords = ["spell-checker", "lsp", "language-server", "code", "spelling"]
 categories = ["development-tools", "text-processing", "command-line-utilities"]
