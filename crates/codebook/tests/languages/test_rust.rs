@@ -1,6 +1,8 @@
 use codebook::queries::LanguageType;
 
-use super::utils::{assert_spelling, assert_spelling_at};
+use super::utils::{
+    assert_spelling, assert_spelling_at, assert_spelling_at_with, get_processor_with_tags,
+};
 
 #[test]
 fn test_rust_simple() {
@@ -356,4 +358,134 @@ fn test_rust_extern_crate_and_renaming() {
         }
     "#;
     assert_spelling_at(LanguageType::Rust, sample_text, &[("kanotspel", &[0])]);
+}
+
+#[test]
+fn test_rust_pattern_positions() {
+    // Bindings should be checked where they are bound in every position a
+    // pattern can appear, and tagged as parameters if in function or closure
+    // parameters. Uppercase names in refutable patterns may be constants or
+    // unit variants, like `MAAAX`, which should only be checked where defined.
+    let sample_text = r#"
+        const MAAAX: i32 = 1234;
+
+        fn f(paramwun: i32) {
+            let c = |klozplain, kloztype: i32, mut klozmut| klozplain + kloztype + klozmut;
+            let letwun = 1;
+            let Some(letelse) = opt else { return };
+            if let Some(iflet) = opt {}
+            while let Some(whylet) = it.next() {}
+            for indeks in v {}
+            match s {
+                armwun => {}
+                MAAAX => {}
+            }
+        }
+    "#;
+    assert_spelling_at_with(
+        &get_processor_with_tags(vec!["identifier.parameter"], vec![]),
+        LanguageType::Rust,
+        sample_text,
+        &[
+            ("paramwun", &[0]),
+            ("klozplain", &[0]),
+            ("kloztype", &[0]),
+            ("klozmut", &[0]),
+        ],
+    );
+    assert_spelling_at_with(
+        &get_processor_with_tags(vec!["identifier.variable"], vec![]),
+        LanguageType::Rust,
+        sample_text,
+        &[
+            ("letwun", &[0]),
+            ("letelse", &[0]),
+            ("iflet", &[0]),
+            ("whylet", &[0]),
+            ("indeks", &[0]),
+            ("armwun", &[0]),
+        ],
+    );
+    assert_spelling_at_with(
+        &get_processor_with_tags(vec![], vec!["identifier.parameter", "identifier.variable"]),
+        LanguageType::Rust,
+        sample_text,
+        &[("MAAAX", &[0])],
+    );
+}
+
+#[test]
+fn test_rust_pattern_kinds() {
+    // Bindings nested to arbitrary depth in each kind of pattern should be
+    // checked, and tagged as parameters if in function or closure parameters.
+    // Struct names and field names, including shorthand like `Poynt { wyy }`,
+    // are defined elsewhere and should not be checked. `rappur` is lowercase so
+    // the lowercase filter alone can't hide it.
+    let sample_text = r#"
+        struct Poynt { exx: i32, wyy: i32 }
+        struct rappur(i32);
+
+        fn f(
+            (tupparam, _): (i32, i32),
+            [slyceparam, ..]: [i32; 2],
+            rappur(rapparam): rappur,
+            Poynt { exx: feeldparam, wyy }: Poynt,
+            ref refparam: i32,
+            (mut mutparam, _): (i32, i32),
+            &amparam: &i32,
+            (_, [rappur(deepparam), ..]): (i32, [rappur; 1]),
+        ) {
+            let (tuplet, _) = pair;
+            let [slycelet, ..] = arr;
+            let rappur(raplet) = w;
+            let Poynt { exx: feeldlet, wyy } = p;
+            let ref reflet = x;
+            let (mut mutlet, _) = pair;
+            let &amplet = r;
+            let (_, [rappur(deeplet), ..]) = nested;
+        }
+    "#;
+    assert_spelling_at_with(
+        &get_processor_with_tags(vec!["identifier.parameter"], vec![]),
+        LanguageType::Rust,
+        sample_text,
+        &[
+            ("tupparam", &[0]),
+            ("slyceparam", &[0]),
+            ("rapparam", &[0]),
+            ("feeldparam", &[0]),
+            ("refparam", &[0]),
+            ("mutparam", &[0]),
+            ("amparam", &[0]),
+            ("deepparam", &[0]),
+        ],
+    );
+    assert_spelling_at_with(
+        &get_processor_with_tags(vec!["identifier.variable"], vec![]),
+        LanguageType::Rust,
+        sample_text,
+        &[
+            ("tuplet", &[0]),
+            ("slycelet", &[0]),
+            ("raplet", &[0]),
+            ("feeldlet", &[0]),
+            ("reflet", &[0]),
+            ("mutlet", &[0]),
+            ("amplet", &[0]),
+            ("deeplet", &[0]),
+        ],
+    );
+    // Other misspellings should only be the definitions of the structs and
+    // fields
+    assert_spelling_at_with(
+        &get_processor_with_tags(vec![], vec!["identifier.parameter", "identifier.variable"]),
+        LanguageType::Rust,
+        sample_text,
+        &[
+            ("Poynt", &[0]),
+            ("exx", &[0]),
+            ("wyy", &[0]),
+            ("rappur", &[0]),
+        ],
+    );
 }

@@ -21,10 +21,17 @@
 (mod_item body: (declaration_list (function_item name: (identifier) @identifier.function)))
 ; Nested functions (inside blocks)
 (block (function_item name: (identifier) @identifier.function))
-(parameter
-    pattern: (identifier) @identifier.parameter)
-(let_declaration
-    pattern: (identifier) @identifier.variable)
+; Bindings in pattern positions that are not in function or closure parameters.
+; Drop names starting with an uppercase letter because the grammar can't tell a
+; binding from a constant or unit variant such as `MAX` or `None`.
+((_pattern/identifier) @identifier.variable
+  (#not-match? @identifier.variable "^\\p{Lu}")
+  (#not-has-ancestor? @identifier.variable "parameter" "closure_parameters"))
+; Bindings in pattern positions that are in function or closure parameters.
+; Parameter patterns must be irrefutable, so consider everything to be a binding
+; regardless of case.
+((_pattern/identifier) @identifier.parameter
+  (#has-ancestor? @identifier.parameter "parameter" "closure_parameters"))
 (const_item
     name: (identifier) @identifier.constant)
 ; Skip associated consts in trait impls because they're named by the trait
