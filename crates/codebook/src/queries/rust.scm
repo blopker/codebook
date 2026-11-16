@@ -24,6 +24,10 @@
     name: (type_identifier) @identifier.type)
 (field_declaration
     name: (field_identifier) @identifier.field)
+(enum_item
+    name: (type_identifier) @identifier.type)
+(enum_variant
+    name: (identifier) @identifier.constant)
 (block_comment) @comment.block
 (line_comment) @comment.line
 (string_content) @string

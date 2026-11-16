@@ -80,6 +80,34 @@ fn test_rust_struct() {
 }
 
 #[test]
+fn test_rust_enum() {
+    let sample_text = r#"
+        enum Eeneum {
+            Yoonit,
+            Tuppel(i32),
+            Struckte { feyeld: i32 },
+        }
+
+        fn main() {
+            let x = Eeneum::Yoonit;
+            let y = Eeneum::Tuppel(42);
+            let z = Eeneum::Struckte { feyeld: 42 };
+        }
+    "#;
+    assert_spelling_at(
+        LanguageType::Rust,
+        sample_text,
+        &[
+            ("Eeneum", &[0]),
+            ("Yoonit", &[0]),
+            ("Tuppel", &[0]),
+            ("Struckte", &[0]),
+            ("feyeld", &[0]),
+        ],
+    );
+}
+
+#[test]
 fn test_rust_trait_impl_function_names_not_checked() {
     // https://github.com/blopker/codebook/issues/225
     // Function names in `impl Trait for Type` blocks should not be spell-checked
