@@ -20,6 +20,20 @@
     pattern: (identifier) @identifier.parameter)
 (let_declaration
     pattern: (identifier) @identifier.variable)
+(const_item
+    name: (identifier) @identifier.constant)
+; Skip associated consts in trait impls because they're named by the trait
+(impl_item
+    trait: (_)
+    body: (declaration_list
+        (const_item
+            name: (identifier) @skip)))
+; Tag statics as constants because they're named like and mostly used as
+; constants. Drop statics in extern blocks because they're named by the foreign
+; library.
+((static_item
+    name: (identifier) @identifier.constant)
+  (#not-has-ancestor? @identifier.constant "foreign_mod_item"))
 (struct_item
     name: (type_identifier) @identifier.type)
 (field_declaration

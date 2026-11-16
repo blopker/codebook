@@ -147,3 +147,68 @@ fn test_rust_escape_sequences_separate_words() {
     let sample_text = r#"fn main() { println!("this\nis\tindented\u{1F600}wrold"); }"#;
     assert_spelling_at(LanguageType::Rust, sample_text, &[("wrold", &[0])]);
 }
+
+#[test]
+fn test_rust_const_and_static_in_module_and_fn_body() {
+    let sample_text = r#"
+        const KYANST: i32 = 42;
+        static STYATIK: i32 = 42;
+
+        const X: i32 = KYANST + STYATIK;
+
+        fn main() {
+            const KYANST: i32 = 42;
+            static STYATIK: i32 = 42;
+
+            let x = KYANST + STYATIK;
+        }
+    "#;
+    assert_spelling_at(
+        LanguageType::Rust,
+        sample_text,
+        &[("KYANST", &[0, 2]), ("STYATIK", &[0, 2])],
+    );
+}
+
+#[test]
+fn test_rust_associated_consts_checked_where_defined() {
+    // Associated consts should be checked where they're defined, in trait
+    // definitions and inherent impls, but not in trait impls, where the trait
+    // chooses the name (like the function names from issue #225). However,
+    // values in trait impls should still be checked.
+    let sample_text = r#"
+        trait Shape {
+            const SYDEZ: u32;
+            const LABEL: &'static str;
+        }
+
+        struct Square;
+
+        impl Shape for Square {
+            const SYDEZ: u32 = 4;
+            const LABEL: &'static str = "four kornerz";
+        }
+
+        impl Square {
+            const DYAGONALLS: u32 = 2;
+        }
+    "#;
+    assert_spelling_at(
+        LanguageType::Rust,
+        sample_text,
+        &[("SYDEZ", &[0]), ("kornerz", &[0]), ("DYAGONALLS", &[0])],
+    );
+}
+
+#[test]
+fn test_rust_extern_statics_not_checked() {
+    // Statics in extern blocks are named by the foreign library.
+    let sample_text = r#"
+        unsafe extern "C" {
+            static ernoh: i32;
+        }
+
+        static STYATIK: i32 = 0;
+    "#;
+    assert_spelling(LanguageType::Rust, sample_text, &["STYATIK"], &["ernoh"]);
+}
