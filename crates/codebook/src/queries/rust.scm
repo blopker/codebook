@@ -5,10 +5,15 @@
     body: (declaration_list
         (function_item
             name: (identifier) @identifier.function)))
-; Functions in trait definitions
+; Functions in trait definitions with default bodies
 (trait_item
     body: (declaration_list
         (function_item
+            name: (identifier) @identifier.function)))
+; Functions in trait definitions without default bodies
+(trait_item
+    body: (declaration_list
+        (function_signature_item
             name: (identifier) @identifier.function)))
 ; Top-level functions
 (source_file (function_item name: (identifier) @identifier.function))
@@ -42,6 +47,13 @@
     name: (type_identifier) @identifier.type)
 (enum_variant
     name: (identifier) @identifier.constant)
+(trait_item
+    name: (type_identifier) @identifier.type)
+; Associated types in trait definitions
+(trait_item
+    body: (declaration_list
+        (associated_type
+            name: (type_identifier) @identifier.type)))
 (block_comment) @comment.block
 (line_comment) @comment.line
 (string_content) @string

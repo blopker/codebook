@@ -108,6 +108,48 @@ fn test_rust_enum() {
 }
 
 #[test]
+fn test_rust_trait_names_types_functions() {
+    // Traits' names, associated types, functions without default bodies
+    // (`function_signature_item`), and functions with default bodies
+    // (`function_item`) should all be checked where defined and not where
+    // implemented or used.
+    let sample_text = r#"
+        trait Trayet {
+            type Yaytem;
+            fn meethode(&self);
+            fn foncshun() {
+                println!("hello");
+            }
+        }
+
+        impl Trayet for i32 {
+            type Yaytem = u32;
+            fn meethode(&self) {
+                println!("I'm an i32: {self}");
+            }
+            fn foncshun() {
+                println!("hello from i32");
+            }
+        }
+
+        fn f<T: Trayet>(x: T, y: T::Yaytem) {
+            x.meethode();
+            T::foncshun();
+        }
+    "#;
+    assert_spelling_at(
+        LanguageType::Rust,
+        sample_text,
+        &[
+            ("Trayet", &[0]),
+            ("Yaytem", &[0]),
+            ("meethode", &[0]),
+            ("foncshun", &[0]),
+        ],
+    );
+}
+
+#[test]
 fn test_rust_trait_impl_function_names_not_checked() {
     // https://github.com/blopker/codebook/issues/225
     // Function names in `impl Trait for Type` blocks should not be spell-checked
@@ -201,14 +243,20 @@ fn test_rust_associated_consts_checked_where_defined() {
 }
 
 #[test]
-fn test_rust_extern_statics_not_checked() {
-    // Statics in extern blocks are named by the foreign library.
+fn test_rust_extern_items_not_checked() {
+    // Items in extern blocks are named by the foreign library.
     let sample_text = r#"
         unsafe extern "C" {
             static ernoh: i32;
+            fn strnkpi(dst: *mut u8, src: *const u8, dsize: usize);
         }
 
         static STYATIK: i32 = 0;
     "#;
-    assert_spelling(LanguageType::Rust, sample_text, &["STYATIK"], &["ernoh"]);
+    assert_spelling(
+        LanguageType::Rust,
+        sample_text,
+        &["STYATIK"],
+        &["ernoh", "strnkpi"],
+    );
 }
