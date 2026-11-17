@@ -67,6 +67,9 @@
             name: (type_identifier) @skip)))
 (mod_item
     name: (identifier) @identifier.module)
+; Use declarations with renaming
+(use_as_clause
+    alias: (identifier) @identifier)
 (block_comment) @comment.block
 (line_comment) @comment.line
 (string_content) @string

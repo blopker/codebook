@@ -323,3 +323,23 @@ fn test_rust_module_name() {
         &[("mawde", &[0]), ("modyeule", &[0])],
     );
 }
+
+#[test]
+fn test_rust_use_declaration_and_renaming() {
+    // Only user-defined renames should be checked, and only where they are defined.
+    let sample_text = r#"
+        use some_crate::badlynamed;
+        use some_crate::otherbad as mispeling;
+        use other_crate::{scoopeduse, Skoped as Skopedbad};
+
+        fn main() {
+            mispeling();
+            let x = Skopedbad::new();
+        }
+    "#;
+    assert_spelling_at(
+        LanguageType::Rust,
+        sample_text,
+        &[("mispeling", &[0]), ("Skopedbad", &[0])],
+    );
+}
