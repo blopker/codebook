@@ -108,6 +108,30 @@ fn test_rust_enum() {
 }
 
 #[test]
+fn test_rust_union() {
+    let sample_text = r#"
+        union EentOrFlote {
+            eent: i32,
+            flote: f32,
+        }
+
+        fn main() {
+            let u = EentOrFlote { flote: 1.0 };
+        }
+    "#;
+    assert_spelling_at(
+        LanguageType::Rust,
+        sample_text,
+        &[
+            ("Eent", &[0]),
+            ("Flote", &[0]),
+            ("eent", &[0]),
+            ("flote", &[0]),
+        ],
+    );
+}
+
+#[test]
 fn test_rust_type_alias() {
     let sample_text = r#"
         type MaybeYoosize = Option<usize>;

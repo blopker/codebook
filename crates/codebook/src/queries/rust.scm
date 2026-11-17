@@ -47,6 +47,8 @@
     name: (type_identifier) @identifier.type)
 (enum_variant
     name: (identifier) @identifier.constant)
+(union_item
+    name: (type_identifier) @identifier.type)
 (trait_item
     name: (type_identifier) @identifier.type)
 ; Type aliases
