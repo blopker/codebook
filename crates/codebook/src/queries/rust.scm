@@ -42,6 +42,12 @@
 ; regardless of case.
 ((_pattern/identifier) @identifier.parameter
   (#has-ancestor? @identifier.parameter "parameter" "closure_parameters"))
+; The name in `name @ subpattern`. It's always a binding, so check it regardless
+; of case.
+((captured_pattern . (identifier) @identifier.variable)
+  (#not-has-ancestor? @identifier.variable "parameter" "closure_parameters"))
+((captured_pattern . (identifier) @identifier.parameter)
+  (#has-ancestor? @identifier.parameter "parameter" "closure_parameters"))
 (const_item
     name: (identifier) @identifier.constant)
 ; Skip associated consts in trait impls because they're named by the trait

@@ -433,6 +433,7 @@ fn test_rust_pattern_kinds() {
             ref refparam: i32,
             (mut mutparam, _): (i32, i32),
             &amparam: &i32,
+            kapparam @ _: i32,
             (_, [rappur(deepparam), ..]): (i32, [rappur; 1]),
         ) {
             let (tuplet, _) = pair;
@@ -442,6 +443,7 @@ fn test_rust_pattern_kinds() {
             let ref reflet = x;
             let (mut mutlet, _) = pair;
             let &amplet = r;
+            let kaplet @ (_, _) = pair;
             let (_, [rappur(deeplet), ..]) = nested;
         }
     "#;
@@ -457,6 +459,7 @@ fn test_rust_pattern_kinds() {
             ("refparam", &[0]),
             ("mutparam", &[0]),
             ("amparam", &[0]),
+            ("kapparam", &[0]),
             ("deepparam", &[0]),
         ],
     );
@@ -472,6 +475,7 @@ fn test_rust_pattern_kinds() {
             ("reflet", &[0]),
             ("mutlet", &[0]),
             ("amplet", &[0]),
+            ("kaplet", &[0]),
             ("deeplet", &[0]),
         ],
     );
@@ -494,23 +498,24 @@ fn test_rust_pattern_kinds() {
 fn test_rust_unidiomatic_uppercase_bindings() {
     // Uppercase locals and parameters are unidiomatic Rust, but should still
     // be checked where they must be bindings. This includes anywhere in
-    // parameters, top-level `let` and `for` patterns, and after `ref` or `mut`.
-    // Elsewhere in patterns, they may be constants or unit variants, so they
-    // should not be checked, like `KONSTANT` and `Grean` in the match arms.
-    // `Klozwun` is both a `mut` pattern and inside a closure parameter, so it
-    // must be checked only once, as a parameter.
+    // parameters, top-level `let` and `for` patterns, after `ref` or `mut`,
+    // and before `@`. Elsewhere in patterns, they may be constants or unit
+    // variants, so they should not be checked, like `KONSTANT` and `Grean` in
+    // the match arms. `Klozwun` is both a `mut` pattern and inside a closure
+    // parameter, so it must be checked only once, as a parameter.
     let sample_text = r#"
         const KONSTANT: i32 = 1;
         enum Kolor { Grean }
         use Kolor::*;
 
-        fn f(Paramwun: i32) {
+        fn f(Paramwun: i32, Paramkap @ _: i32) {
             let LETWUN = 1;
             let c = |mut Klozwun| Klozwun + 1;
             for Indeks in v {}
             if let Some(ref REFWUN) = opt {}
             match s {
                 Some(mut Mutwun) => {}
+                KAPCHUR @ 0..=9 => {}
                 Some(KONSTANT) => {}
                 Grean => {}
             }
@@ -520,7 +525,7 @@ fn test_rust_unidiomatic_uppercase_bindings() {
         &get_processor_with_tags(vec!["identifier.parameter"], vec![]),
         LanguageType::Rust,
         sample_text,
-        &[("Paramwun", &[0]), ("Klozwun", &[0])],
+        &[("Paramwun", &[0]), ("Klozwun", &[0]), ("Paramkap", &[0])],
     );
     assert_spelling_at_with(
         &get_processor_with_tags(vec!["identifier.variable"], vec![]),
@@ -531,6 +536,7 @@ fn test_rust_unidiomatic_uppercase_bindings() {
             ("Indeks", &[0]),
             ("REFWUN", &[0]),
             ("Mutwun", &[0]),
+            ("KAPCHUR", &[0]),
         ],
     );
     // Other misspellings should only be the definitions of the constant, enum,
