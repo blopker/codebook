@@ -343,3 +343,17 @@ fn test_rust_use_declaration_and_renaming() {
         &[("mispeling", &[0]), ("Skopedbad", &[0])],
     );
 }
+
+#[test]
+fn test_rust_extern_crate_and_renaming() {
+    // Only user-defined renames should be checked, and only where they are defined.
+    let sample_text = r#"
+        extern crate horiblspeler;
+        extern crate relybad as kanotspel;
+
+        fn main() {
+            kanotspel::f();
+        }
+    "#;
+    assert_spelling_at(LanguageType::Rust, sample_text, &[("kanotspel", &[0])]);
+}

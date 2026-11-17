@@ -70,6 +70,9 @@
 ; Use declarations with renaming
 (use_as_clause
     alias: (identifier) @identifier)
+; Crate aliases
+(extern_crate_declaration
+    alias: (identifier) @identifier.module)
 (block_comment) @comment.block
 (line_comment) @comment.line
 (string_content) @string
