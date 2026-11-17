@@ -49,11 +49,20 @@
     name: (identifier) @identifier.constant)
 (trait_item
     name: (type_identifier) @identifier.type)
+; Type aliases
+(type_item
+    name: (type_identifier) @identifier.type)
 ; Associated types in trait definitions
 (trait_item
     body: (declaration_list
         (associated_type
             name: (type_identifier) @identifier.type)))
+; Skip associated types in trait impls because they're named by the trait
+(impl_item
+    trait: (_)
+    body: (declaration_list
+        (type_item
+            name: (type_identifier) @skip)))
 (block_comment) @comment.block
 (line_comment) @comment.line
 (string_content) @string

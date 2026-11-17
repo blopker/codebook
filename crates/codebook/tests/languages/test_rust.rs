@@ -108,6 +108,25 @@ fn test_rust_enum() {
 }
 
 #[test]
+fn test_rust_type_alias() {
+    let sample_text = r#"
+        type MaybeYoosize = Option<usize>;
+
+        fn main() {
+            type Rezoult = Result<usize, &'static str>;
+
+            let a: MaybeYoosize = None;
+            let b = |x: Rezoult| -> MaybeYoosize { x.ok() };
+        }
+    "#;
+    assert_spelling_at(
+        LanguageType::Rust,
+        sample_text,
+        &[("Yoosize", &[0]), ("Rezoult", &[0])],
+    );
+}
+
+#[test]
 fn test_rust_trait_names_types_functions() {
     // Traits' names, associated types, functions without default bodies
     // (`function_signature_item`), and functions with default bodies
