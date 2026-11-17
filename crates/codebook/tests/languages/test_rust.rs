@@ -303,3 +303,23 @@ fn test_rust_extern_items_not_checked() {
         &["ernoh", "strnkpi"],
     );
 }
+
+#[test]
+fn test_rust_module_name() {
+    let sample_text = r#"
+        pub mod mawde;
+
+        mod modyeule {
+            pub fn f() {}
+        }
+
+        fn main() {
+            modyeule::f();
+        }
+    "#;
+    assert_spelling_at(
+        LanguageType::Rust,
+        sample_text,
+        &[("mawde", &[0]), ("modyeule", &[0])],
+    );
+}

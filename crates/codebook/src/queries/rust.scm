@@ -65,6 +65,8 @@
     body: (declaration_list
         (type_item
             name: (type_identifier) @skip)))
+(mod_item
+    name: (identifier) @identifier.module)
 (block_comment) @comment.block
 (line_comment) @comment.line
 (string_content) @string
