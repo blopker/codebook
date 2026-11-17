@@ -489,3 +489,56 @@ fn test_rust_pattern_kinds() {
         ],
     );
 }
+
+#[test]
+fn test_rust_unidiomatic_uppercase_bindings() {
+    // Uppercase locals and parameters are unidiomatic Rust, but should still
+    // be checked where they must be bindings. This includes anywhere in
+    // parameters, top-level `let` and `for` patterns, and after `ref` or `mut`.
+    // Elsewhere in patterns, they may be constants or unit variants, so they
+    // should not be checked, like `KONSTANT` and `Grean` in the match arms.
+    // `Klozwun` is both a `mut` pattern and inside a closure parameter, so it
+    // must be checked only once, as a parameter.
+    let sample_text = r#"
+        const KONSTANT: i32 = 1;
+        enum Kolor { Grean }
+        use Kolor::*;
+
+        fn f(Paramwun: i32) {
+            let LETWUN = 1;
+            let c = |mut Klozwun| Klozwun + 1;
+            for Indeks in v {}
+            if let Some(ref REFWUN) = opt {}
+            match s {
+                Some(mut Mutwun) => {}
+                Some(KONSTANT) => {}
+                Grean => {}
+            }
+        }
+    "#;
+    assert_spelling_at_with(
+        &get_processor_with_tags(vec!["identifier.parameter"], vec![]),
+        LanguageType::Rust,
+        sample_text,
+        &[("Paramwun", &[0]), ("Klozwun", &[0])],
+    );
+    assert_spelling_at_with(
+        &get_processor_with_tags(vec!["identifier.variable"], vec![]),
+        LanguageType::Rust,
+        sample_text,
+        &[
+            ("LETWUN", &[0]),
+            ("Indeks", &[0]),
+            ("REFWUN", &[0]),
+            ("Mutwun", &[0]),
+        ],
+    );
+    // Other misspellings should only be the definitions of the constant, enum,
+    // and variant
+    assert_spelling_at_with(
+        &get_processor_with_tags(vec![], vec!["identifier.parameter", "identifier.variable"]),
+        LanguageType::Rust,
+        sample_text,
+        &[("KONSTANT", &[0]), ("Kolor", &[0]), ("Grean", &[0])],
+    );
+}

@@ -27,6 +27,16 @@
 ((_pattern/identifier) @identifier.variable
   (#not-match? @identifier.variable "^\\p{Lu}")
   (#not-has-ancestor? @identifier.variable "parameter" "closure_parameters"))
+; Uppercase bindings not in function or closure parameters, in pattern positions
+; where a name is always a binding
+([
+    (let_declaration pattern: (identifier) @identifier.variable)
+    (for_expression pattern: (identifier) @identifier.variable)
+    (ref_pattern (identifier) @identifier.variable)
+    (mut_pattern (identifier) @identifier.variable)
+  ]
+  (#match? @identifier.variable "^\\p{Lu}")
+  (#not-has-ancestor? @identifier.variable "parameter" "closure_parameters"))
 ; Bindings in pattern positions that are in function or closure parameters.
 ; Parameter patterns must be irrefutable, so consider everything to be a binding
 ; regardless of case.
