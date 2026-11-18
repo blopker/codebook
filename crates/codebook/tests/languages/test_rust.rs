@@ -572,3 +572,27 @@ fn test_rust_generic_parameters() {
         ],
     );
 }
+
+#[test]
+fn test_rust_labels() {
+    // Loop and block labels should be checked where they are declared, but
+    // not in `break` or `continue`.
+    let sample_text = r#"
+        fn labels() {
+            'eenfeeneet: loop { break 'eenfeeneet; }
+            'whyle: while x { continue 'whyle; }
+            'fohr: for i in v { continue 'fohr; }
+            let y = 'bluck: { break 'bluck 1; };
+        }
+    "#;
+    assert_spelling_at(
+        LanguageType::Rust,
+        sample_text,
+        &[
+            ("eenfeeneet", &[0]),
+            ("whyle", &[0]),
+            ("fohr", &[0]),
+            ("bluck", &[0]),
+        ],
+    );
+}

@@ -98,6 +98,11 @@
 ; Higher-ranked lifetimes in `for<'a>`
 (for_lifetimes
     (lifetime (identifier) @identifier))
+; Loop and block labels where they're declared
+(loop_expression (label (identifier) @identifier))
+(while_expression (label (identifier) @identifier))
+(for_expression (label (identifier) @identifier))
+(block (label (identifier) @identifier))
 (mod_item
     name: (identifier) @identifier.module)
 ; Use declarations with renaming
