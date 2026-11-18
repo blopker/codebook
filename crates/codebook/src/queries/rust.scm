@@ -103,6 +103,11 @@
 (while_expression (label (identifier) @identifier))
 (for_expression (label (identifier) @identifier))
 (block (label (identifier) @identifier))
+; `macro_rules!` names and the declarations of metavariables in each arm
+(macro_definition
+    name: (identifier) @identifier.function)
+(token_binding_pattern
+    name: (metavariable) @identifier.parameter)
 (mod_item
     name: (identifier) @identifier.module)
 ; Use declarations with renaming

@@ -596,3 +596,31 @@ fn test_rust_labels() {
         ],
     );
 }
+
+#[test]
+fn test_rust_macro_rules() {
+    // A `macro_rules!` name and its metavariables should be checked where they
+    // are declared, but not where the macro is invoked or the metavariables are
+    // used. Each arm declares its own metavariables, so a name repeated across
+    // arms should be checked in each.
+    let sample_text = r#"
+        macro_rules! make_payre {
+            ($furst:expr, $($restt:literal),*) => {
+                ($furst, [$($restt),*])
+            };
+            ($furst:expr) => {
+                ($furst, [])
+            };
+        }
+
+        fn main() {
+            let pair1 = make_payre!(1, 2, 3);
+            let pair2: (i32, [i32; 0]) = make_payre!(4);
+        }
+    "#;
+    assert_spelling_at(
+        LanguageType::Rust,
+        sample_text,
+        &[("payre", &[0]), ("furst", &[0, 2]), ("restt", &[0])],
+    );
+}
