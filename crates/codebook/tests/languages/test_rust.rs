@@ -548,3 +548,27 @@ fn test_rust_unidiomatic_uppercase_bindings() {
         &[("KONSTANT", &[0]), ("Kolor", &[0]), ("Grean", &[0])],
     );
 }
+
+#[test]
+fn test_rust_generic_parameters() {
+    // Type, const, and lifetime parameters should be checked where they are
+    // declared, including higher-ranked `for<'a>` lifetimes, but not where
+    // they are used.
+    let sample_text = r#"
+        fn f<'lyfe, Tayp: Clone, const SAIZE: usize>(x: &'lyfe [Tayp; SAIZE])
+        where
+            Tayp: for<'haiyur> Fn(&'haiyur str),
+        {
+        }
+    "#;
+    assert_spelling_at(
+        LanguageType::Rust,
+        sample_text,
+        &[
+            ("lyfe", &[0]),
+            ("Tayp", &[0]),
+            ("SAIZE", &[0]),
+            ("haiyur", &[0]),
+        ],
+    );
+}

@@ -88,6 +88,16 @@
     body: (declaration_list
         (type_item
             name: (type_identifier) @skip)))
+; Generic parameters where they're declared
+(type_parameter
+    name: (type_identifier) @identifier.type)
+(const_parameter
+    name: (identifier) @identifier.constant)
+(lifetime_parameter
+    name: (lifetime (identifier) @identifier))
+; Higher-ranked lifetimes in `for<'a>`
+(for_lifetimes
+    (lifetime (identifier) @identifier))
 (mod_item
     name: (identifier) @identifier.module)
 ; Use declarations with renaming
