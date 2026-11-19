@@ -261,3 +261,14 @@ Some text\#with an escape and a typpo.
         &[("typpo", &[0]), ("wrold", &[0])],
     );
 }
+
+#[test]
+fn test_typst_deep_nesting_does_not_overflow_scanner_state() {
+    // The grammar's external scanner saves one entry per open container into
+    // tree-sitter's 1024-byte serialization buffer. Nesting deeper than the
+    // buffer can hold (about 250 entries) must not write past it.
+    for unit in ["[\n", "[*]"] {
+        let sample_text = format!("A typpo.\n\n{}", unit.repeat(300));
+        assert_spelling(LanguageType::Typst, &sample_text, &["typpo"], &[]);
+    }
+}
