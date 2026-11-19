@@ -551,9 +551,10 @@ fn test_rust_unidiomatic_uppercase_bindings() {
 
 #[test]
 fn test_rust_generic_parameters() {
-    // Type, const, and lifetime parameters should be checked where they are
-    // declared, including higher-ranked `for<'a>` lifetimes, but not where
-    // they are used.
+    // Type and const parameters should be checked where they are declared,
+    // but not where they are used. Lifetimes are conventionally terse
+    // abbreviations, so they are not checked anywhere, including
+    // higher-ranked `for<'a>` lifetimes.
     let sample_text = r#"
         fn f<'lyfe, Tayp: Clone, const SAIZE: usize>(x: &'lyfe [Tayp; SAIZE])
         where
@@ -564,12 +565,7 @@ fn test_rust_generic_parameters() {
     assert_spelling_at(
         LanguageType::Rust,
         sample_text,
-        &[
-            ("lyfe", &[0]),
-            ("Tayp", &[0]),
-            ("SAIZE", &[0]),
-            ("haiyur", &[0]),
-        ],
+        &[("Tayp", &[0]), ("SAIZE", &[0])],
     );
 }
 
@@ -599,10 +595,9 @@ fn test_rust_labels() {
 
 #[test]
 fn test_rust_macro_rules() {
-    // A `macro_rules!` name and its metavariables should be checked where they
-    // are declared, but not where the macro is invoked or the metavariables are
-    // used. Each arm declares its own metavariables, so a name repeated across
-    // arms should be checked in each.
+    // A `macro_rules!` name should be checked where it is declared, but not
+    // where the macro is invoked. Metavariables are conventionally terse
+    // abbreviations, so they are not checked anywhere.
     let sample_text = r#"
         macro_rules! make_payre {
             ($furst:expr, $($restt:literal),*) => {
@@ -618,9 +613,5 @@ fn test_rust_macro_rules() {
             let pair2: (i32, [i32; 0]) = make_payre!(4);
         }
     "#;
-    assert_spelling_at(
-        LanguageType::Rust,
-        sample_text,
-        &[("payre", &[0]), ("furst", &[0, 2]), ("restt", &[0])],
-    );
+    assert_spelling_at(LanguageType::Rust, sample_text, &[("payre", &[0])]);
 }

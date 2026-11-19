@@ -5,6 +5,9 @@ Important user-facing changes. See commit logs for more details.
 [Unreleased]
 
 - Zed: `.mli` files (the OCaml extension's "OCaml Interface" language) are spell-checked as OCaml
+- Rust: many more names are checked where they're defined: enums and variants, `const`/`static` items, traits and their associated types and method signatures, type aliases, unions, modules, `use … as`/`extern crate … as` renames, generic type and const parameters, loop labels, `macro_rules!` names, and bindings in every kind of pattern (`match`, `if let`, `for`, closures, destructuring). Names set elsewhere (associated consts and types in trait impls, items in `extern` blocks) are not checked (#325)
+- Add common Rust and general software terms to the built-in word lists (`waker`, `newtype`, `vtable`, `tls`, `eof`, `mmap`, and more)
+- Faster checking for languages whose queries use several `#has-ancestor?`/`#not-has-ancestor?` rules with the same node kinds
 
 [0.4.0]
 

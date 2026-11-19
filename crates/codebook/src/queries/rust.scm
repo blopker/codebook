@@ -88,26 +88,21 @@
     body: (declaration_list
         (type_item
             name: (type_identifier) @skip)))
-; Generic parameters where they're declared
+; Generic type and const parameters where they're declared. Lifetimes are
+; conventionally terse abbreviations, so they're not checked.
 (type_parameter
     name: (type_identifier) @identifier.type)
 (const_parameter
     name: (identifier) @identifier.constant)
-(lifetime_parameter
-    name: (lifetime (identifier) @identifier))
-; Higher-ranked lifetimes in `for<'a>`
-(for_lifetimes
-    (lifetime (identifier) @identifier))
 ; Loop and block labels where they're declared
 (loop_expression (label (identifier) @identifier))
 (while_expression (label (identifier) @identifier))
 (for_expression (label (identifier) @identifier))
 (block (label (identifier) @identifier))
-; `macro_rules!` names and the declarations of metavariables in each arm
+; `macro_rules!` names. Metavariables are conventionally terse abbreviations,
+; so they're not checked.
 (macro_definition
     name: (identifier) @identifier.function)
-(token_binding_pattern
-    name: (metavariable) @identifier.parameter)
 (mod_item
     name: (identifier) @identifier.module)
 ; Use declarations with renaming

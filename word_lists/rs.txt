@@ -65,6 +65,7 @@ body
 bool
 border
 borrow
+borrowck
 both
 bottom
 bound
@@ -150,6 +151,7 @@ created
 creates
 css
 cstore
+cstr
 cstring
 ctx
 ctxt
@@ -183,6 +185,7 @@ display
 distribution
 do
 doc
+doctest
 document
 does
 doesn
@@ -285,6 +288,7 @@ handle
 handler
 has
 hash
+hashbrown
 hashmap
 hashset
 have
@@ -311,8 +315,11 @@ ignore
 image
 impl
 implementation
+implementors
+impls
 in
 index
+indexmap
 infcx
 infer
 info
@@ -341,6 +348,7 @@ item
 items
 iter
 iterator
+itertools
 its
 itself
 join
@@ -406,6 +414,8 @@ maybeauto
 mc
 means
 mem
+memchr
+memmem
 memory
 message
 messages
@@ -415,6 +425,7 @@ methods
 middle
 might
 min
+miri
 mod
 mode
 module
@@ -436,6 +447,7 @@ need
 needs
 never
 new
+newtype
 next
 no
 node
@@ -461,6 +473,7 @@ ok
 old
 on
 one
+oneshot
 only
 op
 open
@@ -508,6 +521,7 @@ pathbuf
 paths
 pattern
 pcwalton
+peekable
 phantomdata
 pipeline
 pipelineid
@@ -535,6 +549,7 @@ provided
 ptr
 pub
 public
+punct
 push
 queue
 rand
@@ -561,6 +576,7 @@ replace
 repr
 request
 required
+reqwest
 res
 resolve
 response
@@ -583,6 +599,9 @@ rust
 rustc
 rustcdecodable
 rustcencodable
+rustflags
+rustls
+rwlock
 rx
 same
 scope
@@ -605,6 +624,7 @@ single
 size
 sized
 slice
+smallvec
 so
 some
 source
@@ -641,6 +661,7 @@ sty
 style
 sub
 subject
+subslice
 subst
 substs
 such
@@ -688,6 +709,7 @@ transmute
 tree
 true
 try
+turbofish
 two
 tx
 txt
@@ -697,6 +719,7 @@ type
 typeck
 types
 uint
+uninit
 unit
 unix
 unreachable
@@ -730,6 +753,8 @@ vis
 visit
 visitor
 void
+vtable
+waker
 want
 was
 way
@@ -759,3 +784,4 @@ xs
 yet
 you
 zero
+zst

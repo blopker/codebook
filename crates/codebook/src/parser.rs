@@ -25,7 +25,8 @@ static PARSER_CACHE: LazyLock<Mutex<HashMap<LanguageType, Option<Parser>>>> =
 /// dropped unless some ancestor of the captured node has one of the kinds
 /// (`has-ancestor?`), or when one does (`not-has-ancestor?`).
 struct AncestorRule {
-    /// Position among all of the query's rules, for per-parse caching.
+    /// Identifies the rule's kind set among the query's distinct kind sets,
+    /// for per-parse caching. Rules marking the same kinds share an id.
     id: usize,
     capture_index: u32,
     /// True for `not-has-ancestor?`.
@@ -42,6 +43,7 @@ struct CompiledQuery {
     /// Indexed by `pattern_index`. Empty inner vec = no filtering for that
     /// pattern, which is the common case across all .scm files.
     ancestor_rules: Vec<Vec<AncestorRule>>,
+    /// Number of distinct ancestor rule ids.
     rule_count: usize,
 }
 
@@ -77,13 +79,20 @@ fn compile_query(setting: &LanguageSetting) -> CompiledQuery {
         .iter()
         .map(|s| s.to_string())
         .collect();
-    let mut rule_count = 0;
+    // Rules that mark the same kinds get the same id, so one tree walk per
+    // parse serves all of them.
+    let mut distinct_kinds: Vec<Vec<bool>> = Vec::new();
     let ancestor_rules = (0..query.pattern_count())
         .map(|i| {
             let mut rules = parse_ancestor_rules(&query, &lang, i, setting.type_);
             for rule in &mut rules {
-                rule.id = rule_count;
-                rule_count += 1;
+                rule.id = distinct_kinds
+                    .iter()
+                    .position(|kinds| *kinds == rule.kinds)
+                    .unwrap_or_else(|| {
+                        distinct_kinds.push(rule.kinds.clone());
+                        distinct_kinds.len() - 1
+                    });
             }
             rules
         })
@@ -92,7 +101,7 @@ fn compile_query(setting: &LanguageSetting) -> CompiledQuery {
         query,
         capture_names,
         ancestor_rules,
-        rule_count,
+        rule_count: distinct_kinds.len(),
     }
 }
 
@@ -834,6 +843,27 @@ mod tests {
             .and_then(|s| s.language())
             .unwrap();
         (Query::new(&lang, source).unwrap(), lang)
+    }
+
+    #[test]
+    fn test_ancestor_rules_with_same_kinds_share_an_id() {
+        let setting = LanguageSetting {
+            query: r#"
+                ((string_content) @string (#not-has-ancestor? @string "type" "call"))
+                ((comment) @comment (#has-ancestor? @comment "call" "type"))
+                ((identifier) @identifier (#has-ancestor? @identifier "block"))
+            "#,
+            ..*get_language_setting(LanguageType::Python).unwrap()
+        };
+        let compiled = compile_query(&setting);
+        let ids: Vec<usize> = compiled
+            .ancestor_rules
+            .iter()
+            .flatten()
+            .map(|rule| rule.id)
+            .collect();
+        assert_eq!(ids, [0, 0, 1]);
+        assert_eq!(compiled.rule_count, 2);
     }
 
     #[test]
