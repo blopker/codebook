@@ -2,13 +2,13 @@
 
 Important user-facing changes. See commit logs for more details.
 
-[Unreleased]
+[0.4.1]
 
 - Typst: fixed a crash on files with very deep nesting (about 250 open brackets or other containers). The grammar wrote past a fixed-size buffer in that case
 - Typst: raw blocks opened with 256 or more backticks and headings with 256 or more `=` are parsed correctly
 - Zed: `.mli` files (the OCaml extension's "OCaml Interface" language) are spell-checked as OCaml
 - Rust: many more names are checked where they're defined: enums and variants, `const`/`static` items, traits and their associated types and method signatures, type aliases, unions, modules, `use … as`/`extern crate … as` renames, generic type and const parameters, loop labels, `macro_rules!` names, and bindings in every kind of pattern (`match`, `if let`, `for`, closures, destructuring). Names set elsewhere (associated consts and types in trait impls, items in `extern` blocks) are not checked (#325)
-- Add common Rust and general software terms to the built-in word lists (`waker`, `newtype`, `vtable`, `tls`, `eof`, `mmap`, and more)
+- Add common Rust, JavaScript, and general software terms to the built-in word lists (`waker`, `newtype`, `vtable`, `tls`, `eof`, `mmap`, `pnpm`, `npx`, `riscv`, and more) (#322)
 - Faster checking for languages whose queries use several `#has-ancestor?`/`#not-has-ancestor?` rules with the same node kinds
 - C#: code in an interpolation that follows escaped braces (`$"{{{name}}}"`) is no longer checked as string text
 - Update dependencies
