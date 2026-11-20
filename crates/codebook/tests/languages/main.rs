@@ -27,6 +27,7 @@ mod test_r;
 mod test_regex;
 mod test_ruby;
 mod test_rust;
+mod test_scala;
 mod test_suggestions;
 mod test_svelte;
 mod test_swift;
