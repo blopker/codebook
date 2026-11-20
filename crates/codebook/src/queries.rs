@@ -30,6 +30,7 @@ pub enum LanguageType {
     R,
     Ruby,
     Rust,
+    Scala,
     Swift,
     TOML,
     Text,
@@ -328,6 +329,13 @@ pub static LANGUAGE_SETTINGS: &[LanguageSetting] = &[
         query: include_str!("queries/hcl.scm"),
         extensions: &["tf", "tfvars", "tofu", "hcl"],
     },
+    LanguageSetting {
+        type_: LanguageType::Scala,
+        ids: &["scala"],
+        dictionary_ids: &["scala"],
+        query: include_str!("queries/scala.scm"),
+        extensions: &["scala", "sc"],
+    },
 ];
 
 #[derive(Debug)]
@@ -369,6 +377,7 @@ impl LanguageSetting {
             LanguageType::R => Some(tree_sitter_r::LANGUAGE.into()),
             LanguageType::Ruby => Some(tree_sitter_ruby::LANGUAGE.into()),
             LanguageType::Rust => Some(tree_sitter_rust::LANGUAGE.into()),
+            LanguageType::Scala => Some(tree_sitter_scala::LANGUAGE.into()),
             LanguageType::Swift => Some(tree_sitter_swift::LANGUAGE.into()),
             LanguageType::TOML => Some(tree_sitter_toml_ng::LANGUAGE.into()),
             LanguageType::Text => None,
