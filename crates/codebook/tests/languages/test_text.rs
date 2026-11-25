@@ -1,6 +1,6 @@
 use codebook::queries::LanguageType;
 
-use super::utils::{assert_spelling_at, get_processor, spell_check};
+use super::utils::{assert_spelling, assert_spelling_at, get_processor, spell_check};
 
 #[test]
 fn test_text_simple() {
@@ -45,4 +45,18 @@ fn test_text_no_false_positives_after_emoji() {
         "hello 😀 world, this is all spelled correctly",
     );
     assert!(results.is_empty(), "unexpected flags: {results:?}");
+}
+
+/// A possessive is flagged only when its stem is misspelled, and the diagnostic
+/// covers only the stem.
+#[test]
+fn test_text_possessive() {
+    let sample_text =
+        "strconv's docs, the identifier’s case, THE README'S STYLE, and the inphografic's colors";
+    assert_spelling(
+        LanguageType::Text,
+        sample_text,
+        &["inphografic"],
+        &["strconv's", "identifier’s", "README'S"],
+    );
 }
