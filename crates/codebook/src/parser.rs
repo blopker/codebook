@@ -716,7 +716,7 @@ fn extract_words_from_text<'a>(
             if is_within_skip_range(global_offset, global_offset + word.len(), skip_ranges) {
                 continue;
             }
-            splitter::split_into(word, &mut split_buf);
+            splitter::split_into(strip_apostrophe_s(word), &mut split_buf);
             for split_word in &split_buf {
                 if is_numeric(split_word.word) {
                     continue;
@@ -755,6 +755,15 @@ fn split_on_whitespace_indices(s: &str) -> impl Iterator<Item = (usize, &str)> {
         }
         Some((start, &s[start..end]))
     })
+}
+
+/// Strips at most one apostrophe-s suffix from `s` (case insensitive),
+/// including both straight (ASCII) and curly (Unicode) apostrophes.
+fn strip_apostrophe_s(s: &str) -> &str {
+    ["'s", "'S", "’s", "’S"]
+        .into_iter()
+        .find_map(|suffix| s.strip_suffix(suffix))
+        .unwrap_or(s)
 }
 
 fn is_numeric(s: &str) -> bool {
@@ -1013,6 +1022,31 @@ Text with \cite[see p.~3]{key} and $\text{math \emph{deep}}$.
         for e in &expected {
             assert!(word_strings.contains(e), "Expected word '{e}' not found");
         }
+    }
+
+    #[test]
+    fn test_extract_words_possessive() {
+        // A possessive is checked as its stem, with straight or curly
+        // apostrophes, regardless of casing, and in compound names.
+        let text = "rustc's rustfmt’s CLIPPY'S SUBMODULE’S barFoo's BAZ_QUX'S";
+        let (words, _) = extract_all_words(text, LanguageType::Text, &|_| true, &[]);
+        for w in &words {
+            assert_eq!(w.word, &text[w.start_byte..w.end_byte]);
+        }
+        let word_strings: Vec<&str> = words.iter().map(|w| w.word).collect();
+        assert_eq!(
+            word_strings,
+            [
+                "rustc",
+                "rustfmt",
+                "CLIPPY",
+                "SUBMODULE",
+                "bar",
+                "Foo",
+                "BAZ",
+                "QUX"
+            ]
+        );
     }
 
     #[test]

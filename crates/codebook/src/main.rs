@@ -267,7 +267,7 @@ fn benchmark_text_file(processor: &Codebook, iterations: usize) {
         LanguageType::Text,
         iterations,
         "Text",
-        Some(262), // Expected misspellings for assertion
+        Some(234), // Expected misspellings for assertion
     );
 
     print_benchmark_results("Text file", iterations, duration);
